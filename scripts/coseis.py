@@ -1,6 +1,7 @@
 import requests
+import json
 import geojson
-from shapely.geometry import Point, Polygon
+from shapely.geometry import mapping, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from datetime import datetime, timedelta, timezone
 
 
@@ -21,8 +22,25 @@ def check_for_new_data(eq_api):
         response.raise_for_status()  # Raise error if request fails
         
         # Parse the response as GeoJSON
-        data = geojson.loads(response.text)
-        return data
+        earthquakes = geojson.loads(response.text)
+        
+        # Convert the MultiLineString to GeoJSON format
+        # geojson_data = {
+        #     "type": "FeatureCollection",
+        #     "features": [
+        #         {
+        #             "type": "Feature",
+        #             "geometry": mapping(earthquakes),
+        #             "properties": {}
+        #         }
+        #     ]
+        # }
+
+        # Save to a GeoJSON file
+        # output_file = "earthquakes.geojson"
+        # with open(output_file, "w") as f:
+        #     json.dump(earthquakes, f, indent=2)
+        return earthquakes
 
     except requests.RequestException as e:
         print(f"Error accessing primary API: {e}")
@@ -41,8 +59,49 @@ def get_coastline(coastline_api):
         response.raise_for_status()  # Raise error if request fails
         
         # Parse the response as GeoJSON
-        data = geojson.loads(response.text)
-        return data
+        coastline = geojson.loads(response.text)
+
+        # Extract the LineString features from the GeoJSON data
+        features = []
+        for feature in coastline["features"]:
+            if feature["geometry"]["type"] == "LineString":
+                features.append(LineString(feature["geometry"]["coordinates"]))
+            else: 
+                print("Coastline data is not in LineString format.") # Ensure each feature is a LineString
+        
+        # Convert LineStrings to Polygons
+        polygons = []
+        for line in features:
+            if line.is_ring:  # Check if the LineString is closed
+                polygons.append(Polygon(line))
+            else:
+                # Close the LineString and create a Polygon
+                closed_line = LineString(list(line.coords) + [line.coords[0]])
+                polygons.append(Polygon(closed_line))
+
+        # Combine all polygons into a MultiPolygon
+        coastline = MultiPolygon(polygons)
+
+        # Buffer the coastline by 0.5 degrees        
+        coastline = coastline.buffer(0.5)
+
+        # # Convert the MultiLineString to GeoJSON format
+        # geojson_data = {
+        #     "type": "FeatureCollection",
+        #     "features": [
+        #         {
+        #             "type": "Feature",
+        #             "geometry": mapping(coastline),
+        #             "properties": {}
+        #         }
+        #     ]
+        # }
+
+        # # Save to a GeoJSON file
+        # output_file = "multilinestring_coastline_polys_buffered.geojson"
+        # with open(output_file, "w") as f:
+        #     json.dump(geojson_data, f, indent=2)
+        return coastline
     
     except requests.RequestException as e:
         print(f"Error accessing coastline API: {e}")
@@ -50,7 +109,7 @@ def get_coastline(coastline_api):
     except geojson.GeoJSONDecodeError as e:
         print(f"Error parsing GeoJSON data: {e}")
         return None
-
+    
 def parse_geojson(geojson_data):
     """
     Parses the features of a GeoJSON object and creates a dictionary for each earthquake (feature),
@@ -78,6 +137,23 @@ def parse_geojson(geojson_data):
         earthquakes.append(feature_dict)
     return earthquakes
 
+def withinCoastline(earthquake, coastline):
+    """
+    Determine if earthquake epicenter is within 0.5 decimal degrees (~55 km) of the coastline.
+    """
+    # Extract the coordinates of the earthquake's epicenter
+    coords = earthquake.get('coordinates', [])
+    if not coords:
+        return None
+
+    # Create a Point object from the earthquake's coordinates
+    epicenter = Point(coords[:2])
+    
+    # Determine if the epicenter is within the coastline
+    within_coastline = coastline.contains(epicenter)
+    
+    return within_coastline
+
 def check_significance(earthquakes):
     """
     Checks the significance of each earthquake based on its 
@@ -86,17 +162,22 @@ def check_significance(earthquakes):
     """
     significant_earthquakes = []
     alert_list = ['yellow', 'orange', 'red']
+    coastline = get_coastline(coastline_api)
 
     for earthquake in earthquakes:
         magnitude = earthquake.get('mag')
         alert = earthquake.get('alert')
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
-        print(magnitude, alert, depth)  
-        if all(var is not None for var in (magnitude, alert, depth)):
-            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0):
+        within_Coastline = withinCoastline(earthquake, coastline)
+
+        if all(var is not None for var in (magnitude, alert, depth, within_Coastline)):
+            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0 and (within_Coastline == True)):
                 significant_earthquakes.append(earthquake)
-        else:
-            print("Received incomplete earthquake data.")
+            else:
+                print("Earthquake data does not meet significance criteria.")
+        # else:
+        #     print("Received incomplete earthquake data.")
+        
     return significant_earthquakes
 
 def make_aoi(coordinates):
@@ -211,7 +292,7 @@ if __name__ == "__main__":
 
             # Parse the ASF GeoJSON data
             ASF_data = parse_geojson(ASF_geojson)
-    # # Fetch GeoJSON data from the coastline API
-    # coastline_data = get_coastline(coastline_api)
+        # # Fetch GeoJSON data from the coastline API
+        # coastline_data = get_coastline(coastline_api)
 
 
