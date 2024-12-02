@@ -91,9 +91,12 @@ def check_significance(earthquakes):
         magnitude = earthquake.get('mag')
         alert = earthquake.get('alert')
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
-        if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0):
-            significant_earthquakes.append(earthquake)
-
+        print(magnitude, alert, depth)  
+        if all(var is not None for var in (magnitude, alert, depth)):
+            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0):
+                significant_earthquakes.append(earthquake)
+        else:
+            print("Received incomplete earthquake data.")
     return significant_earthquakes
 
 def make_aoi(coordinates):
@@ -134,7 +137,7 @@ def convert_time(time):
     dt = dt.replace(microsecond=0)
     return dt
     
-def query_ASFDAAC(AOI, time):
+def query_asfDAAC(AOI, time):
     """
     Query the ASF DAAC API for SAR data within the Area of Interest (AOI).
     """
@@ -204,7 +207,7 @@ if __name__ == "__main__":
             print(f"Area of Interest (AOI) for Earthquake: {aoi}")
             
             # Query the ASF DAAC API for SAR data within the AOI
-            ASF_geojson = query_ASFDAAC(aoi, eq.get('time'))
+            ASF_geojson = query_asfDAAC(aoi, eq.get('time'))
 
             # Parse the ASF GeoJSON data
             ASF_data = parse_geojson(ASF_geojson)
