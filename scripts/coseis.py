@@ -1,3 +1,4 @@
+import asf_search as asf
 import requests
 import json
 import geojson
@@ -173,8 +174,8 @@ def check_significance(earthquakes):
         if all(var is not None for var in (magnitude, alert, depth, within_Coastline)):
             if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0 and (within_Coastline == True)):
                 significant_earthquakes.append(earthquake)
-            else:
-                print("Earthquake data does not meet significance criteria.")
+            # else:
+            #     print("Earthquake data does not meet significance criteria.")
         # else:
         #     print("Received incomplete earthquake data.")
         
@@ -204,6 +205,11 @@ def make_aoi(coordinates):
     
     # Create the square polygon
     AOI = Polygon(square_coords)
+
+    # Write to a geojson file
+    with open('AOI.geojson', 'w') as f:
+        geojson.dump(AOI, f, indent=2)
+
     return AOI
 
 def convert_time(time):
@@ -220,7 +226,7 @@ def convert_time(time):
     
 def query_asfDAAC(AOI, time):
     """
-    Query the ASF DAAC API for SAR data within the Area of Interest (AOI).
+    Query the ASF DAAC API for S1 data within the Area of Interest (AOI).
     """
     # Define the ASF DAAC API endpoint
     ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
@@ -243,6 +249,8 @@ def query_asfDAAC(AOI, time):
     params = {
         'intersectsWith': AOI.wkt,
         'dataset': 'SENTINEL-1',
+        'processingLevel': 'SLC',
+        'flightDirection': 'ASCENDING',
         'start':start_date,
         'end':end_date,
         'output': 'geojson'
@@ -252,7 +260,7 @@ def query_asfDAAC(AOI, time):
         # Fetch data from the ASF DAAC API
         response = requests.get(ASF_DAAC_API, params=params)
         response.raise_for_status()  # Raise error if request fails
-        
+
         # Parse the response as GeoJSON
         data = geojson.loads(response.text)
 
@@ -260,13 +268,21 @@ def query_asfDAAC(AOI, time):
         with open('ASF_query.geojson', 'w') as f:
             geojson.dump(data, f, indent=2)
 
-        return data
+        # Extract the file IDs and URLs from the GeoJSON data
+        fileIDs = []
+        urls = []
+        for feature in data['features']:
+            url = feature['properties']['url']
+            urls.append(url)
+            fileID = feature['properties']['fileID']
+            fileIDs.append(fileID)
+        return fileIDs, urls
     
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
         return None
 
-if __name__ == "__main__":
+def main():
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
     geojson_data = check_for_new_data(USGS_api)
     
@@ -287,12 +303,9 @@ if __name__ == "__main__":
             aoi = make_aoi(coords)
             print(f"Area of Interest (AOI) for Earthquake: {aoi}")
             
-            # Query the ASF DAAC API for SAR data within the AOI
-            ASF_geojson = query_asfDAAC(aoi, eq.get('time'))
-
-            # Parse the ASF GeoJSON data
-            ASF_data = parse_geojson(ASF_geojson)
-        # # Fetch GeoJSON data from the coastline API
-        # coastline_data = get_coastline(coastline_api)
-
-
+        # Query the ASF DAAC API for SAR data within the AOI
+        urls = query_asfDAAC(aoi, eq.get('time'))
+        return urls
+    
+if __name__ == "__main__":
+    main()
