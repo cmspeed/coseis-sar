@@ -4,13 +4,54 @@ import json
 import geojson
 from shapely.geometry import mapping, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from datetime import datetime, timedelta, timezone
+import logging
 
+# Set logging level to WARNING to suppress DEBUG and INFO logs
+logging.basicConfig(level=logging.WARNING)
 
-# Configuration
-#USGS_api = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"  # USGS Earthquake API - Hourly
-USGS_api = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson"  # USGS Earthquake API - Monthly
+# API Endpoints
+USGS_api_hourly = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"  # USGS Earthquake API - Hourly
+USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson"  # USGS Earthquake API - Monthly
+USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
+
+def get_historic_earthquake_data(eq_api, start_time, end_time, min_magnitude):
+    """
+    Fetches data from the USGS Earthquake Portal and returns it as a GeoJSON object.
+    The data returned will depend on the parameters included with the API request.
+    """
+    try:
+
+        # Parameters for the API request
+        params = {
+            "format": "geojson",
+            "starttime": start_time,
+            "endtime": end_time,
+            "minmagnitude": min_magnitude,
+            "maxdepth": 30.0
+        }
+
+        # Fetch data from the USGS Earthquake API
+        response = requests.get(eq_api, params=params)
+        response.raise_for_status()  # Raise error if request fails
+        
+        # Parse the response as GeoJSON
+        earthquakes = geojson.loads(response.text)
+
+        # Save to a GeoJSON file
+        output_file = "historic_earthquakes.geojson"
+        with open(output_file, "w") as f:
+            json.dump(earthquakes, f, indent=2)
+        
+        return earthquakes
+
+    except requests.RequestException as e:
+        print(f"Error accessing primary API: {e}")
+        return None
+    except geojson.GeoJSONDecodeError as e:
+        print(f"Error parsing GeoJSON data: {e}")
+        return None
 
 def check_for_new_data(eq_api):
     """
@@ -233,9 +274,9 @@ def query_asfDAAC(AOI, time):
 
     # Establish the date range for the query
     rupture_date = convert_time(time)
-    start_date = rupture_date - timedelta(days=12)  # 12 days before the earthquake
+    start_date = rupture_date - timedelta(days=1)  # 6 days before the earthquake
     start_date= start_date.replace(hour=0, minute=0, second=0)
-    end_date = rupture_date + timedelta(days=12)    # 12 days after the earthquake
+    end_date = rupture_date + timedelta(days=9)    # 6 days after the earthquake
     end_date = end_date.replace(hour=11, minute=59, second=59)
 
     # Format the datetime object into a string
@@ -268,23 +309,20 @@ def query_asfDAAC(AOI, time):
         with open('ASF_query.geojson', 'w') as f:
             geojson.dump(data, f, indent=2)
 
-        # Extract the file IDs and URLs from the GeoJSON data
+        # Extract the file IDs from the GeoJSON data
         fileIDs = []
-        urls = []
         for feature in data['features']:
-            url = feature['properties']['url']
-            urls.append(url)
             fileID = feature['properties']['fileID']
             fileIDs.append(fileID)
-        return fileIDs, urls
+        return fileIDs
     
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
         return None
 
-def main():
+def main_forward():
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    geojson_data = check_for_new_data(USGS_api)
+    geojson_data = check_for_new_data(USGS_api_30day)
     
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
@@ -304,8 +342,34 @@ def main():
             print(f"Area of Interest (AOI) for Earthquake: {aoi}")
             
         # Query the ASF DAAC API for SAR data within the AOI
-        urls = query_asfDAAC(aoi, eq.get('time'))
-        return urls
+        fileIDs = query_asfDAAC(aoi, eq.get('time'))
+        return fileIDs
     
+def main_historic():
+    # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
+    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2019-07-03", end_time="2019-07-12", min_magnitude=6.0)
+    
+    if geojson_data:
+        # Parse GeoJSON and create variables for each feature's properties
+        earthquakes = parse_geojson(geojson_data)
+        eq_sig = check_significance(earthquakes)
+
+        if eq_sig:
+            print("Significant Earthquakes:")
+            for eq in eq_sig:
+                print(eq)
+        else:
+            print("No significant earthquakes found.")
+
+        for eq in eq_sig:
+            coords = eq.get('coordinates', [])
+            aoi = make_aoi(coords)
+            print(f"Area of Interest (AOI) for Earthquake: {aoi}")
+            
+        # Query the ASF DAAC API for SAR data within the AOI
+        fileIDs = query_asfDAAC(aoi, eq.get('time'))
+        return fileIDs
+
 if __name__ == "__main__":
-    main()
+    #main_forward()
+    main_historic()
