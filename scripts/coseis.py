@@ -65,23 +65,11 @@ def check_for_new_data(eq_api):
         
         # Parse the response as GeoJSON
         earthquakes = geojson.loads(response.text)
-        
-        # Convert the MultiLineString to GeoJSON format
-        # geojson_data = {
-        #     "type": "FeatureCollection",
-        #     "features": [
-        #         {
-        #             "type": "Feature",
-        #             "geometry": mapping(earthquakes),
-        #             "properties": {}
-        #         }
-        #     ]
-        # }
-
+    
         # Save to a GeoJSON file
-        # output_file = "earthquakes.geojson"
-        # with open(output_file, "w") as f:
-        #     json.dump(earthquakes, f, indent=2)
+        output_file = "earthquakes.geojson"
+        with open(output_file, "w") as f:
+            json.dump(earthquakes, f, indent=2)
         return earthquakes
 
     except requests.RequestException as e:
@@ -127,22 +115,23 @@ def get_coastline(coastline_api):
         # Buffer the coastline by 0.5 degrees        
         coastline = coastline.buffer(0.5)
 
-        # # Convert the MultiLineString to GeoJSON format
-        # geojson_data = {
-        #     "type": "FeatureCollection",
-        #     "features": [
-        #         {
-        #             "type": "Feature",
-        #             "geometry": mapping(coastline),
-        #             "properties": {}
-        #         }
-        #     ]
-        # }
+        # Convert the MultiLineString to GeoJSON format
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": mapping(coastline),
+                    "properties": {}
+                }
+            ]
+        }
 
-        # # Save to a GeoJSON file
-        # output_file = "multilinestring_coastline_polys_buffered.geojson"
-        # with open(output_file, "w") as f:
-        #     json.dump(geojson_data, f, indent=2)
+        # Save to a GeoJSON file
+        output_file = "coastline_buffered.geojson"
+        with open(output_file, "w") as f:
+            json.dump(geojson_data, f, indent=2)
+
         return coastline
     
     except requests.RequestException as e:
