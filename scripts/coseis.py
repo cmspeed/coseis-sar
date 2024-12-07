@@ -200,9 +200,8 @@ def check_significance(earthquakes):
         alert = earthquake.get('alert')
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
         within_Coastline = withinCoastline(earthquake, coastline)
-
-        if all(var is not None for var in (magnitude, alert, depth, within_Coastline)):
-            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0 and (within_Coastline == True)):
+        if all(var is not None for var in (magnitude, alert, depth)):
+            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0):
                 significant_earthquakes.append(earthquake)
             # else:
             #     print("Earthquake data does not meet significance criteria.")
@@ -336,8 +335,8 @@ def main_forward():
     
 def main_historic():
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2019-07-03", end_time="2019-07-12", min_magnitude=6.0)
-    
+    #geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2019-07-03", end_time="2019-07-12", min_magnitude=6.0)
+    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2024-12-01", end_time="2024-12-06", min_magnitude=6.0)
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
@@ -360,5 +359,5 @@ def main_historic():
         return fileIDs
 
 if __name__ == "__main__":
-    #main_forward()
-    main_historic()
+    main_forward()
+    #main_historic()
