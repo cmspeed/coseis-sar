@@ -219,7 +219,8 @@ def make_aoi(coordinates):
     Y = coordinates[1]
 
     # Define the side length of the square AOI in decimal degrees
-    side_length = 0.5  # 1 degree is ~111 km at the equator
+    #side_length = 0.5  # 1 degree is ~111 km at the equator
+    side_length = 1.0
 
     # Calculate half side length
     half_side = side_length / 2
@@ -262,29 +263,30 @@ def query_asfDAAC(AOI, time):
 
     # Establish the date range for the query
     rupture_date = convert_time(time)
-    start_date = rupture_date - timedelta(days=1)  # 6 days before the earthquake
+    start_date = rupture_date - timedelta(days=12)  # 12 days before the earthquake
     start_date= start_date.replace(hour=0, minute=0, second=0)
-    end_date = rupture_date + timedelta(days=9)    # 6 days after the earthquake
+    end_date = rupture_date + timedelta(days=12)    # 12 days after the earthquake
     end_date = end_date.replace(hour=11, minute=59, second=59)
 
     # Format the datetime object into a string
     start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
     end_date = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
     
-    print(f"Start Date: {start_date}")
-    print(f"End Date: {end_date}")
+    print(f"Query Start Date: {start_date}")
+    print(f"Query End Date: {end_date}")
     
     # Define the query parameters
     params = {
         'intersectsWith': AOI.wkt,
         'dataset': 'SENTINEL-1',
         'processingLevel': 'SLC',
-        'flightDirection': 'ASCENDING',
         'start':start_date,
         'end':end_date,
         'output': 'geojson'
     }
 
+    print('Querying ASF DAAC API...')
+    print(f"Query Parameters: {params}")
     try:
         # Fetch data from the ASF DAAC API
         response = requests.get(ASF_DAAC_API, params=params)
@@ -298,15 +300,75 @@ def query_asfDAAC(AOI, time):
             geojson.dump(data, f, indent=2)
 
         # Extract the file IDs from the GeoJSON data
-        fileIDs = []
+        result = []
         for feature in data['features']:
-            fileID = feature['properties']['fileID']
-            fileIDs.append(fileID)
-        return fileIDs
+            SLC = {
+                'fileID': feature['properties']['fileID'],
+                'flightDirection': feature['properties']['flightDirection'],
+                'pathNumber': feature['properties']['pathNumber'],
+                'startTime': feature['properties']['startTime'],  # Assuming 'date' is present in the properties
+                'geometry': feature.geometry
+            }
+            result.append(SLC)
+        
+        print(f"Found {len(result)} SLCs intersecting the AOI.")
+        print(f"SLC IDs: {result}")
+        return result
     
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
         return None
+
+def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
+    """
+    Find the SLCs that cover the Area of Interest (AOI) and have appropriate acquisition times bounding the event to produce the InSAR product.
+    """
+    from collections import defaultdict
+    print('=========================================')
+    print('Finding SLC pairs for InSAR processing...')
+    
+    # # Find the SLCs that complain encomass the AOI
+    # containingAOI = []
+    # for SLC in SLCs:
+    #     geometry = SLC.get('geometry')
+    #     # Create a Polygon object from the SLC's geometry
+    #     SLC_polygon = Polygon(geometry['coordinates'][0])
+    #     # Check if the SLC covers the entire AOI by using 'contains' method
+    #     if SLC_polygon.contains(AOI):
+    #         print(f"SLC {SLC['fileID']} contains the AOI.")
+    #         containingAOI.append(SLC)
+
+    rupture_datetime = convert_time(event_datetime).strftime('%Y-%m-%dT%H:%M:%SZ')
+    # Group by flightDirection
+    groups = defaultdict(list)
+    for item in SLCs:
+        groups[item['flightDirection','pathNumber']].append(item)
+
+    # Find the SLC pairs that bound the event datetime
+    bounding_pairs = {}
+    for (flight_direction, path_number), items in groups.items():
+        # Sort items by startTime
+        items.sort(key=lambda x: x['startTime'])
+        
+        # Find the two items that bound the target date
+        lower_bound = None
+        upper_bound = None
+        for item in items:
+            if item['startTime'] <= rupture_datetime:
+                lower_bound = item
+            elif item['startTime'] > rupture_datetime and upper_bound is None:
+                upper_bound = item
+                break
+        
+        if lower_bound and upper_bound:
+            bounding_pairs[(flight_direction, path_number)] = (lower_bound, upper_bound)
+
+    # Print or return the result
+    for (flight_direction, path_number), (lower, upper) in bounding_pairs.items():
+        print(f"Flight Direction: {flight_direction}, Path Number: {path_number}")
+        print(f"Lower Bound: {lower['fileID']} with startTime {lower['startTime']}")
+        print(f"Upper Bound: {upper['fileID']} with startTime {upper['startTime']}"
+    return bounding_pairs
 
 def main_forward():
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
@@ -355,9 +417,11 @@ def main_historic():
             print(f"Area of Interest (AOI) for Earthquake: {aoi}")
             
         # Query the ASF DAAC API for SAR data within the AOI
-        fileIDs = query_asfDAAC(aoi, eq.get('time'))
-        return fileIDs
+        SLCs = query_asfDAAC(aoi, eq.get('time'))
+
+        # Find SLC pairs for InSAR processing
+        SLC_pairs = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
 
 if __name__ == "__main__":
-    main_forward()
-    #main_historic()
+    #main_forward()
+    main_historic()
