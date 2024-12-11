@@ -21,6 +21,9 @@ def get_historic_earthquake_data(eq_api, start_time, end_time, min_magnitude):
     Fetches data from the USGS Earthquake Portal and returns it as a GeoJSON object.
     The data returned will depend on the parameters included with the API request.
     """
+    print('=========================================')
+    print(f"Fetching historic earthquake data from {start_time} to {end_time} with a minimum magnitude of {min_magnitude}...")
+    print('=========================================')
     try:
 
         # Parameters for the API request
@@ -310,9 +313,9 @@ def query_asfDAAC(AOI, time):
                 'geometry': feature.geometry
             }
             result.append(SLC)
-        
+        print('=========================================')
         print(f"Found {len(result)} SLCs intersecting the AOI.")
-        print(f"SLC IDs: {result}")
+        print(f"SLC IDs: {[SLC['fileID'] for SLC in result]}")
         return result
     
     except requests.RequestException as e:
@@ -328,10 +331,17 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
     print('Finding SLC pairs for InSAR processing...')
 
     rupture_datetime = convert_time(event_datetime).strftime('%Y-%m-%dT%H:%M:%SZ')
-    # Group by flightDirection
+
+    # Group by flightDirection and pathNumber
     groups = defaultdict(list)
-    for item in SLCs:
-        groups[item['flightDirection','pathNumber']].append(item)
+    for SLC in SLCs:
+        # Extract flightDirection and pathNumber
+        flight_direction = SLC.get('flightDirection', '').upper()
+        path_number = SLC.get('pathNumber')
+        
+        # Ensure both keys are present
+        if flight_direction and path_number is not None:
+            groups[(flight_direction, path_number)].append(SLC)
 
     # Find the SLC pairs that bound the event datetime
     bounding_pairs = {}
@@ -356,7 +366,8 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
     for (flight_direction, path_number), (lower, upper) in bounding_pairs.items():
         print(f"Flight Direction: {flight_direction}, Path Number: {path_number}")
         print(f"Lower Bound: {lower['fileID']} with startTime {lower['startTime']}")
-        print(f"Upper Bound: {upper['fileID']} with startTime {upper['startTime']}"
+        print(f"Upper Bound: {upper['fileID']} with startTime {upper['startTime']}")
+              
     return bounding_pairs
 
 def main_forward():
