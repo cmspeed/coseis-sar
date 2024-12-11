@@ -61,6 +61,10 @@ def check_for_new_data(eq_api):
     Fetches data from the USGS Earthquake Portal and returns it as a GeoJSON object.
     The data returned is updated hourly and includes all earthquakes occuring during that period.
     """
+    print('=========================================')
+    print("Checking for new earthquake data...")
+    print('=========================================')
+
     try:
         # Fetch data from the USGS Earthquake API
         response = requests.get(eq_api)
@@ -194,6 +198,10 @@ def check_significance(earthquakes):
     (1) magnitude, (2) USGS alert level, (3) depth, and (4) distance from land.
     Criteria: Magnitude >= 6.0, USGS alert level = ['yellow','orange','red], and Depth <= 30.0 km
     """
+    print('=========================================')
+    print("Checking for significant earthquakes...")
+    print('=========================================')
+
     significant_earthquakes = []
     alert_list = ['yellow', 'orange', 'red']
     coastline = get_coastline(coastline_api)
@@ -217,6 +225,10 @@ def make_aoi(coordinates):
     """
     Create an Area of Interest (AOI) polygon based on the given coordinates.
     """
+    print('=========================================')
+    print("Creating Area of Interest (AOI) polygon...")
+    print('=========================================')
+
     # Extract the X and Y coordinates of the earthquake's epicenter
     X = coordinates[0]
     Y = coordinates[1]
@@ -243,6 +255,8 @@ def make_aoi(coordinates):
     with open('AOI.geojson', 'w') as f:
         geojson.dump(AOI, f, indent=2)
 
+    print(f"Area of Interest (AOI) created: {AOI}")
+    print('=========================================')
     return AOI
 
 def convert_time(time):
@@ -275,9 +289,6 @@ def query_asfDAAC(AOI, time):
     start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
     end_date = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
     
-    print(f"Query Start Date: {start_date}")
-    print(f"Query End Date: {end_date}")
-    
     # Define the query parameters
     params = {
         'intersectsWith': AOI.wkt,
@@ -288,8 +299,10 @@ def query_asfDAAC(AOI, time):
         'output': 'geojson'
     }
 
-    print('Querying ASF DAAC API...')
-    print(f"Query Parameters: {params}")
+    print('Performing ASF DAAC API query...')
+    print("Query Parameters:")
+    print(json.dumps(params, indent=4))
+
     try:
         # Fetch data from the ASF DAAC API
         response = requests.get(ASF_DAAC_API, params=params)
@@ -315,7 +328,9 @@ def query_asfDAAC(AOI, time):
             result.append(SLC)
         print('=========================================')
         print(f"Found {len(result)} SLCs intersecting the AOI.")
-        print(f"SLC IDs: {[SLC['fileID'] for SLC in result]}")
+        for SLC in result:
+            print(f"SLC ID: {SLC['fileID']}")
+        print('=========================================')
         return result
     
     except requests.RequestException as e:
@@ -329,6 +344,7 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
     from collections import defaultdict
     print('=========================================')
     print('Finding SLC pairs for InSAR processing...')
+    print('=========================================')
 
     rupture_datetime = convert_time(event_datetime).strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -367,7 +383,7 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
         print(f"Flight Direction: {flight_direction}, Path Number: {path_number}")
         print(f"Lower Bound: {lower['fileID']} with startTime {lower['startTime']}")
         print(f"Upper Bound: {upper['fileID']} with startTime {upper['startTime']}")
-              
+
     return bounding_pairs
 
 def main_forward():
@@ -414,7 +430,6 @@ def main_historic():
         for eq in eq_sig:
             coords = eq.get('coordinates', [])
             aoi = make_aoi(coords)
-            print(f"Area of Interest (AOI) for Earthquake: {aoi}")
             
         # Query the ASF DAAC API for SAR data within the AOI
         SLCs = query_asfDAAC(aoi, eq.get('time'))
