@@ -326,17 +326,6 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
     from collections import defaultdict
     print('=========================================')
     print('Finding SLC pairs for InSAR processing...')
-    
-    # # Find the SLCs that complain encomass the AOI
-    # containingAOI = []
-    # for SLC in SLCs:
-    #     geometry = SLC.get('geometry')
-    #     # Create a Polygon object from the SLC's geometry
-    #     SLC_polygon = Polygon(geometry['coordinates'][0])
-    #     # Check if the SLC covers the entire AOI by using 'contains' method
-    #     if SLC_polygon.contains(AOI):
-    #         print(f"SLC {SLC['fileID']} contains the AOI.")
-    #         containingAOI.append(SLC)
 
     rupture_datetime = convert_time(event_datetime).strftime('%Y-%m-%dT%H:%M:%SZ')
     # Group by flightDirection
