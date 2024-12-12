@@ -2,7 +2,8 @@ import asf_search as asf
 import requests
 import json
 import geojson
-from shapely.geometry import mapping, Point, Polygon, LineString, MultiLineString, MultiPolygon
+from shapely.geometry import mapping, shape, Point, Polygon, LineString, MultiLineString, MultiPolygon
+from shapely.ops import unary_union
 from datetime import datetime, timedelta, timezone
 import logging
 
@@ -322,7 +323,8 @@ def query_asfDAAC(AOI, time):
                 'fileID': feature['properties']['fileID'],
                 'flightDirection': feature['properties']['flightDirection'],
                 'pathNumber': feature['properties']['pathNumber'],
-                'startTime': feature['properties']['startTime'],  # Assuming 'date' is present in the properties
+                'frameNumber': feature['properties']['frameNumber'],
+                'startTime': feature['properties']['startTime'],
                 'geometry': feature.geometry
             }
             result.append(SLC)
@@ -336,10 +338,10 @@ def query_asfDAAC(AOI, time):
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
         return None
-
+    
 def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
     """
-    Find the SLCs that cover the Area of Interest (AOI) and have appropriate acquisition times bounding the event to produce the InSAR product.
+    Find the SLCs that cover the Area of Interest (AOI) with appropriate acquisition times bounding the event to produce the InSAR product.
     """
     from collections import defaultdict
     print('=========================================')
@@ -347,44 +349,117 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
     print('=========================================')
 
     rupture_datetime = convert_time(event_datetime).strftime('%Y-%m-%dT%H:%M:%SZ')
+    rupture_datetime = datetime.strptime(rupture_datetime, '%Y-%m-%dT%H:%M:%SZ')
 
-    # Group by flightDirection and pathNumber
+
+    # Find the SLCs that intersect the AOI with the most overlap
     groups = defaultdict(list)
+    overlap_areas = {}  # To store the total overlap area for each group
     for SLC in SLCs:
         # Extract flightDirection and pathNumber
         flight_direction = SLC.get('flightDirection', '').upper()
         path_number = SLC.get('pathNumber')
-        
+
         # Ensure both keys are present
         if flight_direction and path_number is not None:
             groups[(flight_direction, path_number)].append(SLC)
 
-    # Find the SLC pairs that bound the event datetime
-    bounding_pairs = {}
-    for (flight_direction, path_number), items in groups.items():
-        # Sort items by startTime
-        items.sort(key=lambda x: x['startTime'])
-        
-        # Find the two items that bound the target date
-        lower_bound = None
-        upper_bound = None
-        for item in items:
-            if item['startTime'] <= rupture_datetime:
-                lower_bound = item
-            elif item['startTime'] > rupture_datetime and upper_bound is None:
-                upper_bound = item
-                break
-        
-        if lower_bound and upper_bound:
-            bounding_pairs[(flight_direction, path_number)] = (lower_bound, upper_bound)
+    for key, slcs in groups.items():
+        # Compute the union of all SLC geometries in the group
+        slc_geometries = [shape(slc['geometry']) for slc in slcs]
+        slc_union = unary_union(slc_geometries)
+        # Compute overlap with the AOI
+        total_overlap_area = 0
+        overlap_area = slc_union.intersection(AOI).area
+        total_overlap_area += overlap_area
+        # Store the total overlap area for the group
+        overlap_areas[key] = total_overlap_area
+        # Print the group and its overlap area
+        print(f"{key} with total overlap of the AOI of {total_overlap_area}")
 
-    # Print or return the result
-    for (flight_direction, path_number), (lower, upper) in bounding_pairs.items():
+    print('=========================================')
+    print('Finding optimal ASCENDING and DESCENDING tracks')
+    print('=========================================')
+
+    # Initialize variables to track the groups with the highest overlap
+    best_ascending = None
+    best_descending = None
+    max_overlap_ascending = 0
+    max_overlap_descending = 0
+
+    # Iterate through groups and find the ones with the highest overlap
+    for key, slcs in groups.items():
+        flight_direction, _ = key  # Extract flight direction from the key
+        
+        # Get the total overlap area from the overlap_areas dictionary
+        total_overlap_area = overlap_areas.get(key, 0)
+
+        if flight_direction == "ASCENDING" and total_overlap_area > max_overlap_ascending:
+            max_overlap_ascending = total_overlap_area
+            best_ascending = (key, slcs)
+
+        if flight_direction == "DESCENDING" and total_overlap_area > max_overlap_descending:
+            max_overlap_descending = total_overlap_area
+            best_descending = (key, slcs)
+
+    best_groups = [best_ascending, best_descending]
+
+    print("Best ASCENDING Group:", best_ascending[0], "with total overlap area", max_overlap_ascending)
+    print("Best DESCENDING Group:", best_descending[0], "with total overlap area", max_overlap_descending)
+
+    print('=========================================')
+    print('Make REFERENCE and SECONDARY LISTS...')
+    print('=========================================')
+
+    # Initialize dictionaries to store the "REFERENCE" and "SECONDARY" dictionaries
+    split_groups = {}
+
+    # Iterate through the best groups (best ascending and best descending)
+    for (flight_direction, path_number), slcs in best_groups:
+        # Sort SLCs by startTime to ensure correct order
+        slcs.sort(key=lambda x: x['startTime'])
+        
+        # Initialize empty dictionaries for REFERENCE and SECONDARY
+        reference_slcs = defaultdict(list)
+        secondary_slcs = defaultdict(list)
+        
+        # Split the SLCs based on rupture_datetime
+        for slc in slcs:
+            slc['startTime'] = datetime.strptime(slc['startTime'], '%Y-%m-%dT%H:%M:%S.%fZ')
+        
+            # Extract the date part from the startTime
+            slc_date = slc['startTime'].date()  # Get only the date (YYYY-MM-DD)
+    
+            if slc['startTime'] >= rupture_datetime:
+                reference_slcs[slc_date].append(slc['fileID'])
+            else:
+                secondary_slcs[slc_date].append(slc['fileID'])
+        
+        # Reverse the secondary dictionary by flipping the order of the dates
+        reversed_secondary = dict(reversed(list(secondary_slcs.items())))
+
+        # Store the split SLCs in the dictionary
+        split_groups[(flight_direction, path_number)] = {
+            "REFERENCE": reference_slcs,
+            "SECONDARY": reversed_secondary
+        }
+
+        # Store the REFERENCE and SECONDARY dictionaries in list based on flight direction
+        if flight_direction == "ASCENDING":
+            ascending_group = [reference_slcs, reversed_secondary]
+        elif flight_direction == "DESCENDING":
+            descending_group = [reference_slcs, reversed_secondary]
+
+    print('=========================================')
+    print('REFERENCE and SECONDARY SLCs:')
+    print('=========================================')
+    # Print the result
+    for (flight_direction, path_number), splits in split_groups.items():
         print(f"Flight Direction: {flight_direction}, Path Number: {path_number}")
-        print(f"Lower Bound: {lower['fileID']} with startTime {lower['startTime']}")
-        print(f"Upper Bound: {upper['fileID']} with startTime {upper['startTime']}")
+        print(f"REFERENCE SLCs: {dict(splits['REFERENCE'])}")  # Convert defaultdict to dict for display
+        print(f"SECONDARY SLCs: {dict(splits['SECONDARY'])}")  # Convert defaultdict to dict for display
 
-    return bounding_pairs
+    return ascending_group, descending_group
 
 def main_forward():
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
@@ -413,8 +488,8 @@ def main_forward():
     
 def main_historic():
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    #geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2019-07-03", end_time="2019-07-12", min_magnitude=6.0)
-    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2024-12-01", end_time="2024-12-06", min_magnitude=6.0)
+    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2019-07-05", end_time="2019-07-07", min_magnitude=6.0) # Ridgecrest
+    # geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2024-12-01", end_time="2024-12-06", min_magnitude=5.0) # NorCal
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
@@ -435,7 +510,7 @@ def main_historic():
         SLCs = query_asfDAAC(aoi, eq.get('time'))
 
         # Find SLC pairs for InSAR processing
-        SLC_pairs = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+        reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
 
 if __name__ == "__main__":
     #main_forward()
