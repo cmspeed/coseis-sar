@@ -219,9 +219,45 @@ def check_significance(earthquakes):
             #     print("Earthquake data does not meet significance criteria.")
         # else:
         #     print("Received incomplete earthquake data.")
-        
+
+    # Write significant earthquakes to a GeoJSON file
+    significant_earthquakes_to_geojson(significant_earthquakes)
+
     return significant_earthquakes
 
+def significant_earthquakes_to_geojson(significant_earthquakes):
+    geojson_features = []
+
+    # Loop through each earthquake and create a GeoJSON feature
+    for eq in significant_earthquakes:
+        # Create a GeoJSON feature for each earthquake
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",  # Using Point geometry for each earthquake
+                "coordinates": eq["coordinates"][:2]  # Only take the first two values: longitude and latitude
+            },
+            "properties": {
+                "magnitude": eq["mag"],
+                "place": eq["place"],
+                "time": eq["time"],
+                "alert": eq["alert"],
+                "url": eq["url"],
+                "depth": eq["coordinates"][2]  # Adding the depth (third value in coordinates) as a property
+            }
+        }
+        geojson_features.append(feature)
+
+    # Create the final GeoJSON structure
+    geojson_data = {
+        "type": "FeatureCollection",
+        "features": geojson_features
+    }
+
+    # Save the GeoJSON data to a file
+    with open('significant_earthquakes.geojson', 'w') as f:
+        geojson.dump(geojson_data, f)
+        
 def make_aoi(coordinates):
     """
     Create an Area of Interest (AOI) polygon based on the given coordinates.
@@ -488,29 +524,32 @@ def main_forward():
     
 def main_historic():
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2019-07-05", end_time="2019-07-07", min_magnitude=6.0) # Ridgecrest
-    # geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2024-12-01", end_time="2024-12-06", min_magnitude=5.0) # NorCal
+    #geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2019-07-05", end_time="2019-07-07", min_magnitude=6.0) # Ridgecrest
+    #geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2024-12-01", end_time="2024-12-06", min_magnitude=6.0) # NorCal
+    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2014-06-15", end_time="2024-12-12", min_magnitude=6.0) # Alltime
     if geojson_data:
+        count = 0
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
-        eq_sig = check_significance(earthquakes)
+        significant_earthquakes = check_significance(earthquakes)
 
-        if eq_sig:
+        if significant_earthquakes:
             print("Significant Earthquakes:")
-            for eq in eq_sig:
+            for eq in significant_earthquakes:
+                count += 1
                 print(eq)
         else:
             print("No significant earthquakes found.")
-
-        for eq in eq_sig:
-            coords = eq.get('coordinates', [])
-            aoi = make_aoi(coords)
+        print('total significant earthquakes:', count)
+        # for eq in eq_sig:
+        #     coords = eq.get('coordinates', [])
+        #     aoi = make_aoi(coords)
             
-        # Query the ASF DAAC API for SAR data within the AOI
-        SLCs = query_asfDAAC(aoi, eq.get('time'))
+        # # Query the ASF DAAC API for SAR data within the AOI
+        # SLCs = query_asfDAAC(aoi, eq.get('time'))
 
-        # Find SLC pairs for InSAR processing
-        reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+        # # Find SLC pairs for InSAR processing
+        # reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
 
 if __name__ == "__main__":
     #main_forward()
