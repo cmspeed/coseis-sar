@@ -1,3 +1,4 @@
+import argparse
 import asf_search as asf
 import requests
 import json
@@ -17,13 +18,13 @@ USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Ear
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
 
-def get_historic_earthquake_data(eq_api, start_time, end_time, min_magnitude):
+def get_historic_earthquake_data(eq_api, start_time, end_time):
     """
     Fetches data from the USGS Earthquake Portal and returns it as a GeoJSON object.
     The data returned will depend on the parameters included with the API request.
     """
     print('=========================================')
-    print(f"Fetching historic earthquake data from {start_time} to {end_time} with a minimum magnitude of {min_magnitude}...")
+    print(f"Fetching historic earthquake data from {start_time} to {end_time}...")
     print('=========================================')
     try:
 
@@ -32,7 +33,7 @@ def get_historic_earthquake_data(eq_api, start_time, end_time, min_magnitude):
             "format": "geojson",
             "starttime": start_time,
             "endtime": end_time,
-            "minmagnitude": min_magnitude,
+            "minmagnitude": 6.0,
             "maxdepth": 30.0
         }
 
@@ -499,7 +500,7 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
 
 def main_forward():
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    geojson_data = check_for_new_data(USGS_api_30day)
+    geojson_data = check_for_new_data(USGS_api_hourly)
     
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
@@ -522,11 +523,11 @@ def main_forward():
         fileIDs = query_asfDAAC(aoi, eq.get('time'))
         return fileIDs
     
-def main_historic():
+def main_historic(start_date, end_date):
+
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    #geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2019-07-05", end_time="2019-07-07", min_magnitude=6.0) # Ridgecrest
-    #geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2024-12-01", end_time="2024-12-06", min_magnitude=6.0) # NorCal
-    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_time="2014-06-15", end_time="2024-12-12", min_magnitude=6.0) # Alltime
+    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_date, end_date)
+
     if geojson_data:
         count = 0
         # Parse GeoJSON and create variables for each feature's properties
@@ -541,16 +542,27 @@ def main_historic():
         else:
             print("No significant earthquakes found.")
         print('total significant earthquakes:', count)
-        # for eq in eq_sig:
-        #     coords = eq.get('coordinates', [])
-        #     aoi = make_aoi(coords)
+        for eq in significant_earthquakes:
+            coords = eq.get('coordinates', [])
+            aoi = make_aoi(coords)
             
-        # # Query the ASF DAAC API for SAR data within the AOI
-        # SLCs = query_asfDAAC(aoi, eq.get('time'))
+        # Query the ASF DAAC API for SAR data within the AOI
+        SLCs = query_asfDAAC(aoi, eq.get('time'))
 
-        # # Find SLC pairs for InSAR processing
-        # reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+        # Find SLC pairs for InSAR processing
+        reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
 
 if __name__ == "__main__":
-    #main_forward()
-    main_historic()
+    parser = argparse.ArgumentParser(
+        description="Run historic or forward processing based on input arguments."
+    )
+    parser.add_argument("start_date", nargs="?", help="The start date in YYYY-MM-DD format.")
+    parser.add_argument("end_date", nargs="?", help="The end date in YYYY-MM-DD format.")
+
+    args = parser.parse_args()
+
+    # Check if arguments are provided
+    if args.start_date and args.end_date:
+        main_historic(args.start_date, args.end_date)
+    else:
+        main_forward()
