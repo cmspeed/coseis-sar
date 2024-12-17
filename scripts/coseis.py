@@ -216,15 +216,16 @@ def check_significance(earthquakes):
         if all(var is not None for var in (magnitude, alert, depth)):
             if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0):
                 significant_earthquakes.append(earthquake)
-            # else:
-            #     print("Earthquake data does not meet significance criteria.")
-        # else:
-        #     print("Received incomplete earthquake data.")
 
     # Write significant earthquakes to a GeoJSON file
-    significant_earthquakes_to_geojson(significant_earthquakes)
-
-    return significant_earthquakes
+    if len(significant_earthquakes) > 0:
+        print('=========================================')
+        print(significant_earthquakes)
+        print('=========================================')
+        significant_earthquakes_to_geojson(significant_earthquakes)
+        return significant_earthquakes
+    else:
+        return None
 
 def significant_earthquakes_to_geojson(significant_earthquakes):
     geojson_features = []
@@ -499,6 +500,7 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
     return ascending_group, descending_group
 
 def main_forward():
+
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
     geojson_data = check_for_new_data(USGS_api_hourly)
     
@@ -507,21 +509,19 @@ def main_forward():
         earthquakes = parse_geojson(geojson_data)
         eq_sig = check_significance(earthquakes)
 
-        if eq_sig:
-            print("Significant Earthquakes:")
+        if eq_sig is not None:
             for eq in eq_sig:
-                print(eq)
-        else:
-            print("No significant earthquakes found.")
-
-        for eq in eq_sig:
-            coords = eq.get('coordinates', [])
-            aoi = make_aoi(coords)
-            print(f"Area of Interest (AOI) for Earthquake: {aoi}")
+                coords = eq.get('coordinates', [])
+                aoi = make_aoi(coords)
             
-        # Query the ASF DAAC API for SAR data within the AOI
-        fileIDs = query_asfDAAC(aoi, eq.get('time'))
-        return fileIDs
+                # Query the ASF DAAC API for SAR data within the AOI
+                SLCs = query_asfDAAC(aoi, eq.get('time'))
+
+            # Find SLC pairs for InSAR processing
+            reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+
+        else:
+            print("No significant earthquakes found in the last hour.")
     
 def main_historic(start_date, end_date):
 
@@ -529,28 +529,23 @@ def main_historic(start_date, end_date):
     geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_date, end_date)
 
     if geojson_data:
-        count = 0
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
-        significant_earthquakes = check_significance(earthquakes)
+        eq_sig = check_significance(earthquakes)
 
-        if significant_earthquakes:
-            print("Significant Earthquakes:")
-            for eq in significant_earthquakes:
-                count += 1
-                print(eq)
-        else:
-            print("No significant earthquakes found.")
-        print('total significant earthquakes:', count)
-        for eq in significant_earthquakes:
-            coords = eq.get('coordinates', [])
-            aoi = make_aoi(coords)
+        if eq_sig is not None:
+            for eq in eq_sig:
+                coords = eq.get('coordinates', [])
+                aoi = make_aoi(coords)
+                
+                # Query the ASF DAAC API for SAR data within the AOI
+                SLCs = query_asfDAAC(aoi, eq.get('time'))
+
+                # Find SLC pairs for InSAR processing
+                reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
             
-        # Query the ASF DAAC API for SAR data within the AOI
-        SLCs = query_asfDAAC(aoi, eq.get('time'))
-
-        # Find SLC pairs for InSAR processing
-        reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+        else:
+            print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
