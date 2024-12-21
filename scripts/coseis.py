@@ -214,11 +214,13 @@ def check_significance(earthquakes):
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
         within_Coastline = withinCoastline(earthquake, coastline)
         if all(var is not None for var in (magnitude, alert, depth)):
-            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0):
+            if (magnitude >= 7.8) and (alert in alert_list) and (depth <= 30.0):
                 significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
     if len(significant_earthquakes) > 0:
+        print('=========================================')
+        print(f"Found {len(significant_earthquakes)} significant earthquakes.")
         print('=========================================')
         print(significant_earthquakes)
         print('=========================================')
@@ -460,7 +462,7 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
         # Initialize empty dictionaries for REFERENCE and SECONDARY
         reference_slcs = defaultdict(list)
         secondary_slcs = defaultdict(list)
-        
+
         # Split the SLCs based on rupture_datetime
         for slc in slcs:
             slc['startTime'] = datetime.strptime(slc['startTime'], '%Y-%m-%dT%H:%M:%S.%fZ')
@@ -469,9 +471,9 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
             slc_date = slc['startTime'].date()  # Get only the date (YYYY-MM-DD)
     
             if slc['startTime'] >= rupture_datetime:
-                reference_slcs[slc_date].append(slc['fileID'])
+                reference_slcs[slc_date].append(slc['fileID'].split('-SLC')[0])
             else:
-                secondary_slcs[slc_date].append(slc['fileID'])
+                secondary_slcs[slc_date].append(slc['fileID'].split('-SLC')[0])
         
         # Reverse the secondary dictionary by flipping the order of the dates
         reversed_secondary = dict(reversed(list(secondary_slcs.items())))
@@ -498,6 +500,49 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
         print(f"SECONDARY SLCs: {dict(splits['SECONDARY'])}")  # Convert defaultdict to dict for display
 
     return ascending_group, descending_group
+
+def make_jsons(ascending_group, descending_group):
+    """
+    Create JSON files for the ascending and descending groups.
+    """
+    # Create JSON for the ascending group
+    ascending_json = {
+        "reference_scenes": list(ascending_group[0].values())[0],
+        "secondary_scenes": list(ascending_group[1].values())[0],
+        "frame_id": -1,
+        "estimate_ionosphere_delay": True,
+        "compute_solid_earth_tide": True,
+        "output_resolution": 30,
+        "unfiltered_coherence": True,
+        "goldstein_filter_power": 0.5,
+        "dense_offsets": True,
+        "wrapped_phase_layer": True,
+        "esd_coherence_threshold": -1
+        }
+    
+    # Create JSON for the descending group
+    descending_json = {
+        "reference_scenes": list(descending_group[0].values())[0],
+        "secondary_scenes": list(descending_group[1].values())[0],
+        "frame_id": -1,
+        "estimate_ionosphere_delay": True,
+        "compute_solid_earth_tide": True,
+        "output_resolution": 30,
+        "unfiltered_coherence": True,
+        "goldstein_filter_power": 0.5,
+        "dense_offsets": True,
+        "wrapped_phase_layer": True,
+        "esd_coherence_threshold": -1
+        }
+
+    # Save the JSON data to files
+    with open('ascending_group.json', 'w') as f:
+        json.dump(ascending_json, f, indent=2)
+    
+    with open('descending_group.json', 'w') as f:
+        json.dump(descending_json, f, indent=2)
+
+    return ascending_json, descending_json
 
 def main_forward():
 
@@ -542,8 +587,13 @@ def main_historic(start_date, end_date):
                 SLCs = query_asfDAAC(aoi, eq.get('time'))
 
                 # Find SLC pairs for InSAR processing
-                reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
-            
+                ascending_group, descending_group = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+
+                # Make jsons for processing
+                ascending_json, descending_json = make_jsons(ascending_group, descending_group)
+
+            return ascending_json, descending_json
+                    
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
