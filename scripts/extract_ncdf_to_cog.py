@@ -46,7 +46,7 @@ def extract_footprint(netCDF_path, output_dir):
 
 def colorize_netCDF_layer_COG(netcdf_path, output_dir):
     """
-    Function to colorize a layer using a gdalem.
+    Function to produce 4-band cloud optimized GeoTIFFs from a NetCDF sublayers.
     """
     with rasterio.open(netcdf_path) as dataset:
         subdatasets = dataset.subdatasets
@@ -56,7 +56,7 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
             return
 
         #rasters = ['azimuthPixelOffsets', 'rangePixelOffsets', 'unfilteredCoherence', 'amplitude', 'unwrappedPhase']
-        rasters = ['unwrappedPhase']
+        rasters = ['amplitude', 'unwrappedPhase']
 
         # Ensure the output directory exists
         os.makedirs(output_dir, exist_ok=True)
@@ -69,8 +69,10 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
             # Determine the colormap based on the raster layer
             if raster in ['azimuthPixelOffsets', 'rangePixelOffsets', 'unwrappedPhase']:
                 cmap = plt.get_cmap("RdYlBu")
+                is_grayscale = False
             else:
-                cmap = plt.get_cmap("Greys")
+                cmap = plt.get_cmap("Greys_r")
+                is_grayscale = True
 
             # Make a color table text file for input into gdalem
             with rasterio.open(subdataset_name) as src:
@@ -92,20 +94,26 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
                 color_table_lines = []
 
                 for value in np.linspace(p2, p98, 256):
-                    rgba = cmap(norm(value))
-                    rgb = tuple(int(c * 255) for c in rgba[:3])  # Normalize to 0-255
-                    color_table_lines.append(f"{value:.2f} {rgb[0]} {rgb[1]} {rgb[2]}")
+                    if is_grayscale:
+                        intensity = int(255 * (value - p2) / (p98 - p2))
+                        # Replace 0 with 1 in grayscale intensity
+                        intensity = max(intensity, 1)
+                        color_table_lines.append(f"{value:.2f} {intensity} {intensity} {intensity}")
+                    else:
+                        rgba = cmap(norm(value))
+                        rgb = tuple(max(int(c * 255), 1) for c in rgba[:3])  # Normalize to 0-255 and replace 0 with 1
+                        color_table_lines.append(f"{value:.2f} {rgb[0]} {rgb[1]} {rgb[2]}")
 
-                # Add colors for below p2 and above p98
-                color_table_lines.insert(0, f"{p2:.2f} 0 0 255")  # Below p2
-                color_table_lines.append(f"{p98:.2f} 255 0 0")    # Above p98
+                # Handle nodata values by adding "nodata" for the nodata range
+                if nodata_value is not None:
+                    color_table_lines.insert(0, f"{nodata_value:.2f} nodata nodata nodata")
 
                 # Construct output paths
                 color_table_file = os.path.join(output_dir, f"{raster}_color_table.txt")
                 output_colorized = os.path.join(output_dir, f"{raster}_colorized.tif")
                 colorized_float32 = os.path.join(output_dir, f"{raster}_colorized_float32.tif")
                 vrt_file = os.path.join(output_dir, f"{raster}_temp.vrt")
-                final_output = os.path.join(output_dir, f"{raster}_COG.tif")
+                final_output = os.path.join(output_dir, f"{raster}.tif")
 
                 # Save the color table to the output directory
                 with open(color_table_file, "w") as f:
@@ -168,7 +176,7 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
 
                 print(f'Final COG saved as {final_output}')
                 # Delete intermediate files (except the final output)
-                temp_files = [color_table_file, output_colorized, colorized_float32, vrt_file, *rgb_vrts]
+                temp_files = [output_colorized, colorized_float32, vrt_file, *rgb_vrts]
 
                 # Remove all temporary files
                 for temp_file in temp_files:
