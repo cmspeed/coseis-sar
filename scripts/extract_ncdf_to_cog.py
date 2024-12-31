@@ -61,8 +61,6 @@ def tile_raster(input_raster, output_dir):
     generate_tiles(input_raster, output_dir,
      **options)
 
-    print(f"Tiles saved in {output_dir}")
-
 def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
     """
     Function to produce single-band cloud optimized GeoTIFFs from a NetCDF sublayers and a tiled colorized version.
@@ -81,7 +79,6 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
 
         for raster in rasters:
             subdataset_name = f"NETCDF:\"{netcdf_path}\":/science/grids/data/{raster}"
-            print(subdataset_name)
             print(f"Processing layer: {raster}")
 
             # Determine the colormap based on the raster layer
@@ -96,7 +93,6 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
             with rasterio.open(subdataset_name) as src:
                 data = src.read(1) 
                 nodata_value = src.nodata
-
                 if nodata_value is not None:
                     data = np.ma.masked_equal(data, nodata_value)
 
@@ -163,7 +159,7 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
                 # Assign nodata value to the colorized version
                 subprocess.run(
                     [
-                        "gdal_edit.py", "-a_nodata", str(nodata_value), output_colorized
+                        "gdal_edit.py", "-a_nodata", '0.0', output_colorized
                     ],
                     check=True
                 )
@@ -171,6 +167,11 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
                 # Tile the colorized version using gdal2tiles
                 tile_raster(output_colorized, tiled_output_dir)
     
+                # Delete intermediate files (except the final output)
+                os.remove(color_table_file)
+
+        print("Layers have been colorized and tiled.")
+
     return
 
 def colorize_netCDF_layer_COG(netcdf_path, output_dir):
@@ -192,7 +193,6 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
 
         for raster in rasters:
             subdataset_name = f"NETCDF:\"{netcdf_path}\":/science/grids/data/{raster}"
-            print(subdataset_name)
             print(f"Processing layer: {raster}")
 
             # Determine the colormap based on the raster layer
@@ -263,7 +263,7 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
                 # Assign nodata value to the colorized version
                 subprocess.run(
                     [
-                        "gdal_edit.py", "-a_nodata", str(nodata_value), output_colorized
+                        "gdal_edit.py", "-a_nodata", '0.0', output_colorized
                     ],
                     check=True
                 )
