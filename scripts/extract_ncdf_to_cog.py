@@ -1,41 +1,42 @@
 import os
 import numpy as np
+from gdal2tiles import generate_tiles
+import geojson
 import matplotlib.pyplot as plt
 from matplotlib import colors
 import rasterio
-import tempfile
+from shapely import wkt
+from shapely.geometry import mapping
 import subprocess
 import shutil
-from gdal2tiles import generate_tiles
+
 
 def extract_footprint(netCDF_path, output_dir):
+    """
+    Function to extract the productBoundingBox layer from a NetCDF file and save it as a GeoJSON.
+    """
+
+    # Ensure the output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
     #Process the productBoundingBox as a GeoJSON
     bbox_layer = "productBoundingBox"
-    bbox_subdataset = f"NETCDF:\"{netcdf_path}\":{bbox_layer}"
+    bbox_subdataset = f"NETCDF:\"{netCDF_path}\":{bbox_layer}"
+    print(bbox_subdataset)
     print(f"Processing bounding box layer: {bbox_layer}")
 
     with rasterio.open(bbox_subdataset) as bbox_src:
-        # Read the bounding box layer
-        bbox_data = bbox_src.read(1)  # Assuming the layer has one band
-        transform = bbox_src.transform
-        crs = bbox_src.crs
+        wkt_string = bbox_src.tags()['NC_GLOBAL#product_geometry_wkt']
 
-        # Extract geometries
-        shapes_generator = shapes(bbox_data, transform=transform)
-        geojson_features = [
-            {
-                "type": "Feature",
-                "geometry": mapping(shape(geom)),
-                "properties": {"value": value},
-            }
-            for geom, value in shapes_generator
-        ]
+        if wkt_string:
+            # Parse the WKT string into a shapely Polygon object
+            bounding_box = wkt.loads(wkt_string)
+        else:
+            raise ValueError("Bounding box WKT string not found in the metadata.")
 
-        # Create GeoJSON object
-        geojson_output = {
-            "type": "FeatureCollection",
-            "features": geojson_features,
-        }
+        # Create a GeoJSON FeatureCollection with the bounding box
+        geojson_feature = geojson.Feature(geometry=mapping(bounding_box), properties={})
+        geojson_output = geojson.FeatureCollection([geojson_feature])
 
         # Write GeoJSON to file
         geojson_output_path = f"{output_dir}/{bbox_layer}.geojson"
@@ -44,27 +45,38 @@ def extract_footprint(netCDF_path, output_dir):
 
         print(f"Saved GeoJSON: {geojson_output_path}")
 
+    return
+
+
 def tile_raster(input_raster, output_dir):
     """
     Function to tile a raster using gdal2tiles.py
     """
 
+    # Remove the output directory if it already exists and create a new one
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
-
     os.makedirs(output_dir)
 
+    # Define the options for gdal2tiles
     options = {'zoom': (1, 10),
         'nb_processes': 4,
         }
     
+    # Generate the tiles
     generate_tiles(input_raster, output_dir,
      **options)
+
 
 def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
     """
     Function to produce single-band cloud optimized GeoTIFFs from a NetCDF sublayers and a tiled colorized version.
     """
+    # Remove the main 'tiles' directory, if it already exists, and create a new one
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+
     with rasterio.open(netcdf_path) as dataset:
         subdatasets = dataset.subdatasets
 
@@ -169,15 +181,22 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
     
                 # Delete intermediate files (except the final output)
                 os.remove(color_table_file)
+                os.remove(output_colorized)
 
         print("Layers have been colorized and tiled.")
 
     return
 
+
 def colorize_netCDF_layer_COG(netcdf_path, output_dir):
     """
     Function to produce 4-band cloud optimized GeoTIFFs from a NetCDF sublayers.
     """
+    # Remove the main 'cogs' directory, if it already exists, and create a new one
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+
     with rasterio.open(netcdf_path) as dataset:
         subdatasets = dataset.subdatasets
 
@@ -185,8 +204,7 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
             print(f"No subdatasets found in {netcdf_path}")
             return
 
-        #rasters = ['azimuthPixelOffsets', 'rangePixelOffsets', 'unfilteredCoherence', 'amplitude', 'unwrappedPhase']
-        rasters = ['amplitude', 'unwrappedPhase']
+        rasters = ['azimuthPixelOffsets', 'rangePixelOffsets', 'unfilteredCoherence', 'amplitude', 'unwrappedPhase']
 
         # Ensure the output directory exists
         os.makedirs(output_dir, exist_ok=True)
@@ -332,11 +350,15 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
     
     return
 
+
 def main():
     nc = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1.nc'
-    outdir = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/cogs'
-    #colorize_netCDF_layer_COG(nc, outdir)
-    colorize_netCDF_layer_tiles(nc, outdir)
+    outdir_cogs = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/cogs'
+    outdir_tiles = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/tiles'
+    outdir_footprint = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/footprint'
+    colorize_netCDF_layer_COG(nc, outdir_cogs)
+    #colorize_netCDF_layer_tiles(nc, outdir_tiles)
+    #extract_footprint(nc, outdir_footprint)
 
 if __name__ == "__main__":
     main()
