@@ -379,15 +379,32 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
     
     return
 
-def main():
-    nc = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1.nc'
-    outdir_cogs = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/cogs'
-    outdir_tiles = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/tiles'
-    outdir_footprint = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/footprint'
+def run(nc, outdir_cogs, outdir_tiles, outdir_footprint):
+    print("=====================================")
+    print("Making COGs")
+    print("=====================================")
     colorize_netCDF_layer_COG(nc, outdir_cogs)
+    print("=====================================")
+    print("Making tiles")
+    print("=====================================")
     colorize_netCDF_layer_tiles(nc, outdir_tiles)
+    print("=====================================")
+    print("Extracting footprint")
+    print("=====================================")
     extract_footprint(nc, outdir_footprint)
+    print("=====================================")
+    print("Derivatives generated successfully")
+    print("=====================================")
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Process netCDF files.")
+    parser.add_argument('nc', help="Path to the netCDF file")
+    parser.add_argument('outdir_cogs', help="Output directory for COGs")
+    parser.add_argument('outdir_tiles', help="Output directory for tiles")
+    parser.add_argument('outdir_footprint', help="Output directory for footprints")
+
+    args = parser.parse_args()
+
+    run(args.nc, args.outdir_cogs, args.outdir_tiles, args.outdir_footprint)
