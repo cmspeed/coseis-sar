@@ -182,8 +182,8 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
             )
             
             # Reduce resolution of the colorized version
-            output_resolution_x = 0.008 # in decimal degrees (approx. 90 m)
-            output_resolution_y = 0.008 # in decimal degrees (approx. 90 m)
+            output_resolution_x = 0.00008 # in decimal degrees (approx. 90 m)
+            output_resolution_y = 0.00008 # in decimal degrees (approx. 90 m)
 
             subprocess.run(
                 [
@@ -203,6 +203,7 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
             # Delete intermediate files (except the final output)
             os.remove(color_table_file)
             os.remove(output_colorized)
+            os.remove(output_colorized_ds)
 
     print("Layers have been colorized and tiled.")
 
@@ -273,15 +274,13 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
                     color_table_lines.append(f"{value:.2f} {rgb[0]} {rgb[1]} {rgb[2]}")
 
             # Handle nodata values by adding "nodata" for the nodata range
-            # if nodata_value is not None:
-            #     color_table_lines.insert(0, f"{nodata_value:.2f} nodata nodata nodata")
-
             if nodata_value is not None:
-                color_table_lines.insert(0, f"{nodata_value:.2f} {nodata_value:.2f} {nodata_value:.2f} {nodata_value:.2f}")
+                color_table_lines.insert(0, f"{nodata_value:.2f} nodata nodata nodata")
 
             # Construct output paths
             color_table_file = os.path.join(output_dir, f"{raster}_color_table.txt")
             output_colorized = os.path.join(output_dir, f"{raster}_colorized.tif")
+            output_colorized_modified = os.path.join(output_dir, f"{raster}_colorized_modified.tif")
             colorized_float32 = os.path.join(output_dir, f"{raster}_colorized_float32.tif")
             vrt_file = os.path.join(output_dir, f"{raster}_temp.vrt")
             final_output = os.path.join(output_dir, f"{raster}.tif")
@@ -314,6 +313,22 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
                 check=True
             )
 
+            # Modify pixel values of 0 to nodata_value in any band, which is needed for merging
+            subprocess.run(
+                [
+                    "gdal_calc.py",
+                    "-A", f"{colorized_float32}",  # Input raster
+                    "--calc", f"where(A==0, {nodata_value}, A)",  # Apply the conditional operation
+                    "--NoDataValue", str(nodata_value),  # Set NoData value dynamically
+                    "--allBands=A",                      # Process all bands from the input raster
+                    "--outfile", output_colorized_modified,  # Specify the output raster
+                    "--co", "COMPRESS=DEFLATE",          # Use DEFLATE compression
+                    "--co", "PREDICTOR=2",               # Use horizontal differencing predictor
+                    "--co", "TILED=YES"                  # Enable tiling for better performance
+                ],
+                check=True
+            )
+
             # Create individual 1-band VRTs for each of the colorized bands (RGB)
             rgb_vrts = []
             for band_idx in range(1, 4):  # Bands 1, 2, 3 for RGB
@@ -323,7 +338,7 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
                         "gdal_translate",
                         "-of", "VRT", 
                         "-b", str(band_idx), 
-                        colorized_float32, 
+                        output_colorized_modified, 
                         vrt_band_file
                     ],
                     check=True
@@ -343,6 +358,7 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
             subprocess.run(
                 [
                     "gdal_translate", vrt_file, final_output,
+                    "-a_nodata", str(nodata_value),     # Set nodata value
                     "-co", "COMPRESS=DEFLATE",          # DEFLATE compression
                     "-co", "PREDICTOR=2",               # Horizontal differencing predictor
                     "-co", "TILED=YES",                 # Enable tiling (required for COG)
@@ -353,7 +369,7 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
 
             print(f'Final COG saved as {final_output}')
             # Delete intermediate files (except the final output)
-            temp_files = [color_table_file, output_colorized, colorized_float32, vrt_file, *rgb_vrts]
+            temp_files = [color_table_file, output_colorized, colorized_float32, output_colorized_modified, vrt_file, *rgb_vrts]
 
             # Remove all temporary files
             for temp_file in temp_files:
@@ -362,7 +378,6 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
                     print(f"Deleted temporary file: {temp_file}")
     
     return
-
 
 def main():
     nc = '/u/trappist-r0/colespeed/work/coseis/earthquakes/Nevada_12-09-2024/A64/insar_20241216_20241204/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1/S1-GUNW_CUSTOM-A-R-064-tops-20241216_20241204-015210-00120W_00038N-PP-ba76-v3_0_1.nc'
