@@ -72,33 +72,6 @@ def tile_raster(input_raster, output_dir):
      **options)
 
 
-def mask_int_alias(input_raster, output_raster, connected_components):
-    """
-    Function to mask water pixels in a raster using a water mask.
-    """
-    # Read the input raster
-    with rasterio.open(input_raster) as src:
-        data = src.read(1)
-        profile = src.profile
-
-    # Read the connected components
-    with rasterio.open(connected_components) as src:
-        conn = src.read(1)
-
-    # Mask
-    msk = np.array(conn)*-1
-    msk[msk<0] = 1
-
-    # Mask Unwrapped File
-    masked = data*msk
-
-    # Write the masked raster
-    with rasterio.open(output_raster, 'w', **profile) as dst:
-        dst.write(masked, 1)
-
-    return
-
-
 def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
     """
     Function to produce single-band cloud optimized GeoTIFFs from a NetCDF sublayers and a tiled colorized version.
@@ -420,22 +393,23 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
     
     return
 
+
 def run(nc, outdir_cogs, outdir_tiles, outdir_footprint):
-    # print("=====================================")
-    # print("Making COGs")
-    # print("=====================================")
-    # colorize_netCDF_layer_COG(nc, outdir_cogs)
-    # print("=====================================")
-    # print("Making tiles")
-    # print("=====================================")
+    print("=====================================")
+    print("Making COGs")
+    print("=====================================")
+    colorize_netCDF_layer_COG(nc, outdir_cogs)
+    print("=====================================")
+    print("Making tiles")
+    print("=====================================")
     colorize_netCDF_layer_tiles(nc, outdir_tiles)
-    # print("=====================================")
-    # print("Extracting footprint")
-    # print("=====================================")
-    # extract_footprint(nc, outdir_footprint)
-    # print("=====================================")
-    # print("Derivatives generated successfully")
-    # print("=====================================")
+    print("=====================================")
+    print("Extracting footprint")
+    print("=====================================")
+    extract_footprint(nc, outdir_footprint)
+    print("=====================================")
+    print("Derivatives generated successfully")
+    print("=====================================")
 
 
 if __name__ == "__main__":
