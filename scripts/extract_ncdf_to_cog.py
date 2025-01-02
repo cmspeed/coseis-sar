@@ -72,6 +72,33 @@ def tile_raster(input_raster, output_dir):
      **options)
 
 
+def mask_int_alias(input_raster, output_raster, connected_components):
+    """
+    Function to mask water pixels in a raster using a water mask.
+    """
+    # Read the input raster
+    with rasterio.open(input_raster) as src:
+        data = src.read(1)
+        profile = src.profile
+
+    # Read the connected components
+    with rasterio.open(connected_components) as src:
+        conn = src.read(1)
+
+    # Mask
+    msk = np.array(conn)*-1
+    msk[msk<0] = 1
+
+    # Mask Unwrapped File
+    masked = data*msk
+
+    # Write the masked raster
+    with rasterio.open(output_raster, 'w', **profile) as dst:
+        dst.write(masked, 1)
+
+    return
+
+
 def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
     """
     Function to produce single-band cloud optimized GeoTIFFs from a NetCDF sublayers and a tiled colorized version.
@@ -89,6 +116,7 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
 
     # Define the rasters to process
     rasters = ['amplitude', 'azimuthPixelOffsets', 'rangePixelOffsets', 'unfilteredCoherence', 'unwrappedPhase']
+    connected_components = f"NETCDF:\"{netcdf_path}\":/science/grids/data/connectedComponents"
 
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -112,100 +140,105 @@ def colorize_netCDF_layer_tiles(netcdf_path, output_dir):
             if nodata_value is not None:
                 data = np.ma.masked_equal(data, nodata_value)
 
-            # Calculate 2nd and 98th percentiles for visualization
-            p2 = np.percentile(data.compressed(), 2)
-            p98 = np.percentile(data.compressed(), 98)
-            print(f"{subdataset_name}: p2 = {p2}, p98 = {p98}")
+        # Mask the data with connected components to ensure proper color scaling
+        with rasterio.open(connected_components) as src:
+            conn = src.read(1)
+            msk = np.array(conn)*-1
+            msk[msk<0] = 1
+            data = np.ma.masked_array(data, mask=msk == 0)
 
-            # Create a normalized colormap from the percentile range
-            norm = colors.Normalize(vmin=p2, vmax=p98)
+        # Calculate 2nd and 98th percentiles for visualization
+        p2 = np.percentile(data.compressed(), 2)
+        p98 = np.percentile(data.compressed(), 98)
+        print(f"{subdataset_name}: p2 = {p2}, p98 = {p98}")
 
-            # Generate color table content
-            color_table_lines = []
+        # Create a normalized colormap from the percentile range
+        norm = colors.Normalize(vmin=p2, vmax=p98)
 
-            for value in np.linspace(p2, p98, 256):
-                if is_grayscale:
-                    intensity = int(255 * (value - p2) / (p98 - p2))
-                    # Replace 0 with 1 in grayscale intensity
-                    intensity = max(intensity, 1)
-                    color_table_lines.append(f"{value:.2f} {intensity} {intensity} {intensity}")
-                else:
-                    rgba = cmap(norm(value))
-                    rgb = tuple(max(int(c * 255), 1) for c in rgba[:3])  # Normalize to 0-255 and replace 0 with 1
-                    color_table_lines.append(f"{value:.2f} {rgb[0]} {rgb[1]} {rgb[2]}")
+        # Generate color table content
+        color_table_lines = []
 
-            # Handle nodata values by adding "nodata" for the nodata range
-            if nodata_value is not None:
-                color_table_lines.insert(0, f"{nodata_value:.2f} nodata nodata nodata")
+        for value in np.linspace(p2, p98, 256):
+            if is_grayscale:
+                intensity = int(255 * (value - p2) / (p98 - p2))
+                # Replace 0 with 1 in grayscale intensity
+                intensity = max(intensity, 1)
+                color_table_lines.append(f"{value:.2f} {intensity} {intensity} {intensity}")
+            else:
+                rgba = cmap(norm(value))
+                rgb = tuple(max(int(c * 255), 1) for c in rgba[:3])  # Normalize to 0-255 and replace 0 with 1
+                color_table_lines.append(f"{value:.2f} {rgb[0]} {rgb[1]} {rgb[2]}")
 
-            # Construct output paths
-            color_table_file = os.path.join(output_dir, f"{raster}_color_table.txt")
-            single_band_output = os.path.join(output_dir, f"{raster}_data.tif")
-            output_colorized = os.path.join(output_dir, f"{raster}_colorized.tif")
-            output_colorized_ds = os.path.join(output_dir, f"{raster}_colorized_ds.tif")
-            tiled_output_dir = os.path.join(output_dir, f"{raster}_tiles")
+        # Handle nodata values by adding "nodata" for the nodata range
+        if nodata_value is not None:
+            color_table_lines.insert(0, f"{nodata_value:.2f} nodata nodata nodata")
 
-            # Save the color table to the output directory
-            with open(color_table_file, "w") as f:
-                f.write("\n".join(color_table_lines))
-            print(f"Color table saved as {color_table_file}")
+        # Construct output paths
+        color_table_file = os.path.join(output_dir, f"{raster}_color_table.txt")
+        single_band_output = os.path.join(output_dir, f"{raster}_data.tif")
+        output_colorized = os.path.join(output_dir, f"{raster}_colorized.tif")
+        output_colorized_ds = os.path.join(output_dir, f"{raster}_colorized_ds.tif")
+        tiled_output_dir = os.path.join(output_dir, f"{raster}_tiles")
 
-            # Create a single-band output GeoTIFF from the original data
-            subprocess.run(
-                [
-                    "gdal_translate", subdataset_name, single_band_output,
-                    "-a_nodata", str(nodata_value), # Set nodata value
-                    "-co", "COMPRESS=DEFLATE",      # Use DEFLATE compression
-                    "-co", "PREDICTOR=2",           # Use horizontal differencing predictor
-                    "-co", "TILED=YES"              # Enable tiling for better performance
-                ],
-                check=True
-            )
+        # Save the color table to the output directory
+        with open(color_table_file, "w") as f:
+            f.write("\n".join(color_table_lines))
+        print(f"Color table saved as {color_table_file}")
 
-            # Run gdaldem color-relief to generate the colorized raster with three bands (RGB)
-            subprocess.run(
-                [
-                    "gdaldem", "color-relief", subdataset_name, color_table_file, output_colorized,
-                    "-co", "COMPRESS=DEFLATE",       # Use DEFLATE compression
-                    "-co", "PREDICTOR=2",            # Use horizontal differencing predictor
-                    "-co", "TILED=YES"               # Enable tiling for better performance
-                ],
-                check=True
-            )
+        # Create a single-band output GeoTIFF from the original data
+        subprocess.run(
+            [
+                "gdal_translate", subdataset_name, single_band_output,
+                "-a_nodata", str(nodata_value), # Set nodata value
+                "-co", "COMPRESS=DEFLATE",      # Use DEFLATE compression
+                "-co", "PREDICTOR=2",           # Use horizontal differencing predictor
+                "-co", "TILED=YES"              # Enable tiling for better performance
+            ],
+            check=True
+        )
 
-            # Assign nodata value to the colorized version
-            subprocess.run(
-                [
-                    "gdal_edit.py", "-a_nodata", '0.0', output_colorized
-                ],
-                check=True
-            )
-            
-            # Reduce resolution of the colorized version
-            output_resolution_x = 0.00008 # in decimal degrees (approx. 90 m)
-            output_resolution_y = 0.00008 # in decimal degrees (approx. 90 m)
+        # Run gdaldem color-relief to generate the colorized raster with three bands (RGB)
+        subprocess.run(
+            [
+                "gdaldem", "color-relief", subdataset_name, color_table_file, output_colorized,
+                "-co", "COMPRESS=DEFLATE",       # Use DEFLATE compression
+                "-co", "PREDICTOR=2",            # Use horizontal differencing predictor
+                "-co", "TILED=YES"               # Enable tiling for better performance
+            ],
+            check=True
+        )
 
-            subprocess.run(
-                [
-                    "gdal_translate", output_colorized, output_colorized_ds,
-                    "-tr", str(output_resolution_x), str(output_resolution_y),  # Set resolution
-                    "-a_nodata", str(nodata_value),  # Set nodata value
-                    "-co", "COMPRESS=DEFLATE",       # Use DEFLATE compression
-                    "-co", "PREDICTOR=2",            # Use horizontal differencing predictor
-                    "-co", "TILED=YES"               # Enable tiling for better performance
-                ],
-                check=True
-            )
+        # Assign nodata value to the colorized version
+        subprocess.run(
+            [
+                "gdal_edit.py", "-a_nodata", '0.0', output_colorized
+            ],
+            check=True
+        )
+        
+        # Reduce resolution of the colorized version
+        output_resolution_x = 0.00008 # in decimal degrees (approx. 90 m)
+        output_resolution_y = 0.00008 # in decimal degrees (approx. 90 m)
 
-            # Tile the colorized version using gdal2tiles
-            tile_raster(output_colorized_ds, tiled_output_dir)
+        subprocess.run(
+            [
+                "gdal_translate", output_colorized, output_colorized_ds,
+                "-tr", str(output_resolution_x), str(output_resolution_y),  # Set resolution
+                "-a_nodata", str(nodata_value),  # Set nodata value
+                "-co", "COMPRESS=DEFLATE",       # Use DEFLATE compression
+                "-co", "PREDICTOR=2",            # Use horizontal differencing predictor
+                "-co", "TILED=YES"               # Enable tiling for better performance
+            ],
+            check=True
+        )
 
-            # Delete intermediate files (except the final output)
-            os.remove(color_table_file)
-            os.remove(output_colorized)
-            os.remove(output_colorized_ds)
+        # Tile the colorized version using gdal2tiles
+        tile_raster(output_colorized_ds, tiled_output_dir)
 
-    print("Layers have been colorized and tiled.")
+        # Delete intermediate files (except the final output)
+        os.remove(color_table_file)
+        os.remove(output_colorized)
+        os.remove(output_colorized_ds)
 
     return
 
@@ -227,6 +260,7 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
 
     # Define the rasters to process
     rasters = ['amplitude', 'azimuthPixelOffsets', 'rangePixelOffsets', 'unfilteredCoherence', 'unwrappedPhase']
+    connected_components = f"NETCDF:\"{netcdf_path}\":/science/grids/data/connectedComponents"
 
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -251,150 +285,157 @@ def colorize_netCDF_layer_COG(netcdf_path, output_dir):
             if nodata_value is not None:
                 data = np.ma.masked_equal(data, nodata_value)
 
-            # Calculate 2nd and 98th percentiles for visualization
-            p2 = np.percentile(data.compressed(), 2)
-            p98 = np.percentile(data.compressed(), 98)
-            print(f"{subdataset_name}: p2 = {p2}, p98 = {p98}")
+        # Mask the data with connected components to ensure proper color scaling
+        with rasterio.open(connected_components) as src:
+            conn = src.read(1)
+            msk = np.array(conn)*-1
+            msk[msk<0] = 1
+            data = np.ma.masked_array(data, mask=msk == 0)
 
-            # Create a normalized colormap from the percentile range
-            norm = colors.Normalize(vmin=p2, vmax=p98)
+        # Calculate 2nd and 98th percentiles for visualization
+        p2 = np.percentile(data.compressed(), 2)
+        p98 = np.percentile(data.compressed(), 98)
+        print(f"{subdataset_name}: p2 = {p2}, p98 = {p98}")
 
-            # Generate color table content
-            color_table_lines = []
+        # Create a normalized colormap from the percentile range
+        norm = colors.Normalize(vmin=p2, vmax=p98)
 
-            for value in np.linspace(p2, p98, 256):
-                if is_grayscale:
-                    intensity = int(255 * (value - p2) / (p98 - p2))
-                    # Replace 0 with 1 in grayscale intensity
-                    intensity = max(intensity, 1)
-                    color_table_lines.append(f"{value:.2f} {intensity} {intensity} {intensity}")
-                else:
-                    rgba = cmap(norm(value))
-                    rgb = tuple(max(int(c * 255), 1) for c in rgba[:3])  # Normalize to 0-255 and replace 0 with 1
-                    color_table_lines.append(f"{value:.2f} {rgb[0]} {rgb[1]} {rgb[2]}")
+        # Generate color table content
+        color_table_lines = []
 
-            # Handle nodata values by adding "nodata" for the nodata range
-            if nodata_value is not None:
-                color_table_lines.insert(0, f"{nodata_value:.2f} nodata nodata nodata")
+        for value in np.linspace(p2, p98, 256):
+            if is_grayscale:
+                intensity = int(255 * (value - p2) / (p98 - p2))
+                # Replace 0 with 1 in grayscale intensity
+                intensity = max(intensity, 1)
+                color_table_lines.append(f"{value:.2f} {intensity} {intensity} {intensity}")
+            else:
+                rgba = cmap(norm(value))
+                rgb = tuple(max(int(c * 255), 1) for c in rgba[:3])  # Normalize to 0-255 and replace 0 with 1
+                color_table_lines.append(f"{value:.2f} {rgb[0]} {rgb[1]} {rgb[2]}")
 
-            # Construct output paths
-            color_table_file = os.path.join(output_dir, f"{raster}_color_table.txt")
-            output_colorized = os.path.join(output_dir, f"{raster}_colorized.tif")
-            output_colorized_modified = os.path.join(output_dir, f"{raster}_colorized_modified.tif")
-            colorized_float32 = os.path.join(output_dir, f"{raster}_colorized_float32.tif")
-            vrt_file = os.path.join(output_dir, f"{raster}_temp.vrt")
-            final_output = os.path.join(output_dir, f"{raster}.tif")
+        # Handle nodata values by adding "nodata" for the nodata range
+        if nodata_value is not None:
+            color_table_lines.insert(0, f"{nodata_value:.2f} nodata nodata nodata")
 
-            # Save the color table to the output directory
-            with open(color_table_file, "w") as f:
-                f.write("\n".join(color_table_lines))
-            print(f"Color table saved as {color_table_file}")
+        # Construct output paths
+        color_table_file = os.path.join(output_dir, f"{raster}_color_table.txt")
+        output_colorized = os.path.join(output_dir, f"{raster}_colorized.tif")
+        output_colorized_modified = os.path.join(output_dir, f"{raster}_colorized_modified.tif")
+        colorized_float32 = os.path.join(output_dir, f"{raster}_colorized_float32.tif")
+        vrt_file = os.path.join(output_dir, f"{raster}_temp.vrt")
+        final_output = os.path.join(output_dir, f"{raster}.tif")
 
-            # Run gdaldem color-relief to generate the colorized raster with three bands (RGB)
+        # Save the color table to the output directory
+        with open(color_table_file, "w") as f:
+            f.write("\n".join(color_table_lines))
+        print(f"Color table saved as {color_table_file}")
+
+        # Run gdaldem color-relief to generate the colorized raster with three bands (RGB)
+        subprocess.run(
+            [
+                "gdaldem", "color-relief", subdataset_name, color_table_file, output_colorized,
+                "-co", "COMPRESS=DEFLATE",       # Use DEFLATE compression
+                "-co", "PREDICTOR=2",            # Use horizontal differencing predictor
+                "-co", "TILED=YES"               # Enable tiling for better performance
+            ],
+            check=True
+        )
+
+        # Convert the color bands (RGB) to float32
+        subprocess.run(
+            [
+                "gdal_translate", output_colorized, colorized_float32,
+                "-ot", "Float32",               # Convert to float32
+                "-co", "COMPRESS=DEFLATE",      # Use DEFLATE compression
+                "-co", "PREDICTOR=2",           # Use horizontal differencing predictor
+                "-co", "TILED=YES"              # Enable tiling for better performance
+            ],
+            check=True
+        )
+
+        # Modify pixel values of 0 to nodata_value in any band, which is needed for merging
+        subprocess.run(
+            [
+                "gdal_calc.py",
+                "-A", f"{colorized_float32}",  # Input raster
+                "--calc", f"where(A==0, {nodata_value}, A)",  # Apply the conditional operation
+                "--NoDataValue", str(nodata_value),  # Set NoData value dynamically
+                "--allBands=A",                      # Process all bands from the input raster
+                "--outfile", output_colorized_modified,  # Specify the output raster
+                "--co", "COMPRESS=DEFLATE",          # Use DEFLATE compression
+                "--co", "PREDICTOR=2",               # Use horizontal differencing predictor
+                "--co", "TILED=YES"                  # Enable tiling for better performance
+            ],
+            check=True
+        )
+
+        # Create individual 1-band VRTs for each of the colorized bands (RGB)
+        rgb_vrts = []
+        for band_idx in range(1, 4):  # Bands 1, 2, 3 for RGB
+            vrt_band_file = os.path.join(output_dir, f"{raster}_colorized_band{band_idx}.vrt")
             subprocess.run(
                 [
-                    "gdaldem", "color-relief", subdataset_name, color_table_file, output_colorized,
-                    "-co", "COMPRESS=DEFLATE",       # Use DEFLATE compression
-                    "-co", "PREDICTOR=2",            # Use horizontal differencing predictor
-                    "-co", "TILED=YES"               # Enable tiling for better performance
+                    "gdal_translate",
+                    "-of", "VRT", 
+                    "-b", str(band_idx), 
+                    output_colorized_modified, 
+                    vrt_band_file
                 ],
                 check=True
             )
+            rgb_vrts.append(vrt_band_file)
 
-            # Convert the color bands (RGB) to float32
-            subprocess.run(
-                [
-                    "gdal_translate", output_colorized, colorized_float32,
-                    "-ot", "Float32",               # Convert to float32
-                    "-co", "COMPRESS=DEFLATE",      # Use DEFLATE compression
-                    "-co", "PREDICTOR=2",           # Use horizontal differencing predictor
-                    "-co", "TILED=YES"              # Enable tiling for better performance
-                ],
-                check=True
-            )
+        # Now build the 4-band VRT, including the original subdataset (band 1) and the 3 RGB bands
+        subprocess.run(
+            [
+                "gdalbuildvrt", "-separate", "-overwrite", 
+                vrt_file, subdataset_name, *rgb_vrts
+            ],
+            check=True
+        )
 
-            # Modify pixel values of 0 to nodata_value in any band, which is needed for merging
-            subprocess.run(
-                [
-                    "gdal_calc.py",
-                    "-A", f"{colorized_float32}",  # Input raster
-                    "--calc", f"where(A==0, {nodata_value}, A)",  # Apply the conditional operation
-                    "--NoDataValue", str(nodata_value),  # Set NoData value dynamically
-                    "--allBands=A",                      # Process all bands from the input raster
-                    "--outfile", output_colorized_modified,  # Specify the output raster
-                    "--co", "COMPRESS=DEFLATE",          # Use DEFLATE compression
-                    "--co", "PREDICTOR=2",               # Use horizontal differencing predictor
-                    "--co", "TILED=YES"                  # Enable tiling for better performance
-                ],
-                check=True
-            )
+        # Create the final 4-band GeoTIFF as a Cloud Optimized GeoTIFF (COG)
+        subprocess.run(
+            [
+                "gdal_translate", vrt_file, final_output,
+                "-a_nodata", str(nodata_value),     # Set nodata value
+                "-co", "COMPRESS=DEFLATE",          # DEFLATE compression
+                "-co", "PREDICTOR=2",               # Horizontal differencing predictor
+                "-co", "TILED=YES",                 # Enable tiling (required for COG)
+                "-co", "BIGTIFF=YES",               # Ensures support for large files
+            ],
+            check=True
+        )
 
-            # Create individual 1-band VRTs for each of the colorized bands (RGB)
-            rgb_vrts = []
-            for band_idx in range(1, 4):  # Bands 1, 2, 3 for RGB
-                vrt_band_file = os.path.join(output_dir, f"{raster}_colorized_band{band_idx}.vrt")
-                subprocess.run(
-                    [
-                        "gdal_translate",
-                        "-of", "VRT", 
-                        "-b", str(band_idx), 
-                        output_colorized_modified, 
-                        vrt_band_file
-                    ],
-                    check=True
-                )
-                rgb_vrts.append(vrt_band_file)
+        print(f'Final COG saved as {final_output}')
+        # Delete intermediate files (except the final output)
+        temp_files = [color_table_file, output_colorized, colorized_float32, output_colorized_modified, vrt_file, *rgb_vrts]
 
-            # Now build the 4-band VRT, including the original subdataset (band 1) and the 3 RGB bands
-            subprocess.run(
-                [
-                    "gdalbuildvrt", "-separate", "-overwrite", 
-                    vrt_file, subdataset_name, *rgb_vrts
-                ],
-                check=True
-            )
-
-            # Create the final 4-band GeoTIFF as a Cloud Optimized GeoTIFF (COG)
-            subprocess.run(
-                [
-                    "gdal_translate", vrt_file, final_output,
-                    "-a_nodata", str(nodata_value),     # Set nodata value
-                    "-co", "COMPRESS=DEFLATE",          # DEFLATE compression
-                    "-co", "PREDICTOR=2",               # Horizontal differencing predictor
-                    "-co", "TILED=YES",                 # Enable tiling (required for COG)
-                    "-co", "BIGTIFF=YES",               # Ensures support for large files
-                ],
-                check=True
-            )
-
-            print(f'Final COG saved as {final_output}')
-            # Delete intermediate files (except the final output)
-            temp_files = [color_table_file, output_colorized, colorized_float32, output_colorized_modified, vrt_file, *rgb_vrts]
-
-            # Remove all temporary files
-            for temp_file in temp_files:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-                    print(f"Deleted temporary file: {temp_file}")
+        # Remove all temporary files
+        for temp_file in temp_files:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+                print(f"Deleted temporary file: {temp_file}")
     
     return
 
 def run(nc, outdir_cogs, outdir_tiles, outdir_footprint):
-    print("=====================================")
-    print("Making COGs")
-    print("=====================================")
-    colorize_netCDF_layer_COG(nc, outdir_cogs)
-    print("=====================================")
-    print("Making tiles")
-    print("=====================================")
+    # print("=====================================")
+    # print("Making COGs")
+    # print("=====================================")
+    # colorize_netCDF_layer_COG(nc, outdir_cogs)
+    # print("=====================================")
+    # print("Making tiles")
+    # print("=====================================")
     colorize_netCDF_layer_tiles(nc, outdir_tiles)
-    print("=====================================")
-    print("Extracting footprint")
-    print("=====================================")
-    extract_footprint(nc, outdir_footprint)
-    print("=====================================")
-    print("Derivatives generated successfully")
-    print("=====================================")
+    # print("=====================================")
+    # print("Extracting footprint")
+    # print("=====================================")
+    # extract_footprint(nc, outdir_footprint)
+    # print("=====================================")
+    # print("Derivatives generated successfully")
+    # print("=====================================")
 
 
 if __name__ == "__main__":
