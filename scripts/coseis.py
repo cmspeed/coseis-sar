@@ -214,7 +214,7 @@ def check_significance(earthquakes):
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
         within_Coastline = withinCoastline(earthquake, coastline)
         if all(var is not None for var in (magnitude, alert, depth)):
-            if (magnitude >= 7.8) and (alert in alert_list) and (depth <= 30.0):
+            if (magnitude >= 7.0) and (alert in alert_list) and (depth <= 30.0):
                 significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
@@ -507,32 +507,32 @@ def make_jsons(ascending_group, descending_group):
     """
     # Create JSON for the ascending group
     ascending_json = {
-        "reference_scenes": list(ascending_group[0].values())[0],
-        "secondary_scenes": list(ascending_group[1].values())[0],
-        "frame_id": -1,
-        "estimate_ionosphere_delay": True,
-        "compute_solid_earth_tide": True,
-        "output_resolution": 30,
-        "unfiltered_coherence": True,
-        "goldstein_filter_power": 0.5,
-        "dense_offsets": True,
-        "wrapped_phase_layer": True,
-        "esd_coherence_threshold": -1
+        "reference-scenes": list(ascending_group[0].values())[0],
+        "secondary-scenes": list(ascending_group[1].values())[0],
+        "frame-id": -1,
+        "estimate-ionosphere-delay": True,
+        "compute-solid-earth-tide": True,
+        "output-resolution": 30,
+        "unfiltered-coherence": True,
+        "goldstein-filter-power": 0.5,
+        "dense-offsets": True,
+        "wrapped-phase-layer": True,
+        "esd-coherence-threshold": -1
         }
     
     # Create JSON for the descending group
     descending_json = {
-        "reference_scenes": list(descending_group[0].values())[0],
-        "secondary_scenes": list(descending_group[1].values())[0],
-        "frame_id": -1,
-        "estimate_ionosphere_delay": True,
-        "compute_solid_earth_tide": True,
-        "output_resolution": 30,
-        "unfiltered_coherence": True,
-        "goldstein_filter_power": 0.5,
-        "dense_offsets": True,
-        "wrapped_phase_layer": True,
-        "esd_coherence_threshold": -1
+        "reference-scenes": list(descending_group[0].values())[0],
+        "secondary-scenes": list(descending_group[1].values())[0],
+        "frame-id": -1,
+        "estimate-ionosphere-delay": True,
+        "compute-solid-earth-tide": True,
+        "output-resolution": 30,
+        "unfiltered-coherence": True,
+        "goldstein-filter-power": 0.5,
+        "dense-offsets": True,
+        "wrapped-phase-layer": True,
+        "esd-coherence-threshold": -1
         }
 
     # Save the JSON data to files
@@ -548,6 +548,7 @@ def main_forward():
 
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
     geojson_data = check_for_new_data(USGS_api_hourly)
+    geojson_data = check_for_new_data(USGS_api_30day)
     
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
