@@ -214,7 +214,7 @@ def check_significance(earthquakes):
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
         within_Coastline = withinCoastline(earthquake, coastline)
         if all(var is not None for var in (magnitude, alert, depth)):
-            if (magnitude >= 7.0) and (alert in alert_list) and (depth <= 30.0):
+            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0):
                 significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
@@ -259,7 +259,7 @@ def significant_earthquakes_to_geojson(significant_earthquakes):
     }
 
     # Save the GeoJSON data to a file
-    with open('significant_earthquakes.geojson', 'w') as f:
+    with open('significant_earthquakes_full_record.geojson', 'w') as f:
         geojson.dump(geojson_data, f)
         
 def make_aoi(coordinates):
@@ -352,9 +352,17 @@ def query_asfDAAC(AOI, time):
         # Parse the response as GeoJSON
         data = geojson.loads(response.text)
 
-        # Open file in write mode and dump the GeoJSON data into it
-        with open('ASF_query.geojson', 'w') as f:
-            geojson.dump(data, f, indent=2)
+
+        # Filter the features based on the "flightDirection" in the "properties" field
+        ascending_data = {'type': 'FeatureCollection', 'features': [feature for feature in data['features'] if feature['properties'].get('flightDirection') == 'ASCENDING']}
+        descending_data = {'type': 'FeatureCollection', 'features': [feature for feature in data['features'] if feature['properties'].get('flightDirection') == 'DESCENDING']}
+        
+        # Write the filtered data to separate GeoJSON files
+        with open('ASF_query_ascending.geojson', 'w') as f_ascending:
+            geojson.dump(ascending_data, f_ascending, indent=2)
+
+        with open('ASF_query_descending.geojson', 'w') as f_descending:
+            geojson.dump(descending_data, f_descending, indent=2)
 
         # Extract the file IDs from the GeoJSON data
         result = []
