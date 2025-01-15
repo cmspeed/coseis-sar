@@ -617,6 +617,8 @@ def main_historic(start_date, end_date):
 
         if eq_sig is not None:
             for eq in eq_sig:
+                USGS_name = eq.get('place', '')
+                USGS_name = USGS_name.replace(' ', '_').lower()
                 coords = eq.get('coordinates', [])
                 aoi = make_aoi(coords)
                 
@@ -629,7 +631,7 @@ def main_historic(start_date, end_date):
                 # Make jsons for processing
                 ascending_json, descending_json = make_jsons(ascending_group, descending_group)
 
-            return ascending_json, descending_json
+            return USGS_name, ascending_json, descending_json
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
