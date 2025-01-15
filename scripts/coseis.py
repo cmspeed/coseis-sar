@@ -513,44 +513,72 @@ def make_jsons(ascending_group, descending_group):
     """
     Create JSON files for the ascending and descending groups.
     """
-    # Create JSON for the ascending group
-    ascending_json = {
-        "reference-scenes": list(ascending_group[0].values())[0],
-        "secondary-scenes": list(ascending_group[1].values())[0],
-        "frame-id": -1,
-        "estimate-ionosphere-delay": True,
-        "compute-solid-earth-tide": True,
-        "output-resolution": 30,
-        "unfiltered-coherence": True,
-        "goldstein-filter-power": 0.5,
-        "dense-offsets": True,
-        "wrapped-phase-layer": True,
-        "esd-coherence-threshold": -1
-        }
-    
-    # Create JSON for the descending group
-    descending_json = {
-        "reference-scenes": list(descending_group[0].values())[0],
-        "secondary-scenes": list(descending_group[1].values())[0],
-        "frame-id": -1,
-        "estimate-ionosphere-delay": True,
-        "compute-solid-earth-tide": True,
-        "output-resolution": 30,
-        "unfiltered-coherence": True,
-        "goldstein-filter-power": 0.5,
-        "dense-offsets": True,
-        "wrapped-phase-layer": True,
-        "esd-coherence-threshold": -1
-        }
+    try:
+        # Create JSON for the ascending group
+        ascending_json = {
+            "reference-scenes": list(ascending_group[0].values())[0],
+            "secondary-scenes": list(ascending_group[1].values())[0],
+            "frame-id": -1,
+            "estimate-ionosphere-delay": True,
+            "compute-solid-earth-tide": True,
+            "output-resolution": 30,
+            "unfiltered-coherence": True,
+            "goldstein-filter-power": 0.5,
+            "dense-offsets": True,
+            "wrapped-phase-layer": True,
+            "esd-coherence-threshold": -1
+            }
+        
+        # Save the JSON data to files
+        with open('ascending_group.json', 'w') as f:
+            json.dump(ascending_json, f, indent=2)
+    except:
+        print(f"Missing reference or secondary scenes for ascending group.")
+        ascending_json = None
 
-    # Save the JSON data to files
-    with open('ascending_group.json', 'w') as f:
-        json.dump(ascending_json, f, indent=2)
-    
-    with open('descending_group.json', 'w') as f:
-        json.dump(descending_json, f, indent=2)
+    try:
+        # Create JSON for the descending group
+        descending_json = {
+            "reference-scenes": list(descending_group[0].values())[0],
+            "secondary-scenes": list(descending_group[1].values())[0],
+            "frame-id": -1,
+            "estimate-ionosphere-delay": True,
+            "compute-solid-earth-tide": True,
+            "output-resolution": 30,
+            "unfiltered-coherence": True,
+            "goldstein-filter-power": 0.5,
+            "dense-offsets": True,
+            "wrapped-phase-layer": True,
+            "esd-coherence-threshold": -1
+            }
+        
+        with open('descending_group.json', 'w') as f:
+            json.dump(descending_json, f, indent=2)
 
-    return ascending_json, descending_json
+    except:
+        print(f"Missing reference or secondary scenes for descending group.")
+        descending_json = None
+
+    # If both JSON files are created, return them both.
+    if ascending_json and descending_json:
+        print('=========================================')
+        print("JSON files created successfully.")
+        print('=========================================')
+        return ascending_json, descending_json
+    
+    # If only the ascending JSON file is created, return it and None for the descending JSON file.
+    elif ascending_json and descending_json is None:
+        print('=========================================')
+        print("Only ascending JSON file created.")
+        print('=========================================')
+        return ascending_json, None
+
+    # If only the descending JSON file is created, return it and None for the ascending JSON file.
+    elif descending_json and ascending_json is None:
+        print('=========================================')
+        print("Only descending JSON file created.")
+        print('=========================================')
+        return None, descending_json
 
 def main_forward():
 
