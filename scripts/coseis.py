@@ -7,6 +7,7 @@ from shapely.geometry import mapping, shape, Point, Polygon, LineString, MultiLi
 from shapely.ops import unary_union
 from datetime import datetime, timedelta, timezone
 import logging
+import re
 
 # Set logging level to WARNING to suppress DEBUG and INFO logs
 logging.basicConfig(level=logging.WARNING)
@@ -520,13 +521,12 @@ def make_jsons(ascending_group, descending_group):
             "secondary-scenes": list(ascending_group[1].values())[0],
             "frame-id": -1,
             "estimate-ionosphere-delay": True,
+            "esd-coherence-threshold": -1,
             "compute-solid-earth-tide": True,
+            "goldstein-filter-power": 0.5,
             "output-resolution": 30,
             "unfiltered-coherence": True,
-            "goldstein-filter-power": 0.5,
             "dense-offsets": True,
-            "wrapped-phase-layer": True,
-            "esd-coherence-threshold": -1
             }
         
         # Save the JSON data to files
@@ -543,13 +543,12 @@ def make_jsons(ascending_group, descending_group):
             "secondary-scenes": list(descending_group[1].values())[0],
             "frame-id": -1,
             "estimate-ionosphere-delay": True,
+            "esd-coherence-threshold": -1,
             "compute-solid-earth-tide": True,
+            "goldstein-filter-power": 0.5,
             "output-resolution": 30,
             "unfiltered-coherence": True,
-            "goldstein-filter-power": 0.5,
             "dense-offsets": True,
-            "wrapped-phase-layer": True,
-            "esd-coherence-threshold": -1
             }
         
         with open('descending_group.json', 'w') as f:
@@ -579,6 +578,13 @@ def make_jsons(ascending_group, descending_group):
         print("Only descending JSON file created.")
         print('=========================================')
         return None, descending_json
+
+def to_snake_case(input_string):
+    # Replace non-alphanumeric characters with spaces
+    cleaned_string = re.sub(r'[^\w\s]', '', input_string)
+    # Replace spaces with underscores and convert to lowercase
+    snake_case_string = re.sub(r'\s+', '_', cleaned_string.strip()).lower()
+    return snake_case_string
 
 def main_forward():
 
@@ -617,8 +623,9 @@ def main_historic(start_date, end_date):
 
         if eq_sig is not None:
             for eq in eq_sig:
-                USGS_name = eq.get('place', '')
-                USGS_name = USGS_name.replace(' ', '_').lower()
+                title = eq.get('title', '')
+                title = to_snake_case(title)
+                print(f"title: {title}")
                 coords = eq.get('coordinates', [])
                 aoi = make_aoi(coords)
                 
@@ -631,7 +638,7 @@ def main_historic(start_date, end_date):
                 # Make jsons for processing
                 ascending_json, descending_json = make_jsons(ascending_group, descending_group)
 
-            return USGS_name, ascending_json, descending_json
+            return title, ascending_json, descending_json
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
