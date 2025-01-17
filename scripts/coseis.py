@@ -6,6 +6,7 @@ import geojson
 from shapely.geometry import mapping, shape, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from shapely.ops import unary_union
 from datetime import datetime, timedelta, timezone
+from collections import defaultdict
 import logging
 import re
 
@@ -427,32 +428,131 @@ def query_asfDAAC(AOI, time):
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
         return None
+
+def restructure_groups(ascending_groups, descending_groups):
+    """
+    Restructure (1) style groups into (2) style groups to make them compatible 
+    with the original function.
+    """
+    # Flatten and merge the groups in ascending_groups
+    if ascending_groups:
+        ascending_group = []
+        for group in ascending_groups:
+            for item in group:
+                ascending_group.append(item)
+    else:
+        ascending_group = []
+
+    # Flatten and merge the groups in descending_groups
+    if descending_groups:
+        descending_group = []
+        for group in descending_groups:
+            for item in group:
+                descending_group.append(item)
+    else:
+        descending_group = []
     
-def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
+    return ascending_group, descending_group
+
+def find_all_groups(groups, rupture_datetime):
     """
-    Find the SLCs that cover the Area of Interest (AOI) with appropriate acquisition times bounding the event to produce the InSAR product.
+    Find all possible groups of SLCs for InSAR processing based on the flight direction and path number.
     """
-    from collections import defaultdict
     print('=========================================')
-    print('Finding SLC pairs for InSAR processing...')
+    print('Finding all possible ASCENDING AND DESCENDING tracks')
     print('=========================================')
 
-    rupture_datetime = convert_time(event_datetime).strftime('%Y-%m-%dT%H:%M:%SZ')
-    rupture_datetime = datetime.strptime(rupture_datetime, '%Y-%m-%dT%H:%M:%SZ')
+    ascending_groups = []
+    descending_groups = []
 
+    for key, slcs in groups.items():
+        flight_direction, _ = key  # Extract flight direction from the key
 
-    # Find the SLCs that intersect the AOI with the most overlap
-    groups = defaultdict(list)
+        if flight_direction == "ASCENDING":
+            ascending = (key, slcs)
+            ascending_groups.append(ascending)
+
+        if flight_direction == "DESCENDING":
+            descending = (key, slcs)
+            descending_groups.append(descending)
+
+    all_groups = [ascending_groups, descending_groups]
+
+    print('=========================================')
+    print('Make REFERENCE and SECONDARY LISTS...')
+    print('=========================================')
+    
+    # Initialize dictionaries to store the "REFERENCE" and "SECONDARY" dictionaries
+    split_groups = {}
+
+    # Iterate through the best groups (best ascending and best descending)
+    ascending_groups = []
+    descending_groups = []
+    for group in all_groups:
+        for (flight_direction, path_number), slcs in group:
+            # Sort SLCs by startTime to ensure correct order
+            slcs.sort(key=lambda x: x['startTime'])
+            
+            # Initialize empty dictionaries for REFERENCE and SECONDARY
+            reference_slcs = defaultdict(list)
+            secondary_slcs = defaultdict(list)
+
+            # Split the SLCs based on rupture_datetime
+            for slc in slcs:
+                slc['startTime'] = datetime.strptime(slc['startTime'], '%Y-%m-%dT%H:%M:%S.%fZ')
+            
+                # Extract the date part from the startTime
+                slc_date = slc['startTime'].date()  # Get only the date (YYYY-MM-DD)
+        
+                if slc['startTime'] >= rupture_datetime:
+                    reference_slcs[slc_date].append(slc['fileID'].split('-SLC')[0])
+                else:
+                    secondary_slcs[slc_date].append(slc['fileID'].split('-SLC')[0])
+            
+            # Reverse the secondary dictionary by flipping the order of the dates
+            reversed_secondary = dict(reversed(list(secondary_slcs.items())))
+
+            # Store the split SLCs in the dictionary
+            split_groups[(flight_direction, path_number)] = {
+                "REFERENCE": reference_slcs,
+                "SECONDARY": reversed_secondary
+            }
+
+            # Store the REFERENCE and SECONDARY dictionaries in list based on flight direction
+            if flight_direction == "ASCENDING":
+                ascending_group = [reference_slcs, reversed_secondary]
+                ascending_groups.append(ascending_group)
+
+            elif flight_direction == "DESCENDING":
+                descending_group = [reference_slcs, reversed_secondary]
+                descending_groups.append(descending_group)
+
+        print('=========================================')
+        print('REFERENCE and SECONDARY SLCs:')
+        print('=========================================')
+        # Print the result
+        # for (flight_direction, path_number), splits in split_groups.items():
+        #     print(f"Flight Direction: {flight_direction}, Path Number: {path_number}")
+        #     print(f"REFERENCE SLCs: {dict(splits['REFERENCE'])}")  # Convert defaultdict to dict for display
+        #     print(f"SECONDARY SLCs: {dict(splits['SECONDARY'])}")  # Convert defaultdict to dict for display
+    print(f'ascending_groups: {ascending_groups}')
+    print(f'descending_groups: {descending_groups}')
+
+    ascending_group, descending_group = restructure_groups(ascending_groups, descending_groups)
+    print(f'ascending_group: {ascending_group}')
+    print(f'descending_group: {descending_group}')
+    
+    return ascending_group, descending_group
+
+def find_optimal_groups(AOI, groups, rupture_datetime):
+    """
+    Find the optimal groups of SLCs for InSAR processing based on the overlap with the Area of Interest (AOI).
+    """
+    print('=========================================')
+    print('Finding optimal ASCENDING and DESCENDING tracks')
+    print('=========================================')
+
     overlap_areas = {}  # To store the total overlap area for each group
-    for SLC in SLCs:
-        # Extract flightDirection and pathNumber
-        flight_direction = SLC.get('flightDirection', '').upper()
-        path_number = SLC.get('pathNumber')
-
-        # Ensure both keys are present
-        if (flight_direction is not None) and (path_number is not None):
-            groups[(flight_direction, path_number)].append(SLC)
-
     for key, slcs in groups.items():
         # Compute the union of all SLC geometries in the group
         slc_geometries = [shape(slc['geometry']) for slc in slcs]
@@ -465,10 +565,6 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
         overlap_areas[key] = total_overlap_area
         # Print the group and its overlap area
         print(f"{key} with total overlap of the AOI of {total_overlap_area}")
-
-    print('=========================================')
-    print('Finding optimal ASCENDING and DESCENDING tracks')
-    print('=========================================')
 
     # Initialize variables to track the groups with the highest overlap
     best_ascending = None
@@ -493,12 +589,8 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
 
     best_groups = [best_ascending, best_descending]
 
-    print("Best ASCENDING Group:", best_ascending[0], "with total overlap area", max_overlap_ascending)
-    print("Best DESCENDING Group:", best_descending[0], "with total overlap area", max_overlap_descending)
-
-    print('=========================================')
-    print('Make REFERENCE and SECONDARY LISTS...')
-    print('=========================================')
+    # print("Best ASCENDING Group:", best_ascending[0], "with total overlap area", max_overlap_ascending)
+    # print("Best DESCENDING Group:", best_descending[0], "with total overlap area", max_overlap_descending)
 
     # Initialize dictionaries to store the "REFERENCE" and "SECONDARY" dictionaries
     split_groups = {}
@@ -543,10 +635,45 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
     print('REFERENCE and SECONDARY SLCs:')
     print('=========================================')
     # Print the result
-    for (flight_direction, path_number), splits in split_groups.items():
-        print(f"Flight Direction: {flight_direction}, Path Number: {path_number}")
-        print(f"REFERENCE SLCs: {dict(splits['REFERENCE'])}")  # Convert defaultdict to dict for display
-        print(f"SECONDARY SLCs: {dict(splits['SECONDARY'])}")  # Convert defaultdict to dict for display
+    # for (flight_direction, path_number), splits in split_groups.items():
+    #     print(f"Flight Direction: {flight_direction}, Path Number: {path_number}")
+    #     print(f"REFERENCE SLCs: {dict(splits['REFERENCE'])}")  # Convert defaultdict to dict for display
+    #     print(f"SECONDARY SLCs: {dict(splits['SECONDARY'])}")  # Convert defaultdict to dict for display
+    
+    print(f'ascending_group: {ascending_group}')
+    print(f'descending_group: {descending_group}')
+
+    return ascending_group, descending_group
+
+def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime, optimal = False):
+    """
+    Find the SLCs that cover the Area of Interest (AOI) with appropriate acquisition times bounding the event to produce the InSAR product.
+    """
+
+    print('=========================================')
+    print('Finding SLC pairs for InSAR processing...')
+    print('=========================================')
+
+    rupture_datetime = convert_time(event_datetime).strftime('%Y-%m-%dT%H:%M:%SZ')
+    rupture_datetime = datetime.strptime(rupture_datetime, '%Y-%m-%dT%H:%M:%SZ')
+
+    # Find the SLCs that intersect the AOI with the most overlap
+    groups = defaultdict(list)
+
+    for SLC in SLCs:
+        # Extract flightDirection and pathNumber
+        flight_direction = SLC.get('flightDirection', '').upper()
+        path_number = SLC.get('pathNumber')
+
+        # Ensure both keys are present
+        if (flight_direction is not None) and (path_number is not None):
+            groups[(flight_direction, path_number)].append(SLC)
+
+    if optimal:
+        ascending_group, descending_group = find_optimal_groups(AOI, groups, rupture_datetime)
+
+    else:
+        ascending_group, descending_group = find_all_groups(groups, rupture_datetime)
 
     return ascending_group, descending_group
 
@@ -555,10 +682,20 @@ def make_jsons(ascending_group, descending_group):
     Create JSON files for the ascending and descending groups.
     """
     try:
+        # Flatten and group all ascending scenes by date
+        reference_scenes_asc = []
+        secondary_scenes_asc = []
+        for group in ascending_group:
+            for date, scenes in group.items():
+                if not reference_scenes_asc:  # Add the first date's scenes to reference
+                    reference_scenes_asc.extend(scenes)
+                else:  # Add subsequent date's scenes to secondary
+                    secondary_scenes_asc.extend(scenes)
+
         # Create JSON for the ascending group
         ascending_json = {
-            "reference-scenes": list(ascending_group[0].values())[0],
-            "secondary-scenes": list(ascending_group[1].values())[0],
+            "reference-scenes": reference_scenes_asc,
+            "secondary-scenes": secondary_scenes_asc,
             "frame-id": -1,
             "estimate-ionosphere-delay": True,
             "esd-coherence-threshold": -1,
@@ -567,20 +704,31 @@ def make_jsons(ascending_group, descending_group):
             "output-resolution": 30,
             "unfiltered-coherence": True,
             "dense-offsets": True,
-            }
-        
-        # Save the JSON data to files
+        }
+
+        # Save the JSON data to a file
         with open('ascending_group.json', 'w') as f:
             json.dump(ascending_json, f, indent=2)
-    except:
-        print(f"Missing reference or secondary scenes for ascending group.")
+
+    except Exception as e:
+        print(f"Error with ascending group: {e}")
         ascending_json = None
 
     try:
+        # Flatten and group all descending scenes by date
+        reference_scenes_desc = []
+        secondary_scenes_desc = []
+        for group in descending_group:
+            for date, scenes in group.items():
+                if not reference_scenes_desc:  # Add the first date's scenes to reference
+                    reference_scenes_desc.extend(scenes)
+                else:  # Add subsequent date's scenes to secondary
+                    secondary_scenes_desc.extend(scenes)
+
         # Create JSON for the descending group
         descending_json = {
-            "reference-scenes": list(descending_group[0].values())[0],
-            "secondary-scenes": list(descending_group[1].values())[0],
+            "reference-scenes": reference_scenes_desc,
+            "secondary-scenes": secondary_scenes_desc,
             "frame-id": -1,
             "estimate-ionosphere-delay": True,
             "esd-coherence-threshold": -1,
@@ -589,35 +737,40 @@ def make_jsons(ascending_group, descending_group):
             "output-resolution": 30,
             "unfiltered-coherence": True,
             "dense-offsets": True,
-            }
-        
+        }
+
+        # Save the JSON data to a file
         with open('descending_group.json', 'w') as f:
             json.dump(descending_json, f, indent=2)
 
-    except:
-        print(f"Missing reference or secondary scenes for descending group.")
+    except Exception as e:
+        print(f"Error with descending group: {e}")
         descending_json = None
 
-    # If both JSON files are created, return them both.
+    # Return created JSON objects with status messages
     if ascending_json and descending_json:
         print('=========================================')
         print("JSON files created successfully.")
         print('=========================================')
         return ascending_json, descending_json
-    
-    # If only the ascending JSON file is created, return it and None for the descending JSON file.
-    elif ascending_json and descending_json is None:
+
+    elif ascending_json and not descending_json:
         print('=========================================')
         print("Only ascending JSON file created.")
         print('=========================================')
         return ascending_json, None
 
-    # If only the descending JSON file is created, return it and None for the ascending JSON file.
-    elif descending_json and ascending_json is None:
+    elif descending_json and not ascending_json:
         print('=========================================')
         print("Only descending JSON file created.")
         print('=========================================')
         return None, descending_json
+
+    else:
+        print('=========================================')
+        print("No JSON files created.")
+        print('=========================================')
+        return None, None
 
 def to_snake_case(input_string):
     # Replace non-alphanumeric characters with spaces
@@ -688,6 +841,11 @@ def main_historic(start_date, end_date = None):
                 # Find SLC pairs for InSAR processing
                 ascending_group, descending_group = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
 
+                # print('=========================================')
+                # print(f'ascending_group: {ascending_group}')
+                # print(f'descending_group: {descending_group}')
+                # print('=========================================')
+                
                 # Make jsons for processing
                 ascending_json, descending_json = make_jsons(ascending_group, descending_group)
 
