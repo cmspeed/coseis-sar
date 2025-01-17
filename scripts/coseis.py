@@ -19,21 +19,21 @@ USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Ear
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
 
-def get_historic_earthquake_data(eq_api, start_time, end_time):
+def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
-    Fetches data from the USGS Earthquake Portal and returns it as a GeoJSON object.
+    Fetches data from the USGS Earthquake Portal for a single date and returns it as a GeoJSON object.
     The data returned will depend on the parameters included with the API request.
     """
     print('=========================================')
-    print(f"Fetching historic earthquake data from {start_time} to {end_time}...")
+    print(f"Fetching historic earthquake data from {input_date}...")
     print('=========================================')
     try:
 
         # Parameters for the API request
         params = {
             "format": "geojson",
-            "starttime": start_time,
-            "endtime": end_time,
+            "starttime": input_date + "00:00:00",
+            "endtime": input_date + "23:59:59",
             "minmagnitude": 6.0,
             "maxdepth": 30.0
         }
@@ -46,7 +46,47 @@ def get_historic_earthquake_data(eq_api, start_time, end_time):
         earthquakes = geojson.loads(response.text)
 
         # Save to a GeoJSON file
-        output_file = "historic_earthquakes.geojson"
+        output_file = f"historic_earthquakes_{input_date}.geojson"
+        with open(output_file, "w") as f:
+            json.dump(earthquakes, f, indent=2)
+        
+        return earthquakes
+
+    except requests.RequestException as e:
+        print(f"Error accessing primary API: {e}")
+        return None
+    except geojson.GeoJSONDecodeError as e:
+        print(f"Error parsing GeoJSON data: {e}")
+        return None
+
+def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
+    """
+    Fetches data from the USGS Earthquake Portal over the date range and returns it as a GeoJSON object.
+    The data returned will depend on the parameters included with the API request.
+    """
+    print('=========================================')
+    print(f"Fetching historic earthquake data from {start_date} to {end_date}...")
+    print('=========================================')
+    try:
+
+        # Parameters for the API request
+        params = {
+            "format": "geojson",
+            "starttime": start_date,
+            "endtime": end_date,
+            "minmagnitude": 6.0,
+            "maxdepth": 30.0
+        }
+
+        # Fetch data from the USGS Earthquake API
+        response = requests.get(eq_api, params=params)
+        response.raise_for_status()  # Raise error if request fails
+        
+        # Parse the response as GeoJSON
+        earthquakes = geojson.loads(response.text)
+
+        # Save to a GeoJSON file
+        output_file = f"historic_earthquakes_{start_date}_to_{end_date}.geojson"
         with open(output_file, "w") as f:
             json.dump(earthquakes, f, indent=2)
         
@@ -410,7 +450,7 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime):
         path_number = SLC.get('pathNumber')
 
         # Ensure both keys are present
-        if flight_direction and path_number is not None:
+        if (flight_direction is not None) and (path_number is not None):
             groups[(flight_direction, path_number)].append(SLC)
 
     for key, slcs in groups.items():
@@ -611,10 +651,23 @@ def main_forward():
         else:
             print("No significant earthquakes found in the last hour.")
     
-def main_historic(start_date, end_date):
+def main_historic(start_date, end_date = None):
+    """
+    Query the USGS Earthquake API for significant earthquakes between the given date (and end date, if provided)
+    and return json files for ascending and descending groups of reference/secondary SLCs for InSAR processing.
+    """
 
-    # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    geojson_data = get_historic_earthquake_data(USGS_api_alltime, start_date, end_date)
+    if start_date and end_date is None:
+        # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for a single date
+        geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, start_date)
+
+    elif start_date and end_date:
+        # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for the date range provided
+        geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, start_date, end_date)
+
+    else:
+        print("Must provide (at least) a start date for historic processing. Exiting...")
+        return
 
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
@@ -648,12 +701,12 @@ if __name__ == "__main__":
         description="Run historic or forward processing based on input arguments."
     )
     parser.add_argument("start_date", nargs="?", help="The start date in YYYY-MM-DD format.")
-    parser.add_argument("end_date", nargs="?", help="The end date in YYYY-MM-DD format.")
+    parser.add_argument("end_date", nargs="?", help="The optional end date in YYYY-MM-DD format.")
 
     args = parser.parse_args()
 
-    # Check if arguments are provided
-    if args.start_date and args.end_date:
+    if args.start_date:
+        # Call main_historic with one or two arguments based on what's provided
         main_historic(args.start_date, args.end_date)
     else:
         main_forward()
