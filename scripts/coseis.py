@@ -407,7 +407,7 @@ def get_path_and_frame_numbers(AOI, time):
         }
 
         print('=========================================')
-        print('Reformatted Path and Frame Numbers for SLCs (No Duplicates):')
+        print('Reformatted Path and Frame Numbers for SLCs:')
         print('=========================================')
         for key, value in reformatted.items():
             print(f"{key}: {value}")
@@ -417,8 +417,65 @@ def get_path_and_frame_numbers(AOI, time):
         print(f"Error accessing ASF DAAC API: {e}")
         return None
 
+def get_SLCs(flight_direction, path_number, frame_numbers, time):
 
-def query_asfDAAC(AOI, time):
+    # Establish the date range for the query
+    rupture_date = convert_time(time)
+    start_date = rupture_date - timedelta(days=12)  # 90 days before the earthquake
+    start_date= start_date.replace(hour=0, minute=0, second=0)
+    end_date = rupture_date + timedelta(days=12)    # 90 days after the earthquake
+    end_date = end_date.replace(hour=11, minute=59, second=59)
+
+    # Format the datetime object into a string
+    start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    end_date = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Define the query parameters
+    params = {
+        'flightDirection': flight_direction,
+        'frame': ','.join(frame_numbers),
+        'relativeOrbit': path_number,
+        'dataset':'SENTINEL-1',
+        'processingLevel': 'SLC',
+        'start':start_date,
+        'end':end_date,
+        'output': 'geojson'
+    }
+
+    print('Performing ASF DAAC API query to return SLCs for the given path and frame numbers...')
+    
+    try:
+        # Fetch data from the ASF DAAC API
+        response = requests.get(ASF_DAAC_API, params=params)
+        response.raise_for_status()  # Raise error if request fails
+
+        # Parse the response as GeoJSON
+        data = geojson.loads(response.text)
+
+        # Extract the file IDs from the GeoJSON data
+        SLCs = []
+        for feature in data['features']:
+            SLC = {
+                'fileID': feature['properties']['fileID'],
+                'flightDirection': feature['properties']['flightDirection'],
+                'pathNumber': feature['properties']['pathNumber'],
+                'frameNumber': feature['properties']['frameNumber'],
+                'startTime': feature['properties']['startTime'],
+                'geometry': feature.geometry
+            }
+            SLCs.append(SLC)
+
+        print('=========================================')
+        print(f"Found {len(SLCs)} SLCs for the given path and frame numbers.")
+        for SLC in SLCs:
+            print(SLC['fileID'])
+        return SLCs
+    
+    except requests.RequestException as e:
+        print(f"Error accessing ASF DAAC API: {e}")
+        return None
+
+def query_asfDAAC(time):
     """
     Query the ASF DAAC API for S1 data within the Area of Interest (AOI).
     """
@@ -903,8 +960,10 @@ def main_historic(start_date, end_date = None):
                 aoi = make_aoi(coords)
                 
                 path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
+                print('path_frame_numbers:', path_frame_numbers)
 
-                print(path_frame_numbers)
+                for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+                    SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
 
                 # Query the ASF DAAC API for SAR data within the AOI
                 #SLCs = query_asfDAAC(aoi, eq.get('time'))
