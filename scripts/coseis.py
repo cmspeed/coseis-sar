@@ -353,13 +353,75 @@ def convert_time(time):
     dt = datetime.fromtimestamp(timestamp_s, tz=timezone.utc)
     dt = dt.replace(microsecond=0)
     return dt
-    
+
+def get_path_and_frame_numbers(AOI, time):
+    """
+    Query the ASF DAAC API for S1 data intersecting the Area of Interest (AOI) over the previous 24 days.
+    Return the *unique* path and frame numbers for each intersecting SLC.
+    """
+    # Establish the date range for the query
+    rupture_date = convert_time(time)
+    start_date = rupture_date - timedelta(days=24) # 24 days before the earthquake
+    start_date = start_date.replace(hour=0, minute=0, second=0)
+    end_date = rupture_date.replace(hour=11, minute=59, second=59) # the day of the earthquake
+
+    # Format the datetime object into a string
+    start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    end_date = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Define the ASF query parameters
+    params = {
+        'intersectsWith': AOI.wkt,
+        'dataset': 'SENTINEL-1',
+        'processingLevel': 'SLC',
+        'start': start_date,
+        'end': end_date,
+        'output': 'geojson'
+    }
+
+    print('Performing ASF DAAC API query to return path and frame numbers for SLCs intersecting AOI over the last 24 days...')
+
+    try:
+        # Fetch data from the ASF DAAC API
+        response = requests.get(ASF_DAAC_API, params=params)
+        response.raise_for_status()  # Raise error if request fails
+
+        # Parse the response as GeoJSON
+        data = geojson.loads(response.text)
+
+        # Initialize an empty dictionary to store the path and frame numbers as sets
+        path_frame_numbers = defaultdict(lambda: defaultdict(set))
+
+        # Extract the path and frame numbers from the GeoJSON data
+        for feature in data['features']:
+            flight_direction = feature['properties']['flightDirection']
+            path_number = feature['properties']['pathNumber']
+            frame_number = feature['properties']['frameNumber']
+            path_frame_numbers[flight_direction][path_number].add(frame_number)  # Use a set to avoid duplicates
+
+        # Reformat the dictionary into the desired format with tuples as keys and lists as values
+        reformatted = {
+            (flight_direction, path_number): sorted(frame_numbers)  # Convert to sorted list for consistency
+            for flight_direction, path_frame in path_frame_numbers.items()
+            for path_number, frame_numbers in path_frame.items()
+        }
+
+        print('=========================================')
+        print('Reformatted Path and Frame Numbers for SLCs (No Duplicates):')
+        print('=========================================')
+        for key, value in reformatted.items():
+            print(f"{key}: {value}")
+        return reformatted
+
+    except requests.RequestException as e:
+        print(f"Error accessing ASF DAAC API: {e}")
+        return None
+
+
 def query_asfDAAC(AOI, time):
     """
     Query the ASF DAAC API for S1 data within the Area of Interest (AOI).
     """
-    # Define the ASF DAAC API endpoint
-    ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
 
     # Establish the date range for the query
     rupture_date = convert_time(time)
@@ -468,11 +530,11 @@ def find_all_groups(groups, rupture_datetime):
     for key, slcs in groups.items():
         flight_direction, _ = key  # Extract flight direction from the key
 
-        if flight_direction == "ASCENDING":
+        if flight_direction == "A":
             ascending = (key, slcs)
             ascending_groups.append(ascending)
 
-        if flight_direction == "DESCENDING":
+        if flight_direction == "D":
             descending = (key, slcs)
             descending_groups.append(descending)
 
@@ -519,22 +581,18 @@ def find_all_groups(groups, rupture_datetime):
             }
 
             # Store the REFERENCE and SECONDARY dictionaries in list based on flight direction
-            if flight_direction == "ASCENDING":
+            if flight_direction == "A":
                 ascending_group = [reference_slcs, reversed_secondary]
                 ascending_groups.append(ascending_group)
 
-            elif flight_direction == "DESCENDING":
+            elif flight_direction == "D":
                 descending_group = [reference_slcs, reversed_secondary]
                 descending_groups.append(descending_group)
 
         print('=========================================')
         print('REFERENCE and SECONDARY SLCs:')
         print('=========================================')
-        # Print the result
-        # for (flight_direction, path_number), splits in split_groups.items():
-        #     print(f"Flight Direction: {flight_direction}, Path Number: {path_number}")
-        #     print(f"REFERENCE SLCs: {dict(splits['REFERENCE'])}")  # Convert defaultdict to dict for display
-        #     print(f"SECONDARY SLCs: {dict(splits['SECONDARY'])}")  # Convert defaultdict to dict for display
+
     print(f'ascending_groups: {ascending_groups}')
     print(f'descending_groups: {descending_groups}')
 
@@ -667,7 +725,16 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime, optimal = False):
 
         # Ensure both keys are present
         if (flight_direction is not None) and (path_number is not None):
-            groups[(flight_direction, path_number)].append(SLC)
+            formatted_path_number = f"{int(path_number):03d}"
+            if flight_direction == 'ASCENDING':
+                direction = 'A'
+            elif flight_direction == 'DESCENDING':
+                direction = 'D'
+            groups[(direction, formatted_path_number)].append(SLC)
+
+    print('=========================================')
+    print('Groups of SLCs:', groups)
+    print('=========================================')
 
     if optimal:
         ascending_group, descending_group = find_optimal_groups(AOI, groups, rupture_datetime)
@@ -782,7 +849,7 @@ def to_snake_case(input_string):
 def main_forward():
 
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    geojson_data = check_for_new_data(USGS_api_hourly)
+    #geojson_data = check_for_new_data(USGS_api_hourly)
     geojson_data = check_for_new_data(USGS_api_30day)
     
     if geojson_data:
@@ -835,11 +902,15 @@ def main_historic(start_date, end_date = None):
                 coords = eq.get('coordinates', [])
                 aoi = make_aoi(coords)
                 
+                path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
+
+                print(path_frame_numbers)
+
                 # Query the ASF DAAC API for SAR data within the AOI
-                SLCs = query_asfDAAC(aoi, eq.get('time'))
+                #SLCs = query_asfDAAC(aoi, eq.get('time'))
 
                 # Find SLC pairs for InSAR processing
-                ascending_group, descending_group = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+                #ascending_group, descending_group = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
 
                 # print('=========================================')
                 # print(f'ascending_group: {ascending_group}')
@@ -847,9 +918,9 @@ def main_historic(start_date, end_date = None):
                 # print('=========================================')
                 
                 # Make jsons for processing
-                ascending_json, descending_json = make_jsons(ascending_group, descending_group)
+                #ascending_json, descending_json = make_jsons(ascending_group, descending_group)
 
-            return title, ascending_json, descending_json
+            #return title, ascending_json, descending_json
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
