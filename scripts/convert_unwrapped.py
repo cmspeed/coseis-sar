@@ -15,8 +15,8 @@ def convert_unwrapped(unwrapped_pix):
     
     # Write the converted arrays to a new raster
     driver = gdal.GetDriverByName("ISCE")
-    outfile = "/merged/filt_topophase_m.unw.geo"
-    vrtfile = "/merged/filt_topophase_m.unw.geo.vrt"
+    outfile = "merged/testing/filt_topophase_m.unw.geo"
+    vrtfile = "merged/testing/filt_topophase_m.unw.geo.vrt"
    
     # Create the new raster
     unwrapped_m = driver.Create(outfile, unwrapped.RasterXSize, unwrapped.RasterYSize, 2, gdal.GDT_Float32)
@@ -26,8 +26,8 @@ def convert_unwrapped(unwrapped_pix):
     band2 = unwrapped_m.GetRasterBand(2)
    
     # Set the NoData value for both bands before writing data
-    band1.SetNoDataValue(-10000)
-    band2.SetNoDataValue(-10000)
+    band1.SetNoDataValue(0)
+    band2.SetNoDataValue(0)
    
     # Write the amp_array to band 1 and phase_m to band 2
     band1.WriteArray(amp_array)
@@ -49,7 +49,7 @@ def convert_unwrapped(unwrapped_pix):
     return
 
 def main():
-    convert_unwrapped('/merged/filt_topophase.unw.geo')
+    convert_unwrapped('merged/filt_topophase.unw.geo')
 
 if __name__ == "__main__":
     main()
