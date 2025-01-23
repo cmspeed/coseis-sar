@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import logging
 import re
+import pprint
 
 # Set logging level to WARNING to suppress DEBUG and INFO logs
 logging.basicConfig(level=logging.WARNING)
@@ -421,9 +422,9 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
 
     # Establish the date range for the query
     rupture_date = convert_time(time)
-    start_date = rupture_date - timedelta(days=12)  # 90 days before the earthquake
+    start_date = rupture_date - timedelta(days=90)  # 3 months before the earthquake
     start_date= start_date.replace(hour=0, minute=0, second=0)
-    end_date = rupture_date + timedelta(days=12)    # 90 days after the earthquake
+    end_date = rupture_date + timedelta(days=90)    # 3 months before the earthquake
     end_date = end_date.replace(hour=11, minute=59, second=59)
 
     # Format the datetime object into a string
@@ -455,25 +456,91 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
         # Extract the file IDs from the GeoJSON data
         SLCs = []
         for feature in data['features']:
+
+            # Extract the date part from startTime
+            start_time = feature['properties']['startTime']
+            date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%fZ').date().isoformat()
             SLC = {
                 'fileID': feature['properties']['fileID'],
-                'flightDirection': feature['properties']['flightDirection'],
-                'pathNumber': feature['properties']['pathNumber'],
-                'frameNumber': feature['properties']['frameNumber'],
-                'startTime': feature['properties']['startTime'],
-                'geometry': feature.geometry
+                'date': date
             }
+
             SLCs.append(SLC)
 
+        # Print the SLCs
         print('=========================================')
-        print(f"Found {len(SLCs)} SLCs for the given path and frame numbers.")
-        for SLC in SLCs:
-            print(SLC['fileID'])
+        print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} and frame numbers {frame_numbers}.")
+        # for SLC in SLCs:
+        #     print(SLC)
         return SLCs
     
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
         return None
+
+def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time):
+    """
+    Find the reference and secondary pairs of SLCs and determine whether each pair is 
+    pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates."""
+
+    # Get the rupture date in the format YYYY-MM-DD
+    rupture_date = convert_time(time)
+    rupture_date = rupture_date.strftime('%Y-%m-%d')
+
+    # Reformatting for dictionary keys for later use    
+    flight_direction = 'A' if flight_direction == 'ASCENDING' else 'D'
+    path_number = f"{int(path_number):03}" 
+    
+    # Sort SLCs by date in ascending order
+    SLCs_sorted = sorted(SLCs, key=lambda x: x['date'])
+    
+    # Initialize the result dictionary
+    pairs_dict = {}
+    
+    # Create pairs
+    for i in range(1, len(SLCs_sorted)):
+        reference = SLCs_sorted[i]  # Newer
+        secondary = SLCs_sorted[i - 1]  # Older
+        
+        # Skip if the dates are the same
+        if reference['date'] == secondary['date']:
+            continue
+        
+        # Determine the timing of pair based on the rupture_date
+        if reference['date'] < rupture_date:
+            timing = 'pre-seismic'
+        elif reference['date'] > rupture_date and secondary['date'] < rupture_date:
+            timing = 'co-seismic'
+        else:
+            timing = 'post-seismic'
+
+        # Create unique key for each pair
+        key = (flight_direction,
+            path_number,
+            secondary['date'],
+            reference['date'],
+            timing
+            )
+        
+        # Collect fileIDs for reference/secondary
+        reference_scenes = [
+            entry['fileID'] for entry in SLCs if entry['date'] == reference['date']
+        ]
+        secondary_scenes = [
+            entry['fileID'] for entry in SLCs if entry['date'] == secondary['date']
+        ]
+        
+        # Store in the nested dictionary
+        pairs_dict[key] = {
+            ('reference-scenes', 'secondary-scenes'): [reference_scenes, secondary_scenes]
+        }
+    
+    # Print the pairs in a readable format
+    print("\nReadable Output:\n")
+    pp = pprint.PrettyPrinter(indent=4)
+    pp.pprint(pairs_dict)
+    
+    return pairs_dict
 
 def query_asfDAAC(time):
     """
@@ -801,6 +868,28 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime, optimal = False):
 
     return ascending_group, descending_group
 
+def make_json(SLCs):
+    """
+    Create a JSON file for the given SLCs.
+    """
+
+    # Split into reference and secondary scenes
+
+    ISCE_json = {
+            "reference-scenes": reference_scenes,
+            "secondary-scenes": secondary_scenes,
+            "frame-id": -1,
+            "estimate-ionosphere-delay": True,
+            "esd-coherence-threshold": -1,
+            "compute-solid-earth-tide": True,
+            "goldstein-filter-power": 0.5,
+            "output-resolution": 30,
+            "unfiltered-coherence": True,
+            "dense-offsets": True,
+        }
+
+    return ISCE_json
+
 def make_jsons(ascending_group, descending_group):
     """
     Create JSON files for the ascending and descending groups.
@@ -964,6 +1053,10 @@ def main_historic(start_date, end_date = None):
 
                 for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
                     SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
+                    SLC_pairs = find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, eq.get('time'))
+                    #print('SLC_pairs:', SLC_pairs)
+                    #reference_scenes, secondary_scenes = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+                    #isce_json = make_json(SLCs)
 
                 # Query the ASF DAAC API for SAR data within the AOI
                 #SLCs = query_asfDAAC(aoi, eq.get('time'))
