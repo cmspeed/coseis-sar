@@ -573,6 +573,88 @@ def make_json(title, flight_direction, path_number, reference, secondary, refere
     }
     return isce_json
 
+def create_directories_from_json(eq_jsons, root_dir):
+    dirnames = []
+    for isce_jsons in eq_jsons:
+        for json_data in isce_jsons:
+            title = json_data['title']
+            flight_direction = json_data['flight-direction']
+            path_number = json_data['path-number']
+            secondary_date = json_data['secondary-date'].replace("-", "")
+            reference_date = json_data['reference-date'].replace("-", "")
+            
+            # Build the full path
+            base_path = os.path.join(root_dir, title, flight_direction + path_number)
+            sub_path = f"{flight_direction}{path_number}_{secondary_date}_{reference_date}"
+            full_path = os.path.join(base_path, sub_path)
+            
+            # Create directories, ensuring no overwriting
+            os.makedirs(full_path, exist_ok=True)
+            dirnames.append(full_path)
+            print(f"Created: {full_path}")
+
+    return dirnames
+
+def run_dockerized_topsApp(json_data):
+    """
+    Run dockerized topsApp InSAR processing workflow using the provided JSON data.
+    Outputs are added to the root dir + an extension for each pair.
+    """
+
+    # Extract the parameters from the JSON data
+    reference_scenes = json_data['reference-scenes']
+    secondary_scenes = json_data['secondary-scenes']
+    frame_id = json_data['frame-id']
+    estimate_ionosphere_delay = json_data['estimate-ionosphere-delay']
+    esd_coherence_threshold = json_data['esd-coherence-threshold']
+    compute_solid_earth_tide = json_data['compute-solid-earth-tide']
+    goldstein_filter_power = json_data['goldstein-filter-power']
+    output_resolution = json_data['output-resolution']
+    unfiltered_coherence = json_data['unfiltered-coherence']
+    dense_offsets = json_data['dense-offsets']
+    
+    # Construct the command
+    command = [
+        "taskset", "-c", "65-128",
+        "nohup", "isce2_topsapp",
+        "--reference-scenes", " ".join(reference_scenes),
+        "--secondary-scenes", " ".join(secondary_scenes),
+        "--frame-id", str(frame_id),
+        "--estimate-ionosphere-delay", str(estimate_ionosphere_delay),
+        "--esd-coherence-threshold", str(esd_coherence_threshold),
+        "--compute-solid-earth-tide", str(compute_solid_earth_tide),
+        "--goldstein-filter-power", str(goldstein_filter_power),
+        "--output-resolution", str(output_resolution),
+        "--unfiltered-coherence", str(unfiltered_coherence),
+        "--dense-offsets", str(dense_offsets),
+    ]
+    
+    print('=========================================')
+    print("Running the dockerized topsApp InSAR processing workflow...")
+    print('=========================================')
+
+    # Set the environment variable for XLA
+    env = os.environ.copy()
+    env["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.20"
+
+    # Run the command
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+            env=env  # Pass the environment with XLA variable set
+        )
+        print("Command executed successfully!")
+        print("Output:\n", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print("Error occurred while running the command.")
+        print("Error Output:\n", e.stderr)
+
+    return
+
 def query_asfDAAC(time):
     """
     Query the ASF DAAC API for S1 data within the Area of Interest (AOI).
@@ -970,6 +1052,20 @@ def main_historic(start_date, end_date = None):
                     SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
                     isce_jsons = find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, eq.get('time'), title)
                     eq_jsons.append(isce_jsons)
+
+                dirnames = create_directories_from_json(eq_jsons, root_dir)
+
+                for eq_json in eq_jsons:
+                    for i, json_data in enumerate(eq_json):
+                        os.chdir(dirnames[i])
+                        print(f'working directory: {os.getcwd()}')
+                        print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                        try:
+                            run_dockerized_topsApp(json_data)
+                        except:
+                            print('Error running dockerized topsApp')
+                            continue
+            return eq_jsons
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
