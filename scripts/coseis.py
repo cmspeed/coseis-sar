@@ -5,11 +5,12 @@ import json
 import geojson
 from shapely.geometry import mapping, shape, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from shapely.ops import unary_union
+import subprocess
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import logging
 import re
-import pprint
+import os
 
 # Set logging level to WARNING to suppress DEBUG and INFO logs
 logging.basicConfig(level=logging.WARNING)
@@ -20,6 +21,7 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
+root_dir = "/u/trappist-r0/colespeed/work/coseis/earthquakes/"
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -478,7 +480,7 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
         print(f"Error accessing ASF DAAC API: {e}")
         return None
 
-def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time):
+def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time, title):
     """
     Find the reference and secondary pairs of SLCs and determine whether each pair is 
     pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates."""
@@ -495,8 +497,10 @@ def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time
     SLCs_sorted = sorted(SLCs, key=lambda x: x['date'])
     
     # Initialize the result dictionary
-    pairs_dict = {}
+    #pairs_dict = {}
     
+    isce_jsons = []
+
     # Create pairs
     for i in range(1, len(SLCs_sorted)):
         reference = SLCs_sorted[i]  # Newer
@@ -531,16 +535,43 @@ def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time
         ]
         
         # Store in the nested dictionary
-        pairs_dict[key] = {
-            ('reference-scenes', 'secondary-scenes'): [reference_scenes, secondary_scenes]
-        }
+        # pairs_dict[key] = {
+        #     ('reference-scenes', 'secondary-scenes'): [reference_scenes, secondary_scenes]
+        # }
     
+        # Create the JSON for this pair
+        json_output = make_json(title, flight_direction, path_number, {'date': reference['date']}, {'date': secondary['date']}, reference_scenes, secondary_scenes)
+        
+        # Append the JSON to the list
+        isce_jsons.append(json_output)
+
     # Print the pairs in a readable format
-    print("\nReadable Output:\n")
-    pp = pprint.PrettyPrinter(indent=4)
-    pp.pprint(pairs_dict)
+    # print("\nReadable Output:\n")
+    # pp = pprint.PrettyPrinter(indent=4)
+    # pp.pprint(pairs_dict)
     
-    return pairs_dict
+    return isce_jsons
+
+def make_json(title, flight_direction, path_number, reference, secondary, reference_scenes, secondary_scenes):
+    """Create a JSON object containing parameters to make a directory ."""
+    isce_json = {
+        "title": title,
+        "flight-direction": flight_direction,
+        "path-number": path_number,
+        "reference-date": reference['date'],
+        "secondary-date": secondary['date'],
+        "reference-scenes": reference_scenes,
+        "secondary-scenes": secondary_scenes,
+        "frame-id": -1,
+        "estimate-ionosphere-delay": True,
+        "esd-coherence-threshold": -1,
+        "compute-solid-earth-tide": True,
+        "goldstein-filter-power": 0.5,
+        "output-resolution": 30,
+        "unfiltered-coherence": True,
+        "dense-offsets": True,
+    }
+    return isce_json
 
 def query_asfDAAC(time):
     """
@@ -868,123 +899,6 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime, optimal = False):
 
     return ascending_group, descending_group
 
-def make_json(SLCs):
-    """
-    Create a JSON file for the given SLCs.
-    """
-
-    # Split into reference and secondary scenes
-
-    ISCE_json = {
-            "reference-scenes": reference_scenes,
-            "secondary-scenes": secondary_scenes,
-            "frame-id": -1,
-            "estimate-ionosphere-delay": True,
-            "esd-coherence-threshold": -1,
-            "compute-solid-earth-tide": True,
-            "goldstein-filter-power": 0.5,
-            "output-resolution": 30,
-            "unfiltered-coherence": True,
-            "dense-offsets": True,
-        }
-
-    return ISCE_json
-
-def make_jsons(ascending_group, descending_group):
-    """
-    Create JSON files for the ascending and descending groups.
-    """
-    try:
-        # Flatten and group all ascending scenes by date
-        reference_scenes_asc = []
-        secondary_scenes_asc = []
-        for group in ascending_group:
-            for date, scenes in group.items():
-                if not reference_scenes_asc:  # Add the first date's scenes to reference
-                    reference_scenes_asc.extend(scenes)
-                else:  # Add subsequent date's scenes to secondary
-                    secondary_scenes_asc.extend(scenes)
-
-        # Create JSON for the ascending group
-        ascending_json = {
-            "reference-scenes": reference_scenes_asc,
-            "secondary-scenes": secondary_scenes_asc,
-            "frame-id": -1,
-            "estimate-ionosphere-delay": True,
-            "esd-coherence-threshold": -1,
-            "compute-solid-earth-tide": True,
-            "goldstein-filter-power": 0.5,
-            "output-resolution": 30,
-            "unfiltered-coherence": True,
-            "dense-offsets": True,
-        }
-
-        # Save the JSON data to a file
-        with open('ascending_group.json', 'w') as f:
-            json.dump(ascending_json, f, indent=2)
-
-    except Exception as e:
-        print(f"Error with ascending group: {e}")
-        ascending_json = None
-
-    try:
-        # Flatten and group all descending scenes by date
-        reference_scenes_desc = []
-        secondary_scenes_desc = []
-        for group in descending_group:
-            for date, scenes in group.items():
-                if not reference_scenes_desc:  # Add the first date's scenes to reference
-                    reference_scenes_desc.extend(scenes)
-                else:  # Add subsequent date's scenes to secondary
-                    secondary_scenes_desc.extend(scenes)
-
-        # Create JSON for the descending group
-        descending_json = {
-            "reference-scenes": reference_scenes_desc,
-            "secondary-scenes": secondary_scenes_desc,
-            "frame-id": -1,
-            "estimate-ionosphere-delay": True,
-            "esd-coherence-threshold": -1,
-            "compute-solid-earth-tide": True,
-            "goldstein-filter-power": 0.5,
-            "output-resolution": 30,
-            "unfiltered-coherence": True,
-            "dense-offsets": True,
-        }
-
-        # Save the JSON data to a file
-        with open('descending_group.json', 'w') as f:
-            json.dump(descending_json, f, indent=2)
-
-    except Exception as e:
-        print(f"Error with descending group: {e}")
-        descending_json = None
-
-    # Return created JSON objects with status messages
-    if ascending_json and descending_json:
-        print('=========================================')
-        print("JSON files created successfully.")
-        print('=========================================')
-        return ascending_json, descending_json
-
-    elif ascending_json and not descending_json:
-        print('=========================================')
-        print("Only ascending JSON file created.")
-        print('=========================================')
-        return ascending_json, None
-
-    elif descending_json and not ascending_json:
-        print('=========================================')
-        print("Only descending JSON file created.")
-        print('=========================================')
-        return None, descending_json
-
-    else:
-        print('=========================================')
-        print("No JSON files created.")
-        print('=========================================')
-        return None, None
-
 def to_snake_case(input_string):
     # Replace non-alphanumeric characters with spaces
     cleaned_string = re.sub(r'[^\w\s]', '', input_string)
@@ -1051,28 +965,11 @@ def main_historic(start_date, end_date = None):
                 path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
                 print('path_frame_numbers:', path_frame_numbers)
 
+                eq_jsons = []
                 for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
                     SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
-                    SLC_pairs = find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, eq.get('time'))
-                    #print('SLC_pairs:', SLC_pairs)
-                    #reference_scenes, secondary_scenes = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
-                    #isce_json = make_json(SLCs)
-
-                # Query the ASF DAAC API for SAR data within the AOI
-                #SLCs = query_asfDAAC(aoi, eq.get('time'))
-
-                # Find SLC pairs for InSAR processing
-                #ascending_group, descending_group = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
-
-                # print('=========================================')
-                # print(f'ascending_group: {ascending_group}')
-                # print(f'descending_group: {descending_group}')
-                # print('=========================================')
-                
-                # Make jsons for processing
-                #ascending_json, descending_json = make_jsons(ascending_group, descending_group)
-
-            #return title, ascending_json, descending_json
+                    isce_jsons = find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, eq.get('time'), title)
+                    eq_jsons.append(isce_jsons)
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
