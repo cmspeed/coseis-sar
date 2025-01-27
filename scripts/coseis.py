@@ -576,6 +576,7 @@ def make_json(title, flight_direction, path_number, reference, secondary, refere
 def create_directories_from_json(eq_jsons, root_dir):
     dirnames = []
     for isce_jsons in eq_jsons:
+        sub_dirnames = []  # To hold the directories for each group in `isce_jsons`
         for json_data in isce_jsons:
             title = json_data['title']
             flight_direction = json_data['flight-direction']
@@ -590,8 +591,10 @@ def create_directories_from_json(eq_jsons, root_dir):
             
             # Create directories, ensuring no overwriting
             os.makedirs(full_path, exist_ok=True)
-            dirnames.append(full_path)
+            sub_dirnames.append(full_path)
             print(f"Created: {full_path}")
+        
+        dirnames.append(sub_dirnames)
 
     return dirnames
 
@@ -1054,17 +1057,19 @@ def main_historic(start_date, end_date = None):
                     eq_jsons.append(isce_jsons)
 
                 dirnames = create_directories_from_json(eq_jsons, root_dir)
-
-                for eq_json in eq_jsons:
-                    for i, json_data in enumerate(eq_json):
-                        os.chdir(dirnames[i])
+                
+                for i, eq_json in enumerate(eq_jsons):
+                    for j, json_data in enumerate(eq_json): 
+                        working_dir = dirnames[i][j]
+                        os.chdir(working_dir)
                         print(f'working directory: {os.getcwd()}')
                         print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        try:
-                            run_dockerized_topsApp(json_data)
-                        except:
-                            print('Error running dockerized topsApp')
-                            continue
+                        # try:
+                        #     run_dockerized_topsApp(json_data)
+                        # except:
+                        #     print('Error running dockerized topsApp')
+                        #     continue
+
             return eq_jsons
                     
         else:
