@@ -25,8 +25,11 @@ root_dir = "/u/trappist-r0/colespeed/work/coseis/earthquakes/"
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
-    Fetches data from the USGS Earthquake Portal for a single date and returns it as a GeoJSON object.
+    Fetch data from the USGS Earthquake Portal for a single date and returns it as a GeoJSON object.
     The data returned will depend on the parameters included with the API request.
+    :param: eq_api - USGS API endpoint
+    :param: input_date - date in the format 'YYYY-MM-DD'
+    :return: GeoJSON object containing earthquake data
     """
     print('=========================================')
     print(f"Fetching historic earthquake data from {input_date}...")
@@ -65,8 +68,12 @@ def get_historic_earthquake_data_single_date(eq_api, input_date):
 
 def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
     """
-    Fetches data from the USGS Earthquake Portal over the date range and returns it as a GeoJSON object.
+    Fetch data from the USGS Earthquake Portal over the date range and returns it as a GeoJSON object.
     The data returned will depend on the parameters included with the API request.
+    :param: eq_api - USGS API endpoint
+    :param: start_date - start date in the format 'YYYY-MM-DD'
+    :param: end_date - end date in the format 'YYYY-MM-DD'
+    :return: GeoJSON object containing earthquake data over the date range requested
     """
     print('=========================================')
     print(f"Fetching historic earthquake data from {start_date} to {end_date}...")
@@ -105,8 +112,10 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
 
 def check_for_new_data(eq_api):
     """
-    Fetches data from the USGS Earthquake Portal and returns it as a GeoJSON object.
+    Fetch data from the USGS Earthquake Portal and returns it as a GeoJSON object.
     The data returned is updated hourly and includes all earthquakes occuring during that period.
+    :param: eq_api - USGS API endpoint
+    :return: GeoJSON object containing earthquake data
     """
     print('=========================================')
     print("Checking for new earthquake data...")
@@ -135,7 +144,10 @@ def check_for_new_data(eq_api):
 
 def get_coastline(coastline_api):
     """
-    Fetches the coastline data from the specified API and returns it as a GeoJSON object.
+    Fetch coastline data from https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson and return it as a GeoJSON object.
+    The data returned will be in the form of a MultiPolygon. The data are also written to a file: "coastline_buffered.geojson".
+    :param: coastline_api - API endpoint for the coastline data
+    :return: GeoJSON object containing coastline data
     """
     try:
         # Fetch data from the specified API
@@ -197,9 +209,10 @@ def get_coastline(coastline_api):
     
 def parse_geojson(geojson_data):
     """
-    Parses the features of a GeoJSON object and creates a dictionary for each earthquake (feature),
+    Parse the features of a GeoJSON object and create a dictionary for each earthquake (feature),
     with property names as the keys and property values as the values.
-
+    :param: geojson_data - GeoJSON object containing earthquake data
+    :return: List of dictionaries containing earthquake data
     """
     earthquakes = []
 
@@ -225,6 +238,10 @@ def parse_geojson(geojson_data):
 def withinCoastline(earthquake, coastline):
     """
     Determine if earthquake epicenter is within 0.5 decimal degrees (~55 km) of the coastline.
+    This is one filtering parameter to determine if an earthquake is "significant" within the scope of this project.
+    :param: earthquake - dictionary containing earthquake data
+    :param: coastline - shapely Polygon object representing the coastline
+    :return: True if the epicenter is within the coastline, False otherwise
     """
     # Extract the coordinates of the earthquake's epicenter
     coords = earthquake.get('coordinates', [])
@@ -241,9 +258,11 @@ def withinCoastline(earthquake, coastline):
 
 def check_significance(earthquakes):
     """
-    Checks the significance of each earthquake based on its 
+    Check the significance of each earthquake based on its 
     (1) magnitude, (2) USGS alert level, (3) depth, and (4) distance from land.
-    Criteria: Magnitude >= 6.0, USGS alert level = ['yellow','orange','red], and Depth <= 30.0 km
+    Criteria: Magnitude >= 6.0, USGS alert level = ['yellow','orange','red], and Depth <= 30.0 km, and within 0.5 degrees (~55 km) of the coastline.
+    :param: earthquakes - list of dictionaries containing earthquake data
+    :return: List of dictionaries containing significant earthquakes
     """
     print('=========================================')
     print("Checking for significant earthquakes...")
@@ -275,6 +294,10 @@ def check_significance(earthquakes):
         return None
 
 def significant_earthquakes_to_geojson(significant_earthquakes):
+    """
+    Write the significant earthquakes to a GeoJSON file, namely: "significant_earthquakes_full_record.geojson"
+    :param: significant_earthquakes - list of dictionaries containing significant earthquake data
+    """
     geojson_features = []
 
     # Loop through each earthquake and create a GeoJSON feature
@@ -306,10 +329,16 @@ def significant_earthquakes_to_geojson(significant_earthquakes):
     # Save the GeoJSON data to a file
     with open('significant_earthquakes_full_record.geojson', 'w') as f:
         geojson.dump(geojson_data, f)
+
+    return
         
 def make_aoi(coordinates):
     """
     Create an Area of Interest (AOI) polygon based on the given coordinates.
+    The AOI is a square with a side length of 1 degree (~111 km) centered on the earthquake's epicenter.
+    The AOI is written to a GeoJSON file, namely: "AOI.geojson".
+    :param: coordinates - list containing the longitude and latitude of the earthquake's epicenter
+    :return: Shapely Polygon object representing the AOI
     """
     print('=========================================')
     print("Creating Area of Interest (AOI) polygon...")
@@ -320,8 +349,7 @@ def make_aoi(coordinates):
     Y = coordinates[1]
 
     # Define the side length of the square AOI in decimal degrees
-    #side_length = 0.5  # 1 degree is ~111 km at the equator
-    side_length = 1.0
+    side_length = 1.0 # 1 degree is ~111 km at the equator
 
     # Calculate half side length
     half_side = side_length / 2
@@ -348,6 +376,8 @@ def make_aoi(coordinates):
 def convert_time(time):
     """
     Convert the given time string to a Unix timestamp.
+    :param: time - time string in the format 'YYYY-MM-DDTHH:MM:SS'
+    :return: Unix timestamp
     """
     # Convert milliseconds to seconds
     timestamp_s = time / 1000
@@ -359,8 +389,11 @@ def convert_time(time):
 
 def get_path_and_frame_numbers(AOI, time):
     """
-    Query the ASF DAAC API for S1 data intersecting the Area of Interest (AOI) over the previous 24 days.
-    Return the *unique* path and frame numbers for each intersecting SLC.
+    Query the ASF DAAC API for SLC data intersecting the Area of Interest (AOI) over the previous 24 days.
+    This ensures all possible intersecting SLC fileIDs are returned for the given AOI.
+    :param: AOI - Shapely Polygon object representing the Area of Interest
+    :param: time - Unix timestamp representing the earthquake's origin time
+    :return: Dictionary containing the path and frame numbers for each *unique* intersecting SLC.
     """
     # Establish the date range for the query
     rupture_date = convert_time(time)
@@ -421,7 +454,15 @@ def get_path_and_frame_numbers(AOI, time):
         return None
 
 def get_SLCs(flight_direction, path_number, frame_numbers, time):
-
+    """
+    Query the ASF DAAC API for SLC data based on the given path and frame numbers.
+    The data are organized by flight direction, path number, and frame numbers.
+    :param: flight_direction - 'ASCENDING' or 'DESCENDING'
+    :param: path_number - Sentinel-1 path number
+    :param: frame_numbers - list of Sentinel-1 frame numbers
+    :param: time - Unix timestamp representing the earthquake's origin time
+    :return: List of dictionaries containing SLC fileIDs and their respective dates
+    """
     # Establish the date range for the query
     rupture_date = convert_time(time)
     start_date = rupture_date - timedelta(days=90)  # 3 months before the earthquake
@@ -472,8 +513,6 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
         # Print the SLCs
         print('=========================================')
         print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} and frame numbers {frame_numbers}.")
-        # for SLC in SLCs:
-        #     print(SLC)
         return SLCs
     
     except requests.RequestException as e:
@@ -482,8 +521,15 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
 
 def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time, title):
     """
-    Find the reference and secondary pairs of SLCs and determine whether each pair is 
-    pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates."""
+    Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, and determine whether each pair is 
+    pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
+    :param: SLCs - list of dictionaries containing SLC fileIDs and their respective dates
+    :param: flight_direction - 'ASCENDING' or 'DESCENDING'
+    :param: path_number - Sentinel-1 path number
+    :param: time - Unix timestamp representing the earthquake's origin time
+    :param: title - USGS title of the earthquake event, used for file organization
+    :return: List of JSON objects containing the parameters for each pair of SLCs
+    """
 
     # Get the rupture date in the format YYYY-MM-DD
     rupture_date = convert_time(time)
@@ -496,9 +542,7 @@ def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time
     # Sort SLCs by date in ascending order
     SLCs_sorted = sorted(SLCs, key=lambda x: x['date'])
     
-    # Initialize the result dictionary
-    #pairs_dict = {}
-    
+    # Initialize the jsons list to store the JSON objects for each pair  
     isce_jsons = []
 
     # Create pairs
@@ -533,11 +577,6 @@ def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time
         secondary_scenes = [
             entry['fileID'] for entry in SLCs if entry['date'] == secondary['date']
         ]
-        
-        # Store in the nested dictionary
-        # pairs_dict[key] = {
-        #     ('reference-scenes', 'secondary-scenes'): [reference_scenes, secondary_scenes]
-        # }
     
         # Create the JSON for this pair
         json_output = make_json(title, flight_direction, path_number, {'date': reference['date']}, {'date': secondary['date']}, reference_scenes, secondary_scenes)
@@ -553,7 +592,18 @@ def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time
     return isce_jsons
 
 def make_json(title, flight_direction, path_number, reference, secondary, reference_scenes, secondary_scenes):
-    """Create a JSON object containing parameters to make a directory ."""
+    """Create a JSON object containing parameters for dockerized topsApp.
+    Note: Not all params here are used in the final dockerized topsApp. Some are used for file organzation.
+    Note: Several params are 'hardcoded', as these should not be modified for individual products.
+    :param: title - USGS title of the earthquake event
+    :param: flight_direction - 'ASCENDING' or 'DESCENDING'
+    :param: path_number - Sentinel-1 path number
+    :param: reference - dictionary containing the reference date
+    :param: secondary - dictionary containing the secondary date
+    :param: reference_scenes - list of reference SLC fileIDs
+    :param: secondary_scenes - list of secondary SLC fileIDs
+    :return: JSON object containing the parameters for dockerized topsApp
+    """
     isce_json = {
         "title": title,
         "flight-direction": flight_direction,
@@ -574,6 +624,13 @@ def make_json(title, flight_direction, path_number, reference, secondary, refere
     return isce_json
 
 def create_directories_from_json(eq_jsons, root_dir):
+    """
+    Create directories for each group of SLCs based on the JSON data provided.
+    The directories are created in the root directory specified and will have a name following this format: 'flight_directionpath_number_secondary_date_reference_date'.
+    :param: eq_jsons - list of JSON objects containing the parameters for each pair of SLCs
+    :param: root_dir - root directory where the directories will be created
+    :return: List of directory names
+    """
     dirnames = []
     for isce_jsons in eq_jsons:
         sub_dirnames = []  # To hold the directories for each group in `isce_jsons`
@@ -602,6 +659,7 @@ def run_dockerized_topsApp(json_data):
     """
     Run dockerized topsApp InSAR processing workflow using the provided JSON data.
     Outputs are added to the root dir + an extension for each pair.
+    :param: json_data - JSON object containing the parameters for dockerized topsApp
     """
 
     # Extract the parameters from the JSON data
@@ -985,6 +1043,11 @@ def find_SLC_pairs_for_infg(SLCs, AOI, event_datetime, optimal = False):
     return ascending_group, descending_group
 
 def to_snake_case(input_string):
+    """
+    Convert the given string to snake_case.
+    :param: input_string - string to convert to snake_case
+    :return: snake_case version of the input string
+    """
     # Replace non-alphanumeric characters with spaces
     cleaned_string = re.sub(r'[^\w\s]', '', input_string)
     # Replace spaces with underscores and convert to lowercase
@@ -992,7 +1055,10 @@ def to_snake_case(input_string):
     return snake_case_string
 
 def main_forward():
-
+    """
+    Runs the main query and processing workflow for the forward processing mode.
+    Produces co-seismic displacement product for new earthquakes.
+    """
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
     #geojson_data = check_for_new_data(USGS_api_hourly)
     geojson_data = check_for_new_data(USGS_api_30day)
@@ -1018,8 +1084,11 @@ def main_forward():
     
 def main_historic(start_date, end_date = None):
     """
-    Query the USGS Earthquake API for significant earthquakes between the given date (and end date, if provided)
-    and return json files for ascending and descending groups of reference/secondary SLCs for InSAR processing.
+    Runs the main query and processing workflow for the historic processing mode.
+    Produces pre-seismic, co-seismic, and post-seismic displacement products for historic earthquakes.
+    Pre-seismic and post-seismic data are generated for 90 days before and after the event, respectively.
+    :param: start_date - the start date in YYYY-MM-DD format
+    :param: end_date - the optional end date in YYYY-MM-DD format
     """
 
     if start_date and end_date is None:
@@ -1064,11 +1133,11 @@ def main_historic(start_date, end_date = None):
                         os.chdir(working_dir)
                         print(f'working directory: {os.getcwd()}')
                         print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        # try:
-                        #     run_dockerized_topsApp(json_data)
-                        # except:
-                        #     print('Error running dockerized topsApp')
-                        #     continue
+                        try:
+                            run_dockerized_topsApp(json_data)
+                        except:
+                            print('Error running dockerized topsApp')
+                            continue
 
             return eq_jsons
                     
@@ -1076,6 +1145,9 @@ def main_historic(start_date, end_date = None):
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
 if __name__ == "__main__":
+    """
+    Run the main function based on the input arguments provided, in either historic or forward processing mode.
+    """
     parser = argparse.ArgumentParser(
         description="Run historic or forward processing based on input arguments."
     )
