@@ -251,10 +251,13 @@ def withinCoastline(earthquake, coastline):
     # Create a Point object from the earthquake's coordinates
     epicenter = Point(coords[:2])
     
+    # Buffer the coastline by 0.5 degrees
+    coastline_buffer = coastline.buffer(0.5)
+
     # Determine if the epicenter is within the coastline
-    within_coastline = coastline.contains(epicenter)
-    
-    return within_coastline
+    within_coastline_buffer = coastline_buffer.contains(epicenter)
+
+    return within_coastline_buffer
 
 def check_significance(earthquakes):
     """
@@ -276,9 +279,9 @@ def check_significance(earthquakes):
         magnitude = earthquake.get('mag')
         alert = earthquake.get('alert')
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
-        within_Coastline = withinCoastline(earthquake, coastline)
+        within_Coastline_buffer = withinCoastline(earthquake, coastline)
         if all(var is not None for var in (magnitude, alert, depth)):
-            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0):
+            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
                 significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
@@ -286,7 +289,13 @@ def check_significance(earthquakes):
         print('=========================================')
         print(f"Found {len(significant_earthquakes)} significant earthquakes.")
         print('=========================================')
-        print(significant_earthquakes)
+        for eq in significant_earthquakes:
+            print(f"Name: {eq['title']}")
+            print(f"Rupture Date/Time: {convert_time(eq['time'])} UTC")
+            print(f"Magnitude: {eq['mag']}")
+            print(f"Depth: {eq['coordinates'][2]} km")
+            print(f"Alert Level: {eq['alert']}")
+            print('=========================================')
         print('=========================================')
         significant_earthquakes_to_geojson(significant_earthquakes)
         return significant_earthquakes
@@ -375,16 +384,13 @@ def make_aoi(coordinates):
 
 def convert_time(time):
     """
-    Convert the given time string to a Unix timestamp.
-    :param: time - time string in the format 'YYYY-MM-DDTHH:MM:SS'
-    :return: Unix timestamp
+    Convert the given Unix timestamp in milliseconds to a UTC datetime object.
+    :param time_ms: Unix timestamp in milliseconds (int or float)
+    :return: Datetime object in UTC in this format: 'YYYY-MM-DDTHH:MM:SS'
     """
-    # Convert milliseconds to seconds
-    timestamp_s = time / 1000
-
-    # Convert to datetime object in UTC timezone
-    dt = datetime.fromtimestamp(timestamp_s, tz=timezone.utc)
-    dt = dt.replace(microsecond=0)
+    timestamp_s = time / 1000 # Timestamp in seconds
+    dt = datetime.fromtimestamp(timestamp_s, tz=timezone.utc) # Convert to datetime object in UTC
+    dt = dt.replace(microsecond=0) # Remove microseconds
     return dt
 
 def get_path_and_frame_numbers(AOI, time):
