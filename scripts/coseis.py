@@ -75,6 +75,10 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
     :param: end_date - end date in the format 'YYYY-MM-DD'
     :return: GeoJSON object containing earthquake data over the date range requested
     """
+
+    start_date = start_date + "T00:00:00"
+    end_date = end_date + "T23:59:59"
+
     print('=========================================')
     print(f"Fetching historic earthquake data from {start_date} to {end_date}...")
     print('=========================================')
@@ -471,9 +475,9 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
     """
     # Establish the date range for the query
     rupture_date = convert_time(time)
-    start_date = rupture_date - timedelta(days=90)  # 3 months before the earthquake
+    start_date = rupture_date - timedelta(days=90)  # 90 days before the earthquake
     start_date= start_date.replace(hour=0, minute=0, second=0)
-    end_date = rupture_date + timedelta(days=90)    # 3 months before the earthquake
+    end_date = rupture_date + timedelta(days=30)    # 30 days after the earthquake
     end_date = end_date.replace(hour=11, minute=59, second=59)
 
     # Format the datetime object into a string
@@ -525,7 +529,7 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
         print(f"Error accessing ASF DAAC API: {e}")
         return None
 
-def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time, title):
+def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time, title, pairing_mode):
     """
     Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, and determine whether each pair is 
     pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
@@ -534,6 +538,7 @@ def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time
     :param: path_number - Sentinel-1 path number
     :param: time - Unix timestamp representing the earthquake's origin time
     :param: title - USGS title of the earthquake event, used for file organization
+    :param: pairing_mode - 'all' or 'sequential'
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
 
@@ -551,57 +556,45 @@ def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time
     # Initialize the jsons list to store the JSON objects for each pair  
     isce_jsons = []
 
-    # Create pairs
-    for i in range(1, len(SLCs_sorted)):
-        reference = SLCs_sorted[i]  # Newer
-        secondary = SLCs_sorted[i - 1]  # Older
-        
-        # Skip if the dates are the same
+    # Create pairs based on pairing mode
+    if str(pairing_mode) == 'sequential':
+        pairs = [(SLCs_sorted[i - 1], SLCs_sorted[i]) for i in range(1, len(SLCs_sorted))]
+    elif str(pairing_mode) == 'all':
+        pairs = [(SLCs_sorted[i], SLCs_sorted[j]) for i in range(len(SLCs_sorted)) for j in range(i + 1, len(SLCs_sorted))]
+    else:
+        raise ValueError("Invalid pairing_mode. Choose 'all' or 'sequential'.")
+    
+    # Determine the timing of pair based on the rupture_date
+    for secondary, reference in pairs:
         if reference['date'] == secondary['date']:
             continue
-        
-        # Determine the timing of pair based on the rupture_date
-        if reference['date'] < rupture_date:
+        if reference['date'] < rupture_date and secondary['date'] < rupture_date:
             timing = 'pre-seismic'
         elif reference['date'] > rupture_date and secondary['date'] < rupture_date:
             timing = 'co-seismic'
-        else:
+        elif reference['date'] > rupture_date and secondary['date'] > rupture_date:
             timing = 'post-seismic'
+        else:
+            continue
 
-        # Create unique key for each pair
-        key = (flight_direction,
-            path_number,
-            secondary['date'],
-            reference['date'],
-            timing
-            )
-        
         # Collect fileIDs for reference/secondary
-        reference_scenes = [
-            entry['fileID'] for entry in SLCs if entry['date'] == reference['date']
-        ]
-        secondary_scenes = [
-            entry['fileID'] for entry in SLCs if entry['date'] == secondary['date']
-        ]
-    
+        reference_scenes = [entry['fileID'] for entry in SLCs if entry['date'] == reference['date']]
+        secondary_scenes = [entry['fileID'] for entry in SLCs if entry['date'] == secondary['date']]
+
         # Create the JSON for this pair
-        json_output = make_json(title, flight_direction, path_number, {'date': reference['date']}, {'date': secondary['date']}, reference_scenes, secondary_scenes)
+        json_output = make_json(title, timing, flight_direction, path_number, {'date': reference['date']}, {'date': secondary['date']}, reference_scenes, secondary_scenes)
         
         # Append the JSON to the list
         isce_jsons.append(json_output)
-
-    # Print the pairs in a readable format
-    # print("\nReadable Output:\n")
-    # pp = pprint.PrettyPrinter(indent=4)
-    # pp.pprint(pairs_dict)
     
     return isce_jsons
 
-def make_json(title, flight_direction, path_number, reference, secondary, reference_scenes, secondary_scenes):
+def make_json(title, timing, flight_direction, path_number, reference, secondary, reference_scenes, secondary_scenes):
     """Create a JSON object containing parameters for dockerized topsApp.
     Note: Not all params here are used in the final dockerized topsApp. Some are used for file organzation.
     Note: Several params are 'hardcoded', as these should not be modified for individual products.
     :param: title - USGS title of the earthquake event
+    :param: timing - 'pre-seismic', 'co-seismic', or 'post-seismic'
     :param: flight_direction - 'ASCENDING' or 'DESCENDING'
     :param: path_number - Sentinel-1 path number
     :param: reference - dictionary containing the reference date
@@ -612,6 +605,7 @@ def make_json(title, flight_direction, path_number, reference, secondary, refere
     """
     isce_json = {
         "title": title,
+        "timing": timing,
         "flight-direction": flight_direction,
         "path-number": path_number,
         "reference-date": reference['date'],
@@ -642,13 +636,14 @@ def create_directories_from_json(eq_jsons, root_dir):
         sub_dirnames = []  # To hold the directories for each group in `isce_jsons`
         for json_data in isce_jsons:
             title = json_data['title']
+            timing = json_data['timing']
             flight_direction = json_data['flight-direction']
             path_number = json_data['path-number']
             secondary_date = json_data['secondary-date'].replace("-", "")
             reference_date = json_data['reference-date'].replace("-", "")
             
             # Build the full path
-            base_path = os.path.join(root_dir, title, flight_direction + path_number)
+            base_path = os.path.join(root_dir, title, flight_direction + path_number, timing)
             sub_path = f"{flight_direction}{path_number}_{secondary_date}_{reference_date}"
             full_path = os.path.join(base_path, sub_path)
             
@@ -1088,7 +1083,7 @@ def main_forward():
         else:
             print("No significant earthquakes found in the last hour.")
     
-def main_historic(start_date, end_date = None):
+def main_historic(start_date, end_date = None, pairing_mode = None):
     """
     Runs the main query and processing workflow for the historic processing mode.
     Produces pre-seismic, co-seismic, and post-seismic displacement products for historic earthquakes.
@@ -1097,11 +1092,11 @@ def main_historic(start_date, end_date = None):
     :param: end_date - the optional end date in YYYY-MM-DD format
     """
 
-    if start_date and end_date is None:
+    if str(start_date) and str(end_date) is None:
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for a single date
         geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, start_date)
 
-    elif start_date and end_date:
+    elif str(start_date) and str(end_date):
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for the date range provided
         geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, start_date, end_date)
 
@@ -1128,7 +1123,7 @@ def main_historic(start_date, end_date = None):
                 eq_jsons = []
                 for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
                     SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
-                    isce_jsons = find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, eq.get('time'), title)
+                    isce_jsons = find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, eq.get('time'), title, str(pairing_mode))
                     eq_jsons.append(isce_jsons)
 
                 dirnames = create_directories_from_json(eq_jsons, root_dir)
@@ -1153,17 +1148,50 @@ def main_historic(start_date, end_date = None):
 if __name__ == "__main__":
     """
     Run the main function based on the input arguments provided, in either historic or forward processing mode.
+    Example usage for historic processing: python coseis.py --historic --start_date 2021-08-14 --end_date 2021-08-15 --pairing all
+    Example usage for forward processing: python coseis.py --forward
     """
     parser = argparse.ArgumentParser(
         description="Run historic or forward processing based on input arguments."
     )
-    parser.add_argument("start_date", nargs="?", help="The start date in YYYY-MM-DD format.")
-    parser.add_argument("end_date", nargs="?", help="The optional end date in YYYY-MM-DD format.")
+
+    parser.add_argument("--historic", action="store_true", help="Run historic processing.")
+    parser.add_argument("--forward", action="store_true", help="Run forward processing.")
+    parser.add_argument("--start_date", help="The start date in YYYY-MM-DD format (required for historic processing).")
+    parser.add_argument("--end_date", help="The optional end date in YYYY-MM-DD format.")
+    parser.add_argument("--pairing", choices=["all", "sequential"], help="Specify the SLC pairing mode. Required for historic processing."
+    )
 
     args = parser.parse_args()
 
-    if args.start_date:
-        # Call main_historic with one or two arguments based on what's provided
-        main_historic(args.start_date, args.end_date)
-    else:
+    # Ensure only one mode is selected
+    if args.historic and args.forward:
+        print("Error: You cannot specify both --historic and --forward.")
+        parser.print_help()
+        exit(1)
+
+    if args.historic:
+        if not args.start_date:
+            print("Error: --start_date is required when using --historic mode.")
+            parser.print_help()
+            exit(1)
+
+        if not args.pairing:
+            print("Error: --pairing is required when using --historic mode. Options: 'all' or 'sequential'.")
+            parser.print_help()
+            exit(1)
+
+        main_historic(args.start_date, args.end_date, pairing_mode=args.pairing)
+
+    elif args.forward:
+        if args.start_date or args.end_date or args.pairing:
+            print("Error: --start_date, --end_date, and --pairing cannot be used with --forward mode.")
+            parser.print_help()
+            exit(1)
+
         main_forward()
+
+    else:
+        print("Error: Please specify either --historic or --forward to run the processing workflow.")
+        parser.print_help()
+        exit(1)
