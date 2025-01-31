@@ -616,7 +616,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             secondary_date, secondary_scenes = secondary
             reference_scenes_ids = [slc['fileID'] for slc in reference_scenes]
             secondary_scenes_ids = [slc['fileID'] for slc in secondary_scenes]
-            json_output = make_json(title, timing, flight_direction, path_number, 
+            json_output = make_json(title, timing, flight_direction, path_number, list(frame_numbers), 
                                     {'date': reference_date.strftime('%Y-%m-%d')}, 
                                     {'date': secondary_date.strftime('%Y-%m-%d')}, 
                                     reference_scenes_ids, secondary_scenes_ids)
@@ -624,7 +624,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     
     return isce_jsons
 
-def make_json(title, timing, flight_direction, path_number, reference, secondary, reference_scenes, secondary_scenes):
+def make_json(title, timing, flight_direction, path_number, frame_numbers, reference, secondary, reference_scenes, secondary_scenes):
     """Create a JSON object containing parameters for dockerized topsApp.
     Note: Not all params here are used in the final dockerized topsApp. Some are used for file organzation.
     Note: Several params are 'hardcoded', as these should not be modified for individual products.
@@ -632,6 +632,7 @@ def make_json(title, timing, flight_direction, path_number, reference, secondary
     :param: timing - 'pre-seismic', 'co-seismic', or 'post-seismic'
     :param: flight_direction - 'A' or 'D' for ascending or descending
     :param: path_number - Sentinel-1 path number
+    :param: frame_numbers - list of intersecting Sentinel-1 frame numbers
     :param: reference - dictionary containing the reference date
     :param: secondary - dictionary containing the secondary date
     :param: reference_scenes - list of reference SLC fileIDs
@@ -646,6 +647,7 @@ def make_json(title, timing, flight_direction, path_number, reference, secondary
         "timing": timing,
         "flight-direction": flight_direction,
         "path-number": path_number,
+        "frame-numbers": frame_numbers,
         "reference-date": reference['date'],
         "secondary-date": secondary['date'],
         "reference-scenes": reference_scenes,
@@ -742,22 +744,21 @@ def run_dockerized_topsApp(json_data):
     print(f"Writing nohup output to: {nohup_out_file}")
 
     # Run the command
-    # with open(nohup_out_file, "w") as nohup_out:
-    #     try:
-    #         result = subprocess.run(
-    #             command,
-    #             stdout=subprocess.PIPE,
-    #             stderr=subprocess.PIPE,
-    #             text=True,
-    #             check=True,
-    #             env=env  # Pass the environment with XLA variable set
-    #         )
-    #         print("Command executed successfully!")
-    #         print("Output:\n", result.stdout)
-    #     except subprocess.CalledProcessError as e:
-    #         print("Error occurred while running the command.")
-    #         print("Error Output:\n", e.stderr)
-
+    with open(nohup_out_file, "w") as nohup_out:
+        try:
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+                env=env  # Pass the environment with XLA variable set
+            )
+            print("Command executed successfully!")
+            print("Output:\n", result.stdout)
+        except subprocess.CalledProcessError as e:
+            print("Error occurred while running the command.")
+            print("Error Output:\n", e.stderr)
     return
 
 def to_snake_case(input_string):
