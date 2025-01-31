@@ -550,6 +550,8 @@ def generate_pairs(pairs, mode):
     elif mode == 'all':
         all_pairs = list(combinations(pairs, 2))
         return all_pairs
+    elif mode == 'coseismic':
+        return []  # Co-seismic handled separately
 
 def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, mode='sequential'):
     """
@@ -560,7 +562,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     :param: flight_direction - 'ASCENDING' or 'DESCENDING'
     :param: path_number - Sentinel-1 path number
     :param: title: - USGS title of the earthquake event, used for file organization
-    :param: mode - 'all' or 'sequential' for pairing mode
+    :param: mode - 'all', 'sequential', or 'coseismic' for pairing mode
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
     # Get the rupture date in the format YYYY-MM-DD
@@ -597,15 +599,16 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             co_seismic = [(initial_pairs[i], initial_pairs[i + 1])]
             break
     
-    paired_results = {
-        'pre_seismic': generate_pairs(pre_seismic, mode),
-        'co_seismic': co_seismic,
-        'post_seismic': generate_pairs(post_seismic, mode)
-    }
+    # Handle different modes
+    if mode == 'coseismic':
+        paired_results = {'co-seismic': co_seismic}
+    else:
+        paired_results = {
+            'pre_seismic': generate_pairs(pre_seismic, mode),
+            'co_seismic': co_seismic,
+            'post_seismic': generate_pairs(post_seismic, mode)
+        }
     
-    # print('=========================================')
-    # print(paired_results)
-
     isce_jsons = []
     for timing, pairs in paired_results.items():
         for (secondary, reference) in pairs:
@@ -627,7 +630,7 @@ def make_json(title, timing, flight_direction, path_number, reference, secondary
     Note: Several params are 'hardcoded', as these should not be modified for individual products.
     :param: title - USGS title of the earthquake event
     :param: timing - 'pre-seismic', 'co-seismic', or 'post-seismic'
-    :param: flight_direction - 'ASCENDING' or 'DESCENDING'
+    :param: flight_direction - 'A' or 'D' for ascending or descending
     :param: path_number - Sentinel-1 path number
     :param: reference - dictionary containing the reference date
     :param: secondary - dictionary containing the secondary date
@@ -635,6 +638,9 @@ def make_json(title, timing, flight_direction, path_number, reference, secondary
     :param: secondary_scenes - list of secondary SLC fileIDs
     :return: JSON object containing the parameters for dockerized topsApp
     """
+    # Reformatting 'fight-direction' for readability in the json
+    flight_direction = 'ASCENDING' if flight_direction == 'A' else 'DESCENDING'
+    
     isce_json = {
         "title": title,
         "timing": timing,
@@ -669,7 +675,7 @@ def create_directories_from_json(eq_jsons, root_dir):
         for json_data in isce_jsons:
             title = json_data['title']
             timing = json_data['timing']
-            flight_direction = json_data['flight-direction']
+            flight_direction = 'A' if json_data['flight-direction'] == 'ASCENDING' else 'D' # Reformat 'fight-direction' to shorten dirname  
             path_number = json_data['path-number']
             secondary_date = json_data['secondary-date'].replace("-", "")
             reference_date = json_data['reference-date'].replace("-", "")
@@ -736,23 +742,21 @@ def run_dockerized_topsApp(json_data):
     print(f"Writing nohup output to: {nohup_out_file}")
 
     # Run the command
-
-    # with open(nohup_out_file, "w") as nohup_out:
-    #     try:
-    #         result = subprocess.run(
-    #             command,
-    #             stdout=subprocess.PIPE,
-    #             stderr=subprocess.PIPE,
-    #             text=True,
-    #             check=True,
-    #             env=env  # Pass the environment with XLA variable set
-    #         )
-    #         print("Command executed successfully!")
-    #         print("Output:\n", result.stdout)
-    #     except subprocess.CalledProcessError as e:
-    #         print("Error occurred while running the command.")
-    #         print("Error Output:\n", e.stderr)
-
+    with open(nohup_out_file, "w") as nohup_out:
+        try:
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+                env=env  # Pass the environment with XLA variable set
+            )
+            print("Command executed successfully!")
+            print("Output:\n", result.stdout)
+        except subprocess.CalledProcessError as e:
+            print("Error occurred while running the command.")
+            print("Error Output:\n", e.stderr)
     return
 
 def query_asfDAAC(time):
@@ -1125,9 +1129,10 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
     """
     Runs the main query and processing workflow for the historic processing mode.
     Produces pre-seismic, co-seismic, and post-seismic displacement products for historic earthquakes.
-    Pre-seismic and post-seismic data are generated for 90 days before and after the event, respectively.
+    Pre-seismic and post-seismic data are generated for 90 days before and 30 days after the event.
     :param: start_date - the start date in YYYY-MM-DD format
     :param: end_date - the optional end date in YYYY-MM-DD format
+    :param: pairing_mode - 'all', 'sequential', or 'coseismic' for SLC pairing
     """
     if str(start_date) and str(end_date) is None:
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for a single date
@@ -1169,12 +1174,12 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                         with open('isce_params.json', 'w') as f:
                             json.dump(json_data, f, indent=4)
                         print(f'working directory: {os.getcwd()}')
-                        print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        try:
-                            run_dockerized_topsApp(json_data)
-                        except:
-                            print('Error running dockerized topsApp')
-                            continue
+                        # print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                        # try:
+                        #     run_dockerized_topsApp(json_data)
+                        # except:
+                        #     print('Error running dockerized topsApp')
+                        #     continue
 
             return eq_jsons
                     
@@ -1195,7 +1200,7 @@ if __name__ == "__main__":
     parser.add_argument("--forward", action="store_true", help="Run forward processing.")
     parser.add_argument("--start_date", help="The start date in YYYY-MM-DD format (required for historic processing).")
     parser.add_argument("--end_date", help="The optional end date in YYYY-MM-DD format.")
-    parser.add_argument("--pairing", choices=["all", "sequential"], help="Specify the SLC pairing mode. Required for historic processing."
+    parser.add_argument("--pairing", choices=["all", "sequential","coseismic"], help="Specify the SLC pairing mode. Required for historic processing."
     )
 
     args = parser.parse_args()
@@ -1213,7 +1218,7 @@ if __name__ == "__main__":
             exit(1)
 
         if not args.pairing:
-            print("Error: --pairing is required when using --historic mode. Options: 'all' or 'sequential'.")
+            print("Error: --pairing is required when using --historic mode. Options: 'all', 'sequential', 'coseismic.")
             parser.print_help()
             exit(1)
 
