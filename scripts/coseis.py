@@ -8,6 +8,7 @@ from shapely.ops import unary_union
 import subprocess
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
+from itertools import combinations
 import logging
 import re
 import os
@@ -512,10 +513,15 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
 
             # Extract the date part from startTime
             start_time = feature['properties']['startTime']
+            path = feature['properties']['pathNumber']
+            frame = feature['properties']['frameNumber']
             date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%fZ').date().isoformat()
+            
             SLC = {
                 'fileID': feature['properties']['fileID'],
-                'date': date
+                'date': date,
+                'pathNumber': path,
+                'frameNumber': frame
             }
 
             SLCs.append(SLC)
@@ -523,69 +529,95 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
         # Print the SLCs
         print('=========================================')
         print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} and frame numbers {frame_numbers}.")
+        print('=========================================')
+        for SLC in SLCs:
+            print(f"FileID: {SLC['fileID']}, Date: {SLC['date']}")
         return SLCs
     
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
         return None
 
-def find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, time, title, pairing_mode):
+def generate_pairs(pairs, mode):
     """
-    Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, and determine whether each pair is 
-    pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
-    :param: SLCs - list of dictionaries containing SLC fileIDs and their respective dates
+    Generate pairs of SLCs based on the selected pairing mode.
+    :param: pairs - List of SLC pairs sorted by date
+    :param: mode - 'sequential' for consecutive pairs, 'all' for all possible pairs
+    :return: List of SLC pairs based on the mode
+    """
+    if mode == 'sequential':
+        return [(pairs[i], pairs[i + 1]) for i in range(len(pairs) - 1)]
+    elif mode == 'all':
+        all_pairs = list(combinations(pairs, 2))
+        return all_pairs
+
+def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, mode='sequential'):
+    """
+    Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, 
+    and determine whether each pair is pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
+    :param: SLCs - List of dictionaries containing SLC fileIDs and their respective dates
+    :param: time - Unix timestamp representing the earthquake's origin time
     :param: flight_direction - 'ASCENDING' or 'DESCENDING'
     :param: path_number - Sentinel-1 path number
-    :param: time - Unix timestamp representing the earthquake's origin time
-    :param: title - USGS title of the earthquake event, used for file organization
-    :param: pairing_mode - 'all' or 'sequential'
+    :param: title: - USGS title of the earthquake event, used for file organization
+    :param: mode - 'all' or 'sequential' for pairing mode
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
-
     # Get the rupture date in the format YYYY-MM-DD
     rupture_date = convert_time(time)
     rupture_date = rupture_date.strftime('%Y-%m-%d')
-
+    rupture_date_dt = datetime.strptime(rupture_date, '%Y-%m-%d')
+    
     # Reformatting for dictionary keys for later use    
     flight_direction = 'A' if flight_direction == 'ASCENDING' else 'D'
     path_number = f"{int(path_number):03}" 
+
+    slc_by_date = {}
+    for slc in SLCs:
+        date_obj = datetime.strptime(slc['date'], "%Y-%m-%d")
+        key = date_obj
+        if key not in slc_by_date:
+            slc_by_date[key] = []
+        slc_by_date[key].append(slc)
     
-    # Sort SLCs by date in ascending order
-    SLCs_sorted = sorted(SLCs, key=lambda x: x['date'])
+    sorted_dates = sorted(slc_by_date.keys())
+    initial_pairs = []
+    for date in sorted_dates:
+        frames = slc_by_date[date]
+        frame_numbers = {slc['frameNumber'] for slc in frames}
+        if len(frames) == len(frame_numbers):
+            initial_pairs.append((date, frames))
     
-    # Initialize the jsons list to store the JSON objects for each pair  
+    pre_seismic = [pair for pair in initial_pairs if pair[0] < rupture_date_dt]
+    post_seismic = [pair for pair in initial_pairs if pair[0] > rupture_date_dt]
+    co_seismic = []
+    
+    for i in range(len(initial_pairs) - 1):
+        if initial_pairs[i][0] < rupture_date_dt < initial_pairs[i + 1][0]:
+            co_seismic = [(initial_pairs[i], initial_pairs[i + 1])]
+            break
+    
+    paired_results = {
+        'pre_seismic': generate_pairs(pre_seismic, mode),
+        'co_seismic': co_seismic,
+        'post_seismic': generate_pairs(post_seismic, mode)
+    }
+    
+    # print('=========================================')
+    # print(paired_results)
+
     isce_jsons = []
-
-    # Create pairs based on pairing mode
-    if str(pairing_mode) == 'sequential':
-        pairs = [(SLCs_sorted[i - 1], SLCs_sorted[i]) for i in range(1, len(SLCs_sorted))]
-    elif str(pairing_mode) == 'all':
-        pairs = [(SLCs_sorted[i], SLCs_sorted[j]) for i in range(len(SLCs_sorted)) for j in range(i + 1, len(SLCs_sorted))]
-    else:
-        raise ValueError("Invalid pairing_mode. Choose 'all' or 'sequential'.")
-    
-    # Determine the timing of pair based on the rupture_date
-    for secondary, reference in pairs:
-        if reference['date'] == secondary['date']:
-            continue
-        if reference['date'] < rupture_date and secondary['date'] < rupture_date:
-            timing = 'pre-seismic'
-        elif reference['date'] > rupture_date and secondary['date'] < rupture_date:
-            timing = 'co-seismic'
-        elif reference['date'] > rupture_date and secondary['date'] > rupture_date:
-            timing = 'post-seismic'
-        else:
-            continue
-
-        # Collect fileIDs for reference/secondary
-        reference_scenes = [entry['fileID'] for entry in SLCs if entry['date'] == reference['date']]
-        secondary_scenes = [entry['fileID'] for entry in SLCs if entry['date'] == secondary['date']]
-
-        # Create the JSON for this pair
-        json_output = make_json(title, timing, flight_direction, path_number, {'date': reference['date']}, {'date': secondary['date']}, reference_scenes, secondary_scenes)
-        
-        # Append the JSON to the list
-        isce_jsons.append(json_output)
+    for timing, pairs in paired_results.items():
+        for (secondary, reference) in pairs:
+            reference_date, reference_scenes = reference
+            secondary_date, secondary_scenes = secondary
+            reference_scenes_ids = [slc['fileID'] for slc in reference_scenes]
+            secondary_scenes_ids = [slc['fileID'] for slc in secondary_scenes]
+            json_output = make_json(title, timing, flight_direction, path_number, 
+                                    {'date': reference_date.strftime('%Y-%m-%d')}, 
+                                    {'date': secondary_date.strftime('%Y-%m-%d')}, 
+                                    reference_scenes_ids, secondary_scenes_ids)
+            isce_jsons.append(json_output)
     
     return isce_jsons
 
@@ -699,21 +731,27 @@ def run_dockerized_topsApp(json_data):
     env = os.environ.copy()
     env["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.20"
 
+    # Write nohup.out in the current working directory
+    nohup_out_file = os.path.join(os.getcwd(), "nohup.out")
+    print(f"Writing nohup output to: {nohup_out_file}")
+
     # Run the command
-    try:
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True,
-            env=env  # Pass the environment with XLA variable set
-        )
-        print("Command executed successfully!")
-        print("Output:\n", result.stdout)
-    except subprocess.CalledProcessError as e:
-        print("Error occurred while running the command.")
-        print("Error Output:\n", e.stderr)
+
+    # with open(nohup_out_file, "w") as nohup_out:
+    #     try:
+    #         result = subprocess.run(
+    #             command,
+    #             stdout=subprocess.PIPE,
+    #             stderr=subprocess.PIPE,
+    #             text=True,
+    #             check=True,
+    #             env=env  # Pass the environment with XLA variable set
+    #         )
+    #         print("Command executed successfully!")
+    #         print("Output:\n", result.stdout)
+    #     except subprocess.CalledProcessError as e:
+    #         print("Error occurred while running the command.")
+    #         print("Error Output:\n", e.stderr)
 
     return
 
@@ -1091,7 +1129,6 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
     :param: start_date - the start date in YYYY-MM-DD format
     :param: end_date - the optional end date in YYYY-MM-DD format
     """
-
     if str(start_date) and str(end_date) is None:
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for a single date
         geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, start_date)
@@ -1099,10 +1136,6 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
     elif str(start_date) and str(end_date):
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for the date range provided
         geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, start_date, end_date)
-
-    else:
-        print("Must provide (at least) a start date for historic processing. Exiting...")
-        return
 
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
@@ -1123,7 +1156,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                 eq_jsons = []
                 for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
                     SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
-                    isce_jsons = find_reference_and_secondary_pairs(SLCs, flight_direction, path_number, eq.get('time'), title, str(pairing_mode))
+                    isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
                     eq_jsons.append(isce_jsons)
 
                 dirnames = create_directories_from_json(eq_jsons, root_dir)
@@ -1132,6 +1165,9 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                     for j, json_data in enumerate(eq_json): 
                         working_dir = dirnames[i][j]
                         os.chdir(working_dir)
+                        # Add json to the directory 
+                        with open('isce_params.json', 'w') as f:
+                            json.dump(json_data, f, indent=4)
                         print(f'working directory: {os.getcwd()}')
                         print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
                         try:
