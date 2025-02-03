@@ -90,7 +90,7 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
             "format": "geojson",
             "starttime": start_date,
             "endtime": end_date,
-            "minmagnitude": 6.0,
+            "minmagnitude": 5.0,
             "maxdepth": 30.0
         }
 
@@ -426,7 +426,7 @@ def get_path_and_frame_numbers(AOI, time):
         'output': 'geojson'
     }
 
-    print('Performing ASF DAAC API query to return path and frame numbers for SLCs intersecting AOI over the last 24 days...')
+    print('Performing ASF DAAC API query to return path and frame numbers for SLCs intersecting AOI over the preceding 24 days...')
 
     try:
         # Fetch data from the ASF DAAC API
@@ -454,11 +454,8 @@ def get_path_and_frame_numbers(AOI, time):
         }
 
         print('=========================================')
-        print('Reformatted Path and Frame Numbers for SLCs:')
+        print('Path and Frame Numbers for intersecting SLCs:')
         print('=========================================')
-        for key, value in reformatted.items():
-            print(f"{key}: {value}")
-        return reformatted
 
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
@@ -810,13 +807,19 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
     :param: end_date - the optional end date in YYYY-MM-DD format
     :param: pairing_mode - 'all', 'sequential', or 'coseismic' for SLC pairing
     """
-    if str(start_date) and str(end_date) is None:
+    if start_date and not end_date:
+        print('=========================================')
+        print(f"Running historic processing in single-date mode for date: {start_date}")
+        print('=========================================')
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for a single date
-        geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, start_date)
+        geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, str(start_date))
 
-    elif str(start_date) and str(end_date):
+    elif start_date and end_date:
+        print('=========================================')
+        print(f"Running historic processing in date range mode for dates: {start_date} to {end_date}")
+        print('=========================================')
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for the date range provided
-        geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, start_date, end_date)
+        geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, str(start_date), str(end_date))
 
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
@@ -850,13 +853,12 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                         with open('isce_params.json', 'w') as f:
                             json.dump(json_data, f, indent=4)
                         print(f'working directory: {os.getcwd()}')
-                        # print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        # try:
-                        #     run_dockerized_topsApp(json_data)
-                        # except:
-                        #     print('Error running dockerized topsApp')
-                        #     continue
-
+                        print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                        try:
+                            run_dockerized_topsApp(json_data)
+                        except:
+                            print('Error running dockerized topsApp')
+                            continue
             return eq_jsons
                     
         else:
@@ -865,8 +867,11 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
 if __name__ == "__main__":
     """
     Run the main function based on the input arguments provided, in either historic or forward processing mode.
-    Example usage for historic processing: python coseis.py --historic --start_date 2021-08-14 --end_date 2021-08-15 --pairing all
-    Example usage for forward processing: python coseis.py --forward
+    Example usage for historic processing: 
+      python coseis.py --historic --dates 2021-08-14 --pairing all
+      python coseis.py --historic --dates 2021-08-14 2021-09-07 --pairing all
+    Example usage for forward processing: 
+      python coseis.py --forward
     """
     parser = argparse.ArgumentParser(
         description="Run historic or forward processing based on input arguments."
@@ -874,10 +879,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--historic", action="store_true", help="Run historic processing.")
     parser.add_argument("--forward", action="store_true", help="Run forward processing.")
-    parser.add_argument("--start_date", help="The start date in YYYY-MM-DD format (required for historic processing).")
-    parser.add_argument("--end_date", help="The optional end date in YYYY-MM-DD format.")
-    parser.add_argument("--pairing", choices=["all", "sequential","coseismic"], help="Specify the SLC pairing mode. Required for historic processing."
-    )
+    parser.add_argument("--dates", nargs="+", help="Provide one or two dates in YYYY-MM-DD format for historic processing.")
+    parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for historic processing.")
 
     args = parser.parse_args()
 
@@ -888,21 +891,29 @@ if __name__ == "__main__":
         exit(1)
 
     if args.historic:
-        if not args.start_date:
-            print("Error: --start_date is required when using --historic mode.")
+        if not args.dates:
+            print("Error: --dates is required when using --historic mode.")
             parser.print_help()
             exit(1)
+
+        if len(args.dates) > 2:
+            print("Error: --dates should have at most two values (start_date [end_date]).")
+            parser.print_help()
+            exit(1)
+
+        start_date = args.dates[0]
+        end_date = args.dates[1] if len(args.dates) == 2 else None
 
         if not args.pairing:
-            print("Error: --pairing is required when using --historic mode. Options: 'all', 'sequential', 'coseismic.")
+            print("Error: --pairing is required when using --historic mode. Options: 'all', 'sequential', 'coseismic'.")
             parser.print_help()
             exit(1)
 
-        main_historic(args.start_date, args.end_date, pairing_mode=args.pairing)
+        main_historic(start_date, end_date, pairing_mode=args.pairing)
 
     elif args.forward:
-        if args.start_date or args.end_date or args.pairing:
-            print("Error: --start_date, --end_date, and --pairing cannot be used with --forward mode.")
+        if args.dates or args.pairing:
+            print("Error: --dates and --pairing cannot be used with --forward mode.")
             parser.print_help()
             exit(1)
 
