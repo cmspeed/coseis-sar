@@ -1,8 +1,11 @@
+import re
+import os
 import argparse
 import asf_search as asf
 import requests
 import json
 import geojson
+import csv
 from shapely.geometry import mapping, shape, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from shapely.ops import unary_union
 import subprocess
@@ -10,8 +13,6 @@ from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from itertools import combinations
 import logging
-import re
-import os
 
 # Set logging level to WARNING to suppress DEBUG and INFO logs
 logging.basicConfig(level=logging.WARNING)
@@ -340,20 +341,30 @@ def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_da
         with open(f'significant_earthquakes_{start_date}_to_{end_date}.geojson', 'w') as f:
             geojson.dump(geojson_data, f)
 
-        with open(f'significant_earthquakes_{start_date}_to_{end_date}.csv', 'w') as f:
-            f.write("Place,Magnitude,Date,Time_utc,Longitude,Latitude,Depth_km,Alert,URL\n")
+        with open(f'significant_earthquakes_{start_date}_to_{end_date}.csv', 'w', newline='') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)  # Ensures proper CSV formatting
+            writer.writerow(["Place", "Magnitude", "Date", "Time_utc", "Longitude", "Latitude", "Depth_km", "Alert", "URL"])
+            
             for eq in significant_earthquakes:
                 dt = convert_time(eq['time'])
-                f.write(f"{eq['place']},{eq['mag']},{dt.strftime('%Y-%m-%d')},{dt.strftime('%H:%M:%S')},{eq['coordinates'][0]},{eq['coordinates'][1]},{eq['coordinates'][2]},{eq['alert']},{eq['url']}\n")
+                writer.writerow([
+                    eq["place"], eq["mag"], dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M:%S"),
+                    eq["coordinates"][0], eq["coordinates"][1], eq["coordinates"][2], eq["alert"], eq["url"]
+                ])
     else:
         with open(f'significant_earthquakes_{start_date}.geojson', 'w') as f:
             geojson.dump(geojson_data, f)
 
-        with open(f'significant_earthquakes_{start_date}.csv', 'w') as f:
-            f.write("Place,Magnitude,Date,Time_utc,Longitude,Latitude,Depth_km,Alert,URL\n")
+        with open(f'significant_earthquakes_{start_date}.csv', 'w', newline='') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+            writer.writerow(["Place", "Magnitude", "Date", "Time_utc", "Longitude", "Latitude", "Depth_km", "Alert", "URL"])
+            
             for eq in significant_earthquakes:
                 dt = convert_time(eq['time'])
-                f.write(f"{eq['place']},{eq['mag']},{dt.strftime('%Y-%m-%d')},{dt.strftime('%H:%M:%S')},{eq['coordinates'][0]},{eq['coordinates'][1]},{eq['coordinates'][2]},{eq['alert']},{eq['url']}\n")
+                writer.writerow([
+                    eq["place"], eq["mag"], dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M:%S"),
+                    eq["coordinates"][0], eq["coordinates"][1], eq["coordinates"][2], eq["alert"], eq["url"]
+            ])
     return
         
 def make_aoi(coordinates):
@@ -839,22 +850,22 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
         earthquakes = parse_geojson(geojson_data)
         eq_sig = check_significance(earthquakes, start_date, end_date)
 
-        if eq_sig is not None:
-            for eq in eq_sig:
-                title = eq.get('title', '')
-                title = to_snake_case(title)
-                print(f"title: {title}")
-                coords = eq.get('coordinates', [])
-                aoi = make_aoi(coords)
+        # if eq_sig is not None:
+        #     for eq in eq_sig:
+        #         title = eq.get('title', '')
+        #         title = to_snake_case(title)
+        #         print(f"title: {title}")
+        #         coords = eq.get('coordinates', [])
+        #         aoi = make_aoi(coords)
                 
-                path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
-                print('path_frame_numbers:', path_frame_numbers)
+                # path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
+                # print('path_frame_numbers:', path_frame_numbers)
 
-                eq_jsons = []
-                for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
-                    SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
-                    isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
-                    eq_jsons.append(isce_jsons)
+                # eq_jsons = []
+                # for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+                #     SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
+                #     isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
+                #     eq_jsons.append(isce_jsons)
 
                 # dirnames = create_directories_from_json(eq_jsons, root_dir)
                 
@@ -872,10 +883,10 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                 #         except:
                 #             print('Error running dockerized topsApp')
                 #             continue
-            return eq_jsons
+        #     return eq_jsons
                     
-        else:
-            print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
+        # else:
+        #     print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
 if __name__ == "__main__":
     """
