@@ -53,11 +53,6 @@ def get_historic_earthquake_data_single_date(eq_api, input_date):
         # Parse the response as GeoJSON
         earthquakes = geojson.loads(response.text)
 
-        # Save to a GeoJSON file
-        output_file = f"historic_earthquakes_{input_date}.geojson"
-        with open(output_file, "w") as f:
-            json.dump(earthquakes, f, indent=2)
-        
         return earthquakes
 
     except requests.RequestException as e:
@@ -100,11 +95,6 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
         
         # Parse the response as GeoJSON
         earthquakes = geojson.loads(response.text)
-
-        # Save to a GeoJSON file
-        output_file = f"historic_earthquakes_{start_date}_to_{end_date}.geojson"
-        with open(output_file, "w") as f:
-            json.dump(earthquakes, f, indent=2)
         
         return earthquakes
 
@@ -264,7 +254,7 @@ def withinCoastline(earthquake, coastline):
 
     return within_coastline_buffer
 
-def check_significance(earthquakes):
+def check_significance(earthquakes, start_date, end_date):
     """
     Check the significance of each earthquake based on its 
     (1) magnitude, (2) USGS alert level, (3) depth, and (4) distance from land.
@@ -302,20 +292,22 @@ def check_significance(earthquakes):
             print(f"Alert Level: {eq['alert']}")
             print('=========================================')
         print('=========================================')
-        significant_earthquakes_to_geojson(significant_earthquakes)
+        significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_date, end_date)
         return significant_earthquakes
     else:
         return None
 
-def significant_earthquakes_to_geojson(significant_earthquakes):
+def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_date, end_date):
     """
     Write the significant earthquakes to a GeoJSON file, namely: "significant_earthquakes_full_record.geojson"
     :param: significant_earthquakes - list of dictionaries containing significant earthquake data
     """
     geojson_features = []
-
     # Loop through each earthquake and create a GeoJSON feature
     for eq in significant_earthquakes:
+        # Convert time to a datetime object
+        dt = convert_time(eq['time'])
+
         # Create a GeoJSON feature for each earthquake
         feature = {
             "type": "Feature",
@@ -324,12 +316,15 @@ def significant_earthquakes_to_geojson(significant_earthquakes):
                 "coordinates": eq["coordinates"][:2]  # Only take the first two values: longitude and latitude
             },
             "properties": {
-                "magnitude": eq["mag"],
                 "place": eq["place"],
-                "time": eq["time"],
+                "magnitude": eq["mag"],
+                "date": dt.strftime("%Y-%m-%d"),
+                "time_utc": dt.strftime("%H:%M:%S"),
+                "longitude": eq["coordinates"][0],
+                "latitude": eq["coordinates"][1],
+                "depth_km": eq["coordinates"][2],
                 "alert": eq["alert"],
-                "url": eq["url"],
-                "depth": eq["coordinates"][2]  # Adding the depth (third value in coordinates) as a property
+                "url": eq["url"]
             }
         }
         geojson_features.append(feature)
@@ -340,10 +335,25 @@ def significant_earthquakes_to_geojson(significant_earthquakes):
         "features": geojson_features
     }
 
-    # Save the GeoJSON data to a file
-    with open('significant_earthquakes_full_record.geojson', 'w') as f:
-        geojson.dump(geojson_data, f)
+    # Save the data to GeoJSON and CSV files
+    if start_date and end_date:
+        with open(f'significant_earthquakes_{start_date}_to_{end_date}.geojson', 'w') as f:
+            geojson.dump(geojson_data, f)
 
+        with open(f'significant_earthquakes_{start_date}_to_{end_date}.csv', 'w') as f:
+            f.write("Place,Magnitude,Date,Time_utc,Longitude,Latitude,Depth_km,Alert,URL\n")
+            for eq in significant_earthquakes:
+                dt = convert_time(eq['time'])
+                f.write(f"{eq['place']},{eq['mag']},{dt.strftime('%Y-%m-%d')},{dt.strftime('%H:%M:%S')},{eq['coordinates'][0]},{eq['coordinates'][1]},{eq['coordinates'][2]},{eq['alert']},{eq['url']}\n")
+    else:
+        with open(f'significant_earthquakes_{start_date}.geojson', 'w') as f:
+            geojson.dump(geojson_data, f)
+
+        with open(f'significant_earthquakes_{start_date}.csv', 'w') as f:
+            f.write("Place,Magnitude,Date,Time_utc,Longitude,Latitude,Depth_km,Alert,URL\n")
+            for eq in significant_earthquakes:
+                dt = convert_time(eq['time'])
+                f.write(f"{eq['place']},{eq['mag']},{dt.strftime('%Y-%m-%d')},{dt.strftime('%H:%M:%S')},{eq['coordinates'][0]},{eq['coordinates'][1]},{eq['coordinates'][2]},{eq['alert']},{eq['url']}\n")
     return
         
 def make_aoi(coordinates):
@@ -454,8 +464,11 @@ def get_path_and_frame_numbers(AOI, time):
         }
 
         print('=========================================')
-        print('Path and Frame Numbers for intersecting SLCs:')
+        print('Reformatted Path and Frame Numbers for SLCs:')
         print('=========================================')
+        for key, value in reformatted.items():
+            print(f"{key}: {value}")
+        return reformatted
 
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
@@ -824,7 +837,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
-        eq_sig = check_significance(earthquakes)
+        eq_sig = check_significance(earthquakes, start_date, end_date)
 
         if eq_sig is not None:
             for eq in eq_sig:
@@ -843,22 +856,22 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                     isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
                     eq_jsons.append(isce_jsons)
 
-                dirnames = create_directories_from_json(eq_jsons, root_dir)
+                # dirnames = create_directories_from_json(eq_jsons, root_dir)
                 
-                for i, eq_json in enumerate(eq_jsons):
-                    for j, json_data in enumerate(eq_json): 
-                        working_dir = dirnames[i][j]
-                        os.chdir(working_dir)
-                        # Add json to the directory 
-                        with open('isce_params.json', 'w') as f:
-                            json.dump(json_data, f, indent=4)
-                        print(f'working directory: {os.getcwd()}')
-                        print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        try:
-                            run_dockerized_topsApp(json_data)
-                        except:
-                            print('Error running dockerized topsApp')
-                            continue
+                # for i, eq_json in enumerate(eq_jsons):
+                #     for j, json_data in enumerate(eq_json): 
+                #         working_dir = dirnames[i][j]
+                #         os.chdir(working_dir)
+                #         # Add json to the directory 
+                #         with open('isce_params.json', 'w') as f:
+                #             json.dump(json_data, f, indent=4)
+                #         print(f'working directory: {os.getcwd()}')
+                #         print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                #         try:
+                #             run_dockerized_topsApp(json_data)
+                #         except:
+                #             print('Error running dockerized topsApp')
+                #             continue
             return eq_jsons
                     
         else:
