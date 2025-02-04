@@ -251,7 +251,7 @@ def withinCoastline(earthquake, coastline):
     within_coastline_buffer = coastline_buffer.contains(epicenter)
     return within_coastline_buffer
 
-def check_significance(earthquakes, start_date, end_date):
+def check_significance(earthquakes, start_date, end_date=None):
     """
     Check the significance of each earthquake based on its 
     (1) magnitude (>=6.0), (2) USGS alert level (['yellow','orange','red]),
@@ -294,7 +294,7 @@ def check_significance(earthquakes, start_date, end_date):
     else:
         return None
 
-def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_date, end_date):
+def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_date, end_date=None):
     """
     Write the significant earthquakes to a GeoJSON file, namely: "significant_earthquakes_full_record.geojson"
     :param significant_earthquakes: list of dictionaries containing significant earthquake metadata
@@ -333,10 +333,10 @@ def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_da
 
     # Output the data to GeoJSON and CSV files
     if start_date and end_date:
-        with open(f'significant_earthquakes_{start_date}_to_{end_date}_5.5.geojson', 'w') as f:
+        with open(f'significant_earthquakes_{start_date}_to_{end_date}.geojson', 'w') as f:
             geojson.dump(geojson_data, f)
 
-        with open(f'significant_earthquakes_{start_date}_to_{end_date}_5.5.csv', 'w', newline='') as f:
+        with open(f'significant_earthquakes_{start_date}_to_{end_date}.csv', 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
             writer.writerow(["Place", "Magnitude", "Date", "Time_utc", "Longitude", "Latitude", "Depth_km", "Alert", "URL"])
             
@@ -347,10 +347,10 @@ def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_da
                     eq["coordinates"][0], eq["coordinates"][1], eq["coordinates"][2], eq["alert"], eq["url"]
                 ])
     else:
-        with open(f'significant_earthquakes_{start_date}_5.5.geojson', 'w') as f:
+        with open(f'significant_earthquakes_{start_date}.geojson', 'w') as f:
             geojson.dump(geojson_data, f)
 
-        with open(f'significant_earthquakes_{start_date}_5.5.csv', 'w', newline='') as f:
+        with open(f'significant_earthquakes_{start_date}.csv', 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
             writer.writerow(["Place", "Magnitude", "Date", "Time_utc", "Longitude", "Latitude", "Depth_km", "Alert", "URL"])
             
@@ -480,10 +480,11 @@ def get_path_and_frame_numbers(AOI, time):
         print(f"Error accessing ASF DAAC API: {e}")
         return None
 
-def get_SLCs(flight_direction, path_number, frame_numbers, time):
+def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode):
     """
     Query the ASF DAAC API for SLC data based on the given path and frame numbers.
     The data are organized by flight direction, path number, and frame numbers.
+    :param processing_mode: 'historic', 'forward'
     :param flight_direction: 'ASCENDING' or 'DESCENDING'
     :param path_number: Sentinel-1 path number
     :param frame_numbers: List of Sentinel-1 frame numbers
@@ -494,8 +495,15 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time):
     rupture_date = convert_time(time)
     start_date = rupture_date - timedelta(days=90)  # 90 days before the earthquake
     start_date= start_date.replace(hour=0, minute=0, second=0)
-    end_date = rupture_date + timedelta(days=30)    # 30 days after the earthquake
-    end_date = end_date.replace(hour=23, minute=59, second=59)
+
+    # Set the end date based on the processing mode
+    if processing_mode == 'historic':
+        end_date = rupture_date + timedelta(days=30)    # 30 days after the earthquake
+        end_date = end_date.replace(hour=23, minute=59, second=59)
+
+    elif processing_mode == 'forward':
+        today = datetime.now()
+        end_date = today
 
     # Format the datetime object into a string
     start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -789,33 +797,58 @@ def to_snake_case(input_string):
     snake_case_string = re.sub(r'\s+', '_', cleaned_string.strip()).lower()
     return snake_case_string
 
-def main_forward():
+def main_forward(pairing_mode):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
+    :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
     """
-    # Fetch GeoJSON data from the USGS Earthquake Hazard Portal
-    #geojson_data = check_for_new_data(USGS_api_hourly)
-    geojson_data = check_for_new_data(USGS_api_30day)
+    # Fetch GeoJSON data from the USGS Earthquake Hazard Portal each hour
+    geojson_data = check_for_new_data(USGS_api_hourly)
     
+    start_date = datetime.now().strftime('%Y-%m-%d')
+
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
-        eq_sig = check_significance(earthquakes)
+        eq_sig = check_significance(earthquakes, start_date, end_date=None)
 
         if eq_sig is not None:
-            for eq in eq_sig:
-                coords = eq.get('coordinates', [])
-                aoi = make_aoi(coords)
-            
-                # Query the ASF DAAC API for SAR data within the AOI
-                SLCs = query_asfDAAC(aoi, eq.get('time'))
+                    for eq in eq_sig:
+                        title = eq.get('title', '')
+                        title = to_snake_case(title)
+                        print(f"title: {title}")
+                        coords = eq.get('coordinates', [])
+                        aoi = make_aoi(coords)
+                        
+                        path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
 
-            # Find SLC pairs for InSAR processing
-            reference, secondary = find_SLC_pairs_for_infg(SLCs, aoi, eq.get('time'))
+                        eq_jsons = []
+                        for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+                            SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='forward')
+                            isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
+                            eq_jsons.append(isce_jsons)
 
+                        dirnames = create_directories_from_json(eq_jsons, root_dir)
+                        
+                        for i, eq_json in enumerate(eq_jsons):
+                            for j, json_data in enumerate(eq_json): 
+                                working_dir = dirnames[i][j]
+                                os.chdir(working_dir)
+                                # Add json to the directory 
+                                with open('isce_params.json', 'w') as f:
+                                    json.dump(json_data, f, indent=4)
+                                print(f'working directory: {os.getcwd()}')
+                                print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                                try:
+                                    run_dockerized_topsApp(json_data)
+                                except:
+                                    print('Error running dockerized topsApp')
+                                    continue
+                    return eq_jsons
+                            
         else:
-            print("No significant earthquakes found in the last hour.")
+                    print(f"No significant earthquakes found on {start_date}.")
     
 def main_historic(start_date, end_date = None, pairing_mode = None):
     """
@@ -858,7 +891,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
 
                 eq_jsons = []
                 for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
-                    SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'))
+                    SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
                     isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
                     eq_jsons.append(isce_jsons)
 
@@ -932,12 +965,17 @@ if __name__ == "__main__":
         main_historic(start_date, end_date, pairing_mode=args.pairing)
 
     elif args.forward:
-        if args.dates or args.pairing:
-            print("Error: --dates and --pairing cannot be used with --forward mode.")
+        if args.dates:
+            print("Error: --dates cannot be used with --forward mode.")
             parser.print_help()
             exit(1)
 
-        main_forward()
+        if not args.pairing:
+            print("Error: --pairing is required when using --forward mode. Options: 'all', 'sequential', 'coseismic'.")
+            parser.print_help()
+            exit(1)
+
+        main_forward(args.pairing)
 
     else:
         print("Error: Please specify either --historic or --forward to run the processing workflow.")
