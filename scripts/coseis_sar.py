@@ -273,7 +273,7 @@ def check_significance(earthquakes, start_date, end_date=None):
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
         within_Coastline_buffer = withinCoastline(earthquake, coastline)
         if all(var is not None for var in (magnitude, alert, depth)):
-            if (magnitude >= 5.5) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
                 significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
@@ -880,6 +880,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
         eq_sig = check_significance(earthquakes, start_date, end_date)
 
         if eq_sig is not None:
+            jobs_dict = {}
             for eq in eq_sig:
                 title = eq.get('title', '')
                 title = to_snake_case(title)
@@ -904,6 +905,10 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                         # Add json to the directory 
                         with open('isce_params.json', 'w') as f:
                             json.dump(json_data, f, indent=4)
+
+                        # Add json to jobs_dict
+                        jobs_dict[working_dir] = json_data
+                        
                         print(f'working directory: {os.getcwd()}')
                         print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
                         try:
@@ -911,7 +916,12 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                         except:
                             print('Error running dockerized topsApp')
                             continue
-            return eq_jsons
+
+            # Write jobs_dict to a json file
+            with open('jobs_list.json', 'w') as f:
+                json.dump(jobs_dict, f)
+
+            return 
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
