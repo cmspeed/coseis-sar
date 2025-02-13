@@ -23,7 +23,7 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-root_dir = "/u/trappist-r0/colespeed/work/coseis/earthquakes/"
+root_dir = "/u/trappist-r0/colespeed/work/coseis/earthquakes/earthquakes_empty/"
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -396,8 +396,8 @@ def make_aoi(coordinates):
     AOI = Polygon(square_coords)
 
     # Write to a geojson file
-    with open('AOI.geojson', 'w') as f:
-        geojson.dump(AOI, f, indent=2)
+    # with open('AOI.geojson', 'w') as f:
+    #     geojson.dump(AOI, f, indent=2)
 
     print(f"Area of Interest (AOI) created: {AOI}")
     print('=========================================')
@@ -534,12 +534,19 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
         # Extract the file IDs from the GeoJSON data
         SLCs = []
         for feature in data['features']:
-
-            # Extract the date part from startTime
             start_time = feature['properties']['startTime']
             path = feature['properties']['pathNumber']
             frame = feature['properties']['frameNumber']
-            date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%fZ').date().isoformat()
+
+            ### The datetime are (sometimes) in slightly different formats, so we need to handle both cases
+            try:
+                date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%fZ').date().isoformat()
+            except ValueError:
+                try:
+                    date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%f').date().isoformat()
+                except ValueError:
+                    print(f"Warning: Unexpected date format in startTime: {start_time}")
+                    date = None  # Or handle it differently based on your needs
             
             SLC = {
                 'fileID': feature['properties']['fileID'],
@@ -699,6 +706,7 @@ def create_directories_from_json(eq_jsons, root_dir):
     :return: List of directory names
     """
     dirnames = []
+    total = 0
     for isce_jsons in eq_jsons:
         sub_dirnames = []  # To hold the directories for each group in `isce_jsons`
         for json_data in isce_jsons:
@@ -718,8 +726,9 @@ def create_directories_from_json(eq_jsons, root_dir):
             os.makedirs(full_path, exist_ok=True)
             sub_dirnames.append(full_path)
             print(f"Created: {full_path}")
+            total += 1
         dirnames.append(sub_dirnames)
-    return dirnames
+    return dirnames, total
 
 def run_dockerized_topsApp(json_data):
     """
@@ -881,6 +890,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
 
         if eq_sig is not None:
             jobs_dict = {}
+            total_dirs = 0
             for eq in eq_sig:
                 title = eq.get('title', '')
                 title = to_snake_case(title)
@@ -896,8 +906,9 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                     isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
                     eq_jsons.append(isce_jsons)
 
-                dirnames = create_directories_from_json(eq_jsons, root_dir)
-                
+                dirnames, total = create_directories_from_json(eq_jsons, root_dir)
+                total_dirs += total
+            
                 for i, eq_json in enumerate(eq_jsons):
                     for j, json_data in enumerate(eq_json): 
                         working_dir = dirnames[i][j]
@@ -906,25 +917,28 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                         with open('isce_params.json', 'w') as f:
                             json.dump(json_data, f, indent=4)
 
-                        # Add json to jobs_dict
-                        jobs_dict[working_dir] = json_data
-                        
-                        print(f'working directory: {os.getcwd()}')
-                        print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        try:
-                            run_dockerized_topsApp(json_data)
-                        except:
-                            print('Error running dockerized topsApp')
-                            continue
-
-            # Write jobs_dict to a json file
-            with open('jobs_list.json', 'w') as f:
-                json.dump(jobs_dict, f)
-
-            return 
+        print("=========================================")
+        print(f"Total directories created: {total_dirs}")
+        print("=========================================")
+    #                 # Add json to jobs_dict
+    #                 jobs_dict[working_dir] = json_data
                     
-        else:
-            print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
+    #                 print(f'working directory: {os.getcwd()}')
+    #                 print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+    #                 try:
+    #                     run_dockerized_topsApp(json_data)
+    #                 except:
+    #                     print('Error running dockerized topsApp')
+    #                     continue
+
+    #     # Write jobs_dict to a json file
+    #     with open('jobs_list.json', 'w') as f:
+    #         json.dump(jobs_dict, f)
+
+    #     return 
+                
+    # else:
+    #     print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
 if __name__ == "__main__":
     """
@@ -932,8 +946,9 @@ if __name__ == "__main__":
     Historic processing can be done for a single date or range of dates, with the option to specify the SLC pairing mode.
     Forward processing is used to generate co-seismic displacement products for new earthquakes.
     Example usage for historic processing: 
-      python coseis.py --historic --dates 2021-08-14 --pairing all
-      python coseis.py --historic --dates 2021-08-14 2021-09-07 --pairing all
+      python coseis_sar.py --historic --dates 2021-08-14 --pairing all
+      python coseis_sar.py --historic --dates 2021-08-14 2021-09-07 --pairing all
+      python coseis_sar.py --historic --dates 2014-06-14 2025-02-12 --pairing coseismic (all coseismic pairs from beginning of S1 data to 2025-02-12)
     Example usage for forward processing: 
       python coseis.py --forward
     """
