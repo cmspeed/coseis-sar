@@ -812,10 +812,11 @@ def send_email(subject, body):
     Send an email with the earthquake information.
     :param message: dictionary containing earthquake data
     """
-    GMAIL_USER = 'colespeed@jpl.caltech.edu'
-    GMAIL_PSWD = os.environ['GMAIL_PSWD']
+    GMAIL_USER = 'cole.m.speed@gmail.com'
+    GMAIL_PSWD = os.environ['GMAIL_APP_PSWD']
     yag = yagmail.SMTP(GMAIL_USER,GMAIL_PSWD)
-    receivers=['cole.speed@jpl.nasa.gov']
+    #receivers=['cole.speed@jpl.nasa.gov','cspeed7@utexas.edu','mary.grace.p.bato@jpl.nasa.gov','mgbato@gmail.com']
+    receivers = ['cole.speed@jpl.nasa.gov']
     yag.send(to=receivers,
          subject=subject,
          contents=[body],
@@ -834,8 +835,7 @@ def main_forward(pairing_mode):
     print('=========================================')
     
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal each hour
-    #geojson_data = check_for_new_data(USGS_api_hourly)
-    geojson_data = check_for_new_data(USGS_api_30day)
+    geojson_data = check_for_new_data(USGS_api_hourly)
     
     start_date = datetime.now().strftime('%Y-%m-%d')
 
@@ -856,13 +856,28 @@ def main_forward(pairing_mode):
                 message_dict = {
                     "title": eq.get('title', ''),
                     "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
+                    "coordinates": eq.get('coordinates', []),
                     "magnitude": eq.get('mag', ''),
                     "depth": eq.get('coordinates', [])[2],
                     "alert": eq.get('alert', ''),
                     "url": eq.get('url', '')
                 }
-                send_email(f"New Earthquake Detected: {message_dict['title']}", f"New earthquake detected: {message_dict['title']} at {message_dict['time']} UTC")
-                
+
+                send_email(
+                f"New Earthquake Detected: {message_dict['title']}",
+                    (
+                        f"New earthquake detected: {message_dict['title']} at {message_dict['time']} UTC\n"
+                        f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
+                        f"Depth: {message_dict['depth']} km\n"
+                        f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
+                        f"----------------------------------------\n"
+                        f"This is an automated message. Please do not reply."
+                    )
+                )
+
+                print('=========================================')
+                print('Alert emailed to recipients.')
+                print('=========================================')
                 # path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
 
                 # eq_jsons = []
@@ -892,6 +907,82 @@ def main_forward(pairing_mode):
         else:
             print(f"No significant earthquakes found.")
             return
+
+def main_historic(start_date, end_date = None, pairing_mode = None):
+    """
+    Runs the main query and processing workflow in historic processing mode.
+    Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
+    Pre-seismic and post-seismic data are generated for 90 days before and 30 days after the event.
+    A single date or date range can be provided for processing.
+    :param start_date: The query start date in YYYY-MM-DD format
+    :param end_date: The query end date in YYYY-MM-DD format (Optional)
+    :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
+    """
+    if start_date and not end_date:
+        print('=========================================')
+        print(f"Running historic processing in single-date mode for date: {start_date}")
+        print('=========================================')
+        # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for a single date
+        geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, str(start_date))
+
+    elif start_date and end_date:
+        print('=========================================')
+        print(f"Running historic processing in date range mode for dates: {start_date} to {end_date}")
+        print('=========================================')
+        # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for the date range provided
+        geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, str(start_date), str(end_date))
+
+    if geojson_data:
+        # Parse GeoJSON and create variables for each feature's properties
+        earthquakes = parse_geojson(geojson_data)
+        eq_sig = check_significance(earthquakes, start_date, end_date)
+
+        if eq_sig is not None:
+            jobs_dict = {}
+            for eq in eq_sig:
+                title = eq.get('title', '')
+                title = to_snake_case(title)
+                print(f"title: {title}")
+                coords = eq.get('coordinates', [])
+                aoi = make_aoi(coords)
+                
+                path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
+
+                eq_jsons = []
+                for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+                    SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
+                    isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
+                    eq_jsons.append(isce_jsons)
+
+                dirnames = create_directories_from_json(eq_jsons, root_dir)
+                
+                for i, eq_json in enumerate(eq_jsons):
+                    for j, json_data in enumerate(eq_json): 
+                        working_dir = dirnames[i][j]
+                        os.chdir(working_dir)
+                        # Add json to the directory 
+                        with open('isce_params.json', 'w') as f:
+                            json.dump(json_data, f, indent=4)
+
+                        # Add json to jobs_dict
+                        jobs_dict[working_dir] = json_data
+                        
+                        # print(f'working directory: {os.getcwd()}')
+                        # print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                        # try:
+                        #     run_dockerized_topsApp(json_data)
+                        # except:
+                        #     print('Error running dockerized topsApp')
+                        #     continue
+
+            # Write jobs_dict to a json file
+            with open('jobs_list.json', 'w') as f:
+                json.dump(jobs_dict, f)
+
+            return 
+                    
+        else:
+            print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
 if __name__ == "__main__":
     """
