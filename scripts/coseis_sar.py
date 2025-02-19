@@ -864,9 +864,9 @@ def main_forward(pairing_mode):
                 }
 
                 send_email(
-                f"New Earthquake Detected: {message_dict['title']}",
+                f"New Significant Earthquake Detected: {message_dict['title']}",
                     (
-                        f"New earthquake detected: {message_dict['title']} at {message_dict['time']} UTC\n"
+                        f"New significant earthquake detected: {message_dict['title']} at {message_dict['time']} UTC\n"
                         f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
                         f"Depth: {message_dict['depth']} km\n"
                         f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
