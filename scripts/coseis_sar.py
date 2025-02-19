@@ -815,8 +815,7 @@ def send_email(subject, body):
     GMAIL_USER = 'cole.m.speed@gmail.com'
     GMAIL_PSWD = os.environ['GMAIL_APP_PSWD']
     yag = yagmail.SMTP(GMAIL_USER,GMAIL_PSWD)
-    #receivers=['cole.speed@jpl.nasa.gov','cspeed7@utexas.edu','mary.grace.p.bato@jpl.nasa.gov','mgbato@gmail.com']
-    receivers = ['cole.speed@jpl.nasa.gov']
+    receivers=['cole.speed@jpl.nasa.gov','cspeed7@utexas.edu','mary.grace.p.bato@jpl.nasa.gov','mgbato@gmail.com']
     yag.send(to=receivers,
          subject=subject,
          contents=[body],
