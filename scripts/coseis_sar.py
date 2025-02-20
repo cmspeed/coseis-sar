@@ -459,9 +459,10 @@ def get_path_and_frame_numbers(AOI, time):
         # Extract the path and frame numbers from the GeoJSON data
         for feature in data['features']:
             flight_direction = feature['properties']['flightDirection']
+            start_time = feature['properties']['startTime']
             path_number = feature['properties']['pathNumber']
             frame_number = feature['properties']['frameNumber']
-            path_frame_numbers[flight_direction][path_number].add(frame_number)  # Use a set to avoid duplicates
+            path_frame_numbers[flight_direction][path_number].add((frame_number,start_time))  # Use a set to avoid duplicates
 
         # Reformat the dictionary into usable format with tuples as keys and lists as values
         reformatted = {
@@ -815,7 +816,9 @@ def send_email(subject, body):
     GMAIL_USER = 'cole.m.speed@gmail.com'
     GMAIL_PSWD = os.environ['GMAIL_APP_PSWD']
     yag = yagmail.SMTP(GMAIL_USER,GMAIL_PSWD)
-    receivers=['cole.speed@jpl.nasa.gov','cspeed7@utexas.edu','mary.grace.p.bato@jpl.nasa.gov','mgbato@gmail.com']
+    receivers=['cole.speed@jpl.nasa.gov','cspeed7@utexas.edu',
+               'mary.grace.p.bato@jpl.nasa.gov','mgbato@gmail.com',
+               'eric.j.fielding@jpl.nasa.gov']
     yag.send(to=receivers,
          subject=subject,
          contents=[body],
@@ -835,8 +838,9 @@ def main_forward(pairing_mode):
     
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal each hour
     geojson_data = check_for_new_data(USGS_api_hourly)
-    
+
     start_date = datetime.now().strftime('%Y-%m-%d')
+    current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
 
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
@@ -849,7 +853,9 @@ def main_forward(pairing_mode):
                 title = to_snake_case(title)
                 print(f"title: {title}")
                 coords = eq.get('coordinates', [])
-                # aoi = make_aoi(coords)
+                aoi = make_aoi(coords)
+
+                path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
 
                 # Send an email with the earthquake information
                 message_dict = {
@@ -862,14 +868,25 @@ def main_forward(pairing_mode):
                     "url": eq.get('url', '')
                 }
 
+                # Format the intersecting path and frame numbers into a string
+                intersecting_paths_and_frames =  "\n".join(
+                        f"{key[0]} {key[1]}:\n" + "\n".join(f"  - Frame {frame}: {timestamp}" for frame, timestamp in value)
+                        for key, value in path_frame_numbers.items()
+                )
+
+                # Send the email with the formatted content
                 send_email(
-                f"New Significant Earthquake Detected: {message_dict['title']}",
+                    f"New Significant Earthquake Detected: {message_dict['title']}",
                     (
                         f"New significant earthquake detected: {message_dict['title']} at {message_dict['time']} UTC\n"
                         f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
                         f"Depth: {message_dict['depth']} km\n"
                         f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
-                        f"----------------------------------------\n"
+                        f"------------------------------------------------------------------------------------------------------------------------\n"
+                        f"Intersecting Sentinel-1 path and frame numbers over most recent 24-day period:\n"
+                        f"{intersecting_paths_and_frames}\n"
+                        f"Next data acquisition will occur 12 days from the most recently acquired frame for each track.\n"
+                        f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"This is an automated message. Please do not reply."
                     )
                 )
@@ -877,7 +894,6 @@ def main_forward(pairing_mode):
                 print('=========================================')
                 print('Alert emailed to recipients.')
                 print('=========================================')
-                # path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
 
                 # eq_jsons = []
                 # for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
@@ -904,7 +920,7 @@ def main_forward(pairing_mode):
             # return eq_jsons
                             
         else:
-            print(f"No significant earthquakes found.")
+            print(f"No significant earthquakes found as of {current_time}.")
             return
 
 def main_historic(start_date, end_date = None, pairing_mode = None):
@@ -966,13 +982,13 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                         # Add json to jobs_dict
                         jobs_dict[working_dir] = json_data
                         
-                        # print(f'working directory: {os.getcwd()}')
-                        # print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        # try:
-                        #     run_dockerized_topsApp(json_data)
-                        # except:
-                        #     print('Error running dockerized topsApp')
-                        #     continue
+                        print(f'working directory: {os.getcwd()}')
+                        print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                        try:
+                            run_dockerized_topsApp(json_data)
+                        except:
+                            print('Error running dockerized topsApp')
+                            continue
 
             # Write jobs_dict to a json file
             with open('jobs_list.json', 'w') as f:
