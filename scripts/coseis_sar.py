@@ -4,7 +4,9 @@ import argparse
 import asf_search as asf
 import requests
 import json
+import folium
 import geojson
+import geopandas as gpd
 import csv
 from shapely.geometry import mapping, shape, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from shapely.ops import unary_union
@@ -415,6 +417,38 @@ def convert_time(time):
     dt = dt.replace(microsecond=0) # Remove microseconds
     return dt
 
+def make_interactive_map(frame_dataframe, title, coords, url):
+        
+    # Extract latitude and longitude from coords
+    lon, lat = coords[0], coords[1]
+    
+    # Generate an interactive map
+    map_object = frame_dataframe.explore(column="pathNumber", 
+                                            cmap="viridis", 
+                                            tooltip=["pathNumber", "frameNumber", "startTime"],
+                                            )
+
+    # Add a basemap explicitly with Folium (Esri World Imagery)
+    folium.TileLayer('Esri World Imagery').add_to(map_object)
+
+    # Create a popup with both the title and a clickable URL
+    popup_content = f"""
+    <b>{title}</b><br>
+    <a href="{url}" target="_blank">{url}</a>
+    """
+    # Add AOI centroid marker with a popup that includes the title and URL
+    folium.Marker(
+        location=[lat, lon],
+        popup=folium.Popup(popup_content, max_width=300),
+        icon=folium.Icon(color='red', icon='info-sign')
+    ).add_to(map_object)
+
+    # Save to an HTML file
+    map_filename = f"{title}_SLC_Map.html"
+    map_object.save(map_filename)
+    
+    return map_filename
+
 def get_path_and_frame_numbers(AOI, time):
     """
     Query the ASF DAAC API for SLC data intersecting the Area of Interest (AOI) over the previous 24 days.
@@ -453,6 +487,9 @@ def get_path_and_frame_numbers(AOI, time):
         # Parse the response as GeoJSON
         data = geojson.loads(response.text)
 
+        # Convert the GeoJSON data to a GeoDataFrame for visualization
+        frame_dataframe = gpd.GeoDataFrame.from_features(data['features'], crs='EPSG:4326')
+
         # Initialize an empty dictionary to store the path and frame numbers as sets
         path_frame_numbers = defaultdict(lambda: defaultdict(set))
 
@@ -476,7 +513,7 @@ def get_path_and_frame_numbers(AOI, time):
         print('=========================================')
         for key, value in reformatted.items():
             print(f"{key}: {value}")
-        return reformatted
+        return reformatted, frame_dataframe
 
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
@@ -808,7 +845,7 @@ def to_snake_case(input_string):
     snake_case_string = re.sub(r'\s+', '_', cleaned_string.strip()).lower()
     return snake_case_string
 
-def send_email(subject, body):
+def send_email(subject, body, attachment=None):
     """
     Send an email with the earthquake information.
     :param message: dictionary containing earthquake data
@@ -819,13 +856,15 @@ def send_email(subject, body):
     receivers=['cole.speed@jpl.nasa.gov','cspeed7@utexas.edu',
                'mary.grace.p.bato@jpl.nasa.gov','mgbato@gmail.com',
                'eric.j.fielding@jpl.nasa.gov']
+
     yag.send(to=receivers,
-         subject=subject,
-         contents=[body],
-        )
+             subject=subject,
+             contents=[body],
+             attachments=[attachment]
+             )
     return
 
-def main_forward(pairing_mode):
+def main_forward(pairing_mode = None):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
@@ -855,7 +894,12 @@ def main_forward(pairing_mode):
                 coords = eq.get('coordinates', [])
                 aoi = make_aoi(coords)
 
-                path_frame_numbers = get_path_and_frame_numbers(aoi, eq.get('time'))
+                path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+
+                # Make an interactive map of the intersecting frames to attach to the email
+                map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
+                                     eq.get('coordinates', []),
+                                     eq.get('url', ''))
 
                 # Send an email with the earthquake information
                 message_dict = {
@@ -876,7 +920,7 @@ def main_forward(pairing_mode):
 
                 # Send the email with the formatted content
                 send_email(
-                    f"New Significant Earthquake Detected: {message_dict['title']}",
+                    f"Significant Earthquake: {message_dict['title']}",
                     (
                         f"New significant earthquake detected: {message_dict['title']} at {message_dict['time']} UTC\n"
                         f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
@@ -885,10 +929,14 @@ def main_forward(pairing_mode):
                         f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"Intersecting Sentinel-1 path and frame numbers over most recent 24-day period:\n"
                         f"{intersecting_paths_and_frames}\n"
+                        f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"Next data acquisition will occur 12 days from the most recently acquired frame for each track.\n"
                         f"------------------------------------------------------------------------------------------------------------------------\n"
+                        f"View an interactive map of intersecting Sentinel-1 frames and the earthquake epicenter location by downloading the attachment and launching in your web browser.\n"
+                        f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"This is an automated message. Please do not reply."
-                    )
+                    ),
+                    map_filename
                 )
 
                 print('=========================================')
