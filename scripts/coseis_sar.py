@@ -276,7 +276,7 @@ def check_significance(earthquakes, start_date, end_date=None):
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
         within_Coastline_buffer = withinCoastline(earthquake, coastline)
         if all(var is not None for var in (magnitude, alert, depth)):
-            if (magnitude >= 7.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
                 significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
@@ -841,11 +841,12 @@ def send_email(subject, body, attachment=None):
     Send an email with the earthquake information.
     :param message: dictionary containing earthquake data
     """
-    GMAIL_USER = 'cole.m.speed@gmail.com'
+    #GMAIL_USER = 'cole.m.speed@gmail.com'
+    GMAIL_USER = 'aria.hazards.jpl@gmail.com'
     GMAIL_PSWD = os.environ['GMAIL_APP_PSWD']
     yag = yagmail.SMTP(GMAIL_USER,GMAIL_PSWD)
     receivers=['cole.speed@jpl.nasa.gov','cspeed7@utexas.edu',
-               'mary.grace.p.bato@jpl.nasa.gov','mgbato@gmail.com',
+               'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
                'eric.j.fielding@jpl.nasa.gov']
 
     yag.send(to=receivers,
@@ -867,7 +868,8 @@ def main_forward(pairing_mode = None):
     print('=========================================')
     
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal each hour
-    geojson_data = check_for_new_data(USGS_api_hourly)
+    #geojson_data = check_for_new_data(USGS_api_hourly)
+    geojson_data = check_for_new_data(USGS_api_30day)
 
     start_date = datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
@@ -913,7 +915,7 @@ def main_forward(pairing_mode = None):
                 send_email(
                     f"Significant Earthquake: {message_dict['title']}",
                     (
-                        f"New significant earthquake detected: {message_dict['title']} at {message_dict['time']} UTC\n"
+                        f"Significant earthquake detected: {message_dict['title']} at {message_dict['time']} UTC\n"
                         f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
                         f"Depth: {message_dict['depth']} km\n"
                         f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
@@ -925,7 +927,7 @@ def main_forward(pairing_mode = None):
                         f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"View an interactive map of intersecting Sentinel-1 frames and the earthquake epicenter location by downloading the attachment and launching in your web browser.\n"
                         f"------------------------------------------------------------------------------------------------------------------------\n"
-                        f"This is an automated message. Please do not reply."
+                        f"This is an automated message. Please do not reply. For product-specific inquiries contact Dr. Cole Speed (<a href=\"mailto:cole.speed@jpl.nasa.gov\">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href=\"mailto:bato@jpl.nasa.gov\">bato@jpl.nasa.gov</a>)."
                     ),
                     map_filename
                 )
