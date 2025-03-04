@@ -66,6 +66,7 @@ def get_historic_earthquake_data_single_date(eq_api, input_date):
         print(f"Error parsing GeoJSON data: {e}")
         return None
 
+
 def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
     """
     Fetch data from the USGS Earthquake Portal over the date range and returns it as a GeoJSON object.
@@ -107,6 +108,7 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
         print(f"Error parsing GeoJSON data: {e}")
         return None
 
+
 def check_for_new_data(eq_api):
     """
     Fetch data from the USGS Earthquake Portal and returns it as a GeoJSON object.
@@ -138,6 +140,7 @@ def check_for_new_data(eq_api):
     except geojson.GeoJSONDecodeError as e:
         print(f"Error parsing GeoJSON data: {e}")
         return None
+
 
 def get_coastline(coastline_api):
     """
@@ -203,6 +206,7 @@ def get_coastline(coastline_api):
         print(f"Error parsing GeoJSON data: {e}")
         return None
     
+
 def parse_geojson(geojson_data):
     """
     Parse the features of a GeoJSON object and create a dictionary for each earthquake (feature),
@@ -231,6 +235,7 @@ def parse_geojson(geojson_data):
         earthquakes.append(feature_dict)
     return earthquakes
 
+
 def withinCoastline(earthquake, coastline):
     """
     Determine if earthquake epicenter is within 0.5 decimal degrees (~55 km) of the coastline.
@@ -253,6 +258,7 @@ def withinCoastline(earthquake, coastline):
     # Determine if the epicenter is within the coastline
     within_coastline_buffer = coastline_buffer.contains(epicenter)
     return within_coastline_buffer
+
 
 def check_significance(earthquakes, start_date, end_date=None):
     """
@@ -296,6 +302,7 @@ def check_significance(earthquakes, start_date, end_date=None):
         return significant_earthquakes
     else:
         return None
+
 
 def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_date, end_date=None):
     """
@@ -364,7 +371,8 @@ def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_da
                     eq["coordinates"][0], eq["coordinates"][1], eq["coordinates"][2], eq["alert"], eq["url"]
             ])
     return
-        
+
+
 def make_aoi(coordinates):
     """
     Create an Area of Interest (AOI) polygon based on the given coordinates.
@@ -406,6 +414,7 @@ def make_aoi(coordinates):
     print('=========================================')
     return AOI
 
+
 def convert_time(time):
     """
     Convert the given Unix timestamp in milliseconds to a UTC datetime object.
@@ -416,6 +425,7 @@ def convert_time(time):
     dt = datetime.fromtimestamp(timestamp_s, tz=timezone.utc) # Convert to datetime object in UTC
     dt = dt.replace(microsecond=0) # Remove microseconds
     return dt
+
 
 def make_interactive_map(frame_dataframe, title, coords, url):
         
@@ -448,6 +458,7 @@ def make_interactive_map(frame_dataframe, title, coords, url):
     map_object.save(map_filename)
     
     return map_filename
+
 
 def get_path_and_frame_numbers(AOI, time):
     """
@@ -518,6 +529,7 @@ def get_path_and_frame_numbers(AOI, time):
     except requests.RequestException as e:
         print(f"Error accessing ASF DAAC API: {e}")
         return None
+
 
 def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode):
     """
@@ -608,6 +620,7 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
         print(f"Error accessing ASF DAAC API: {e}")
         return None
 
+
 def generate_pairs(pairs, mode):
     """
     Generate pairs of SLCs based on the selected pairing mode.
@@ -622,6 +635,7 @@ def generate_pairs(pairs, mode):
         return all_pairs
     elif mode == 'coseismic':
         return []
+
 
 def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing_mode='sequential'):
     """
@@ -696,6 +710,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             isce_jsons.append(json_output)
     return isce_jsons
 
+
 def make_json(title, timing, flight_direction, path_number, frame_numbers, reference, secondary, reference_scenes, secondary_scenes):
     """Create a JSON object containing parameters for dockerized topsApp.
     Note: Not all params here are used in the final dockerized topsApp. Some are used for file organzation.
@@ -735,6 +750,7 @@ def make_json(title, timing, flight_direction, path_number, frame_numbers, refer
     }
     return isce_json
 
+
 def create_directories_from_json(eq_jsons, root_dir):
     """
     Create directories for each group of SLCs based on the JSON data provided. These directories will be used to store the outputs of the dockerized topsApp.
@@ -768,6 +784,7 @@ def create_directories_from_json(eq_jsons, root_dir):
             total += 1
         dirnames.append(sub_dirnames)
     return dirnames, total
+
 
 def run_dockerized_topsApp(json_data):
     """
@@ -824,6 +841,7 @@ def run_dockerized_topsApp(json_data):
         print("Error Output:\n", e.stderr)
     return
 
+
 def to_snake_case(input_string):
     """
     Convert the given string to snake_case. Used to create uniform-case output directory names
@@ -835,6 +853,7 @@ def to_snake_case(input_string):
     # Replace spaces with underscores and convert to lowercase
     snake_case_string = re.sub(r'\s+', '_', cleaned_string.strip()).lower()
     return snake_case_string
+
 
 def send_email(subject, body, attachment=None):
     """
@@ -855,6 +874,7 @@ def send_email(subject, body, attachment=None):
              attachments=[attachment]
              )
     return
+
 
 def main_forward(pairing_mode = None):
     """
@@ -963,6 +983,7 @@ def main_forward(pairing_mode = None):
             print(f"No significant earthquakes found as of {current_time}.")
             return
 
+
 def main_historic(start_date, end_date = None, pairing_mode = None):
     """
     Runs the main query and processing workflow in historic processing mode.
@@ -1039,6 +1060,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
+
 
 if __name__ == "__main__":
     """
