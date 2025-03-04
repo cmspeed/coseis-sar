@@ -425,7 +425,7 @@ def make_interactive_map(frame_dataframe, title, coords, url):
     # Generate an interactive map
     map_object = frame_dataframe.explore(column="pathNumber", 
                                             cmap="viridis", 
-                                            tooltip=["pathNumber", "frameNumber", "startTime"],
+                                            tooltip=["flightDirection", "pathNumber", "frameNumber", "startTime"],
                                             )
 
     # Add a basemap explicitly with Folium (Esri World Imagery)
@@ -868,8 +868,7 @@ def main_forward(pairing_mode = None):
     print('=========================================')
     
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal each hour
-    #geojson_data = check_for_new_data(USGS_api_hourly)
-    geojson_data = check_for_new_data(USGS_api_30day)
+    geojson_data = check_for_new_data(USGS_api_hourly)
 
     start_date = datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
