@@ -1024,6 +1024,11 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                 
                 path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
 
+                # Make an interactive map of the intersecting frames to attach to the email
+                map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
+                                     eq.get('coordinates', []),
+                                     eq.get('url', ''))
+
                 eq_jsons = []
                 for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
                     frame_numbers = list(set(fn[0] for fn in frame_numbers))
