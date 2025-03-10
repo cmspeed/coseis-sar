@@ -26,7 +26,7 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-root_dir = '/u/trappist-r0/colespeed/roses/coseis/scripts/earthquakes/'
+root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change if necessary
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -860,14 +860,16 @@ def send_email(subject, body, attachment=None):
     Send an email with the earthquake information.
     :param message: dictionary containing earthquake data
     """
-    #GMAIL_USER = 'cole.m.speed@gmail.com'
     GMAIL_USER = 'aria.hazards.jpl@gmail.com'
     GMAIL_PSWD = os.environ['GMAIL_APP_PSWD']
     yag = yagmail.SMTP(GMAIL_USER,GMAIL_PSWD)
-    receivers=['cole.speed@jpl.nasa.gov','cspeed7@utexas.edu',
+    receivers=['cole.speed@jpl.nasa.gov','cole.speed@yahoo.com',
                'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
-               'eric.j.fielding@jpl.nasa.gov']
-
+               'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
+               'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
+               'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov'
+               ]
+    
     yag.send(to=receivers,
              subject=subject,
              contents=[body],
@@ -889,6 +891,7 @@ def main_forward(pairing_mode = None):
     
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal each hour
     geojson_data = check_for_new_data(USGS_api_hourly)
+    geojson_data = check_for_new_data(USGS_api_30day)
 
     start_date = datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
@@ -954,30 +957,6 @@ def main_forward(pairing_mode = None):
                 print('=========================================')
                 print('Alert emailed to recipients.')
                 print('=========================================')
-
-                # eq_jsons = []
-                # for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
-                #     SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='forward')
-                #     isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
-                #     eq_jsons.append(isce_jsons)
-
-                # dirnames = create_directories_from_json(eq_jsons, root_dir)
-                
-                # for i, eq_json in enumerate(eq_jsons):
-                #     for j, json_data in enumerate(eq_json): 
-                #         working_dir = dirnames[i][j]
-                #         os.chdir(working_dir)
-                #         # Add json to the directory 
-                #         with open('isce_params.json', 'w') as f:
-                #             json.dump(json_data, f, indent=4)
-                #         print(f'working directory: {os.getcwd()}')
-                #         print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                #         try:
-                #             run_dockerized_topsApp(json_data)
-                #         except:
-                #             print('Error running dockerized topsApp')
-                #             continue
-            # return eq_jsons
                             
         else:
             print(f"No significant earthquakes found as of {current_time}.")
@@ -1050,12 +1029,12 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
                         jobs_dict[working_dir] = json_data
                         
                         print(f'working directory: {os.getcwd()}')
-                        # print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        # try:
-                        #     run_dockerized_topsApp(json_data)
-                        # except:
-                        #     print('Error running dockerized topsApp')
-                        #     continue
+                        print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                        try:
+                            run_dockerized_topsApp(json_data)
+                        except:
+                            print('Error running dockerized topsApp')
+                            continue
 
             # Write jobs_dict to a json file
             with open('jobs_list.json', 'w') as f:
