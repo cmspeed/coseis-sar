@@ -26,7 +26,7 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change if necessary
+root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -129,9 +129,9 @@ def check_for_new_data(eq_api):
         earthquakes = geojson.loads(response.text)
     
         # Save to a GeoJSON file
-        # output_file = "earthquakes.geojson"
-        # with open(output_file, "w") as f:
-        #     json.dump(earthquakes, f, indent=2)
+        output_file = "earthquakes.geojson"
+        with open(output_file, "w") as f:
+            json.dump(earthquakes, f, indent=2)
         return earthquakes
 
     except requests.RequestException as e:
@@ -263,7 +263,7 @@ def withinCoastline(earthquake, coastline):
 def check_significance(earthquakes, start_date, end_date=None):
     """
     Check the significance of each earthquake based on its 
-    (1) magnitude (>=6.0), (2) USGS alert level (['yellow','orange','red]),
+    (1) magnitude (>=6.0), (2) USGS alert level (['green','yellow','orange','red]),
     (3) depth (<=30.0 km), and (4) distance from land (within 0.5 degrees, ~55 km of the coastline).
     :param earthquakes: list of dictionaries containing earthquake data
     :return: List of dictionaries containing significant earthquakes
@@ -891,7 +891,6 @@ def main_forward(pairing_mode = None):
     
     # Fetch GeoJSON data from the USGS Earthquake Hazard Portal each hour
     geojson_data = check_for_new_data(USGS_api_hourly)
-    geojson_data = check_for_new_data(USGS_api_30day)
 
     start_date = datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
