@@ -26,7 +26,8 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
+root_dir = '/u/trappist-r0/colespeed/roses/coseis/scripts/earthquakes/'
+#root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -751,6 +752,48 @@ def make_json(title, timing, flight_direction, path_number, frame_numbers, refer
     return isce_json
 
 
+def make_job_json(title, flight_direction, path_number, reference_scenes, secondary_scenes):
+    """
+    Create a JSON object containing parameters for dockerized topsApp on HYP3.
+    :param title: USGS title of the earthquake event
+    :param flight_direction: 'A' or 'D' for ascending or descending
+    :param path_number: Sentinel-1 path number
+    :param reference_scenes: List of reference SLC fileIDs
+    :param secondary_scenes: List of secondary SLC fileIDs
+    :return: JSON object containing the parameters for dockerized topsApp
+    """
+    # Reformatting 'fight-direction' for readability in the json
+    flight_direction = 'ASCENDING' if flight_direction == 'A' else 'DESCENDING'
+    
+    job_json = {
+        "name": f"{title}-{flight_direction}{path_number}",
+        "job_type": "INSAR_ISCE",
+        "job_parameters": {
+            "granules": reference_scenes,
+            "secondary_granules": secondary_scenes,
+            "frame_id": -1,
+            "weather_model": ""
+            }
+
+    #     "flight-direction": flight_direction,
+    #     "path-number": path_number,
+    #     "frame-numbers": frame_numbers,
+    #     "reference-date": reference['date'],
+    #     "secondary-date": secondary['date'],
+    #     "reference-scenes": reference_scenes,
+    #     "secondary-scenes": secondary_scenes,
+    #     "frame-id": -1,
+    #     "estimate-ionosphere-delay": True,
+    #     "esd-coherence-threshold": -1,
+    #     "compute-solid-earth-tide": True,
+    #     "goldstein-filter-power": 0.5,
+    #     "output-resolution": 30,
+    #     "unfiltered-coherence": True,
+    #     "dense-offsets": True,
+    }
+    return job_json
+
+    
 def create_directories_from_json(eq_jsons, root_dir):
     """
     Create directories for each group of SLCs based on the JSON data provided. These directories will be used to store the outputs of the dockerized topsApp.
