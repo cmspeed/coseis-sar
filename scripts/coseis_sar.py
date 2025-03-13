@@ -275,6 +275,7 @@ def check_significance(earthquakes, start_date, end_date=None):
 
     significant_earthquakes = []
     alert_list = ['green','yellow', 'orange', 'red']
+    #alert_list = ['yellow', 'orange', 'red']
     coastline = get_coastline(coastline_api)
 
     for earthquake in earthquakes:
@@ -638,7 +639,7 @@ def generate_pairs(pairs, mode):
         return []
 
 
-def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing_mode='sequential'):
+def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing_mode='sequential', job_list = False):
     """
     Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, 
     and determine whether each pair is pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
@@ -648,6 +649,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     :param path_number: Sentinel-1 path number
     :param title: USGS title of the earthquake event, used for file organization
     :param pairing_mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'coseismic' for pairs bounding the rupture date only
+    :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
     # Get the rupture date in the format YYYY-MM-DD
@@ -704,10 +706,13 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             secondary_date, secondary_scenes = secondary
             reference_scenes_ids = [slc['fileID'] for slc in reference_scenes]
             secondary_scenes_ids = [slc['fileID'] for slc in secondary_scenes]
-            json_output = make_json(title, timing, flight_direction, path_number, list(frame_numbers), 
-                                    {'date': reference_date.strftime('%Y-%m-%d')}, 
-                                    {'date': secondary_date.strftime('%Y-%m-%d')}, 
-                                    reference_scenes_ids, secondary_scenes_ids)
+            if job_list:
+                json_output = make_job_json(title, flight_direction, path_number, reference_scenes_ids, secondary_scenes_ids)
+            else:
+                json_output = make_json(title, timing, flight_direction, path_number, list(frame_numbers), 
+                                        {'date': reference_date.strftime('%Y-%m-%d')}, 
+                                        {'date': secondary_date.strftime('%Y-%m-%d')}, 
+                                        reference_scenes_ids, secondary_scenes_ids)
             isce_jsons.append(json_output)
     return isce_jsons
 
@@ -763,7 +768,7 @@ def make_job_json(title, flight_direction, path_number, reference_scenes, second
     :return: JSON object containing the parameters for dockerized topsApp
     """
     # Reformatting 'fight-direction' for readability in the json
-    flight_direction = 'ASCENDING' if flight_direction == 'A' else 'DESCENDING'
+    #flight_direction = 'ASCENDING' if flight_direction == 'A' else 'DESCENDING'
     
     job_json = {
         "name": f"{title}-{flight_direction}{path_number}",
@@ -774,26 +779,10 @@ def make_job_json(title, flight_direction, path_number, reference_scenes, second
             "frame_id": -1,
             "weather_model": ""
             }
-
-    #     "flight-direction": flight_direction,
-    #     "path-number": path_number,
-    #     "frame-numbers": frame_numbers,
-    #     "reference-date": reference['date'],
-    #     "secondary-date": secondary['date'],
-    #     "reference-scenes": reference_scenes,
-    #     "secondary-scenes": secondary_scenes,
-    #     "frame-id": -1,
-    #     "estimate-ionosphere-delay": True,
-    #     "esd-coherence-threshold": -1,
-    #     "compute-solid-earth-tide": True,
-    #     "goldstein-filter-power": 0.5,
-    #     "output-resolution": 30,
-    #     "unfiltered-coherence": True,
-    #     "dense-offsets": True,
     }
     return job_json
 
-    
+
 def create_directories_from_json(eq_jsons, root_dir):
     """
     Create directories for each group of SLCs based on the JSON data provided. These directories will be used to store the outputs of the dockerized topsApp.
@@ -1005,7 +994,7 @@ def main_forward(pairing_mode = None):
             return
 
 
-def main_historic(start_date, end_date = None, pairing_mode = None):
+def main_historic(start_date, end_date = None, pairing_mode = None, job_list = False):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -1013,7 +1002,8 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
     A single date or date range can be provided for processing.
     :param start_date: The query start date in YYYY-MM-DD format
     :param end_date: The query end date in YYYY-MM-DD format (Optional)
-    :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
+    :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing.
+    :param job_list: If True, create a list of jobs in HYP3 format for cloud processing.
     """
     if start_date and not end_date:
         print('=========================================')
@@ -1035,54 +1025,83 @@ def main_historic(start_date, end_date = None, pairing_mode = None):
         eq_sig = check_significance(earthquakes, start_date, end_date)
 
         if eq_sig is not None:
-            jobs_dict = {}
-            for eq in eq_sig:
-                title = eq.get('title', '')
-                title = to_snake_case(title)
-                print(f"title: {title}")
-                coords = eq.get('coordinates', [])
-                aoi = make_aoi(coords)
-                
-                path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+            if job_list:    # produce the list of jobs needed for HYPE3 processing, but do not run any jobs
+                jobs_dict = []
+                for eq in eq_sig:
+                    title = eq.get('title', '')
+                    title = to_snake_case(title)
+                    print(f"title: {title}")
+                    coords = eq.get('coordinates', [])
+                    aoi = make_aoi(coords)
+                    
+                    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
 
-                # Make an interactive map of the intersecting frames to attach to the email
-                map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
-                                     eq.get('coordinates', []),
-                                     eq.get('url', ''))
+                    # Make an interactive map of the intersecting frames to attach to the email
+                    map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
+                                        eq.get('coordinates', []),
+                                        eq.get('url', ''))
+                    
+                    eq_jsons = []
+                    for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+                        frame_numbers = list(set(fn[0] for fn in frame_numbers))
+                        SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
+                        isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode, job_list)
+                        eq_jsons.append(isce_jobs)
 
-                eq_jsons = []
-                for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
-                    frame_numbers = list(set(fn[0] for fn in frame_numbers))
-                    SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
-                    isce_jsons = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode)
-                    eq_jsons.append(isce_jsons)
+                    for i, eq_json in enumerate(eq_jsons):
+                        for j, json_data in enumerate(eq_json): 
+                            jobs_dict.append(json_data)
 
-                dirnames, total = create_directories_from_json(eq_jsons, root_dir)
-                
-                for i, eq_json in enumerate(eq_jsons):
-                    for j, json_data in enumerate(eq_json): 
-                        working_dir = dirnames[i][j]
-                        os.chdir(working_dir)
-                        # Add json to the directory 
-                        with open('isce_params.json', 'w') as f:
-                            json.dump(json_data, f, indent=4)
+                # Get current time to use for naming
+                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
 
-                        # Add json to jobs_dict
-                        jobs_dict[working_dir] = json_data
-                        
-                        print(f'working directory: {os.getcwd()}')
-                        print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                        try:
-                            run_dockerized_topsApp(json_data)
-                        except:
-                            print('Error running dockerized topsApp')
-                            continue
+                # Write jobs_dict to a json file
+                with open(f'jobs_list_{current_time}', 'w') as f:
+                    json.dump(jobs_dict, f, indent=4)
 
-            # Write jobs_dict to a json file
-            with open('jobs_list.json', 'w') as f:
-                json.dump(jobs_dict, f)
+            else:       # run dockerizedTopsApp locally
+                for eq in eq_sig:
+                    title = eq.get('title', '')
+                    title = to_snake_case(title)
+                    print(f"title: {title}")
+                    coords = eq.get('coordinates', [])
+                    aoi = make_aoi(coords)
+                    
+                    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
 
-            return 
+                    # Make an interactive map of the intersecting frames to attach to the email
+                    map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
+                                        eq.get('coordinates', []),
+                                        eq.get('url', ''))
+                    
+                    eq_jsons = []
+                    for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+                        frame_numbers = list(set(fn[0] for fn in frame_numbers))
+                        SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
+                        isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode, job_list)
+                        eq_jsons.append(isce_jobs)
+
+                    dirnames, total = create_directories_from_json(eq_jsons, root_dir)
+                    
+                    for i, eq_json in enumerate(eq_jsons):
+                        for j, json_data in enumerate(eq_json):
+                            
+                            # Navigate to working directory for job
+                            working_dir = dirnames[i][j]
+                            os.chdir(working_dir)
+
+                            # Add json to the working directory 
+                            with open('isce_params.json', 'w') as f:
+                                json.dump(json_data, f, indent=4)
+                            
+                            print(f'working directory: {os.getcwd()}')
+                            print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                            try:
+                                run_dockerized_topsApp(json_data)
+                            except:
+                                print('Error running dockerized topsApp')
+                                continue
+            return
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
@@ -1097,6 +1116,7 @@ if __name__ == "__main__":
       python coseis_sar.py --historic --dates 2021-08-14 --pairing all
       python coseis_sar.py --historic --dates 2021-08-14 2021-09-07 --pairing all
       python coseis_sar.py --historic --dates 2014-06-14 2025-02-12 --pairing coseismic (all coseismic pairs from beginning of S1 data to 2025-02-12)
+      python coseis_sar.py --historic --dates 2014-06-14 2025-02-12 --pairing coseismic --job_list (only produce the job list for HYP3 processing, don't run any jobs locally) 
     Example usage for forward processing: 
       python coseis.py --forward
     """
@@ -1108,6 +1128,7 @@ if __name__ == "__main__":
     parser.add_argument("--forward", action="store_true", help="Run forward processing.")
     parser.add_argument("--dates", nargs="+", help="Provide one or two dates in YYYY-MM-DD format for historic processing.")
     parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for historic processing.")
+    parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
 
     args = parser.parse_args()
 
@@ -1135,7 +1156,7 @@ if __name__ == "__main__":
             parser.print_help()
             exit(1)
 
-        main_historic(start_date, end_date, pairing_mode=args.pairing)
+        main_historic(start_date, end_date, pairing_mode=args.pairing, job_list=args.job_list)
 
     elif args.forward:
         if args.dates:
