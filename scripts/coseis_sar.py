@@ -26,8 +26,7 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-root_dir = '/u/trappist-r0/colespeed/roses/coseis/scripts/earthquakes/'
-#root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
+root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -910,6 +909,31 @@ def send_email(subject, body, attachment=None):
     return
 
 
+def process_earthquake(eq, pairing_mode, job_list):
+
+    title = eq.get('title', '')
+    title = to_snake_case(title)
+    print(f"title: {title}")
+    coords = eq.get('coordinates', [])
+    aoi = make_aoi(coords)
+    
+    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+
+    # Make an interactive map of the intersecting frames to attach to the email
+    map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
+                        eq.get('coordinates', []),
+                        eq.get('url', ''))
+
+    eq_jsons = []
+    for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+        frame_numbers = list(set(fn[0] for fn in frame_numbers))
+        SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
+        isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode, job_list)
+        eq_jsons.append(isce_jobs)
+
+    return eq_jsons
+
+
 def main_forward(pairing_mode = None):
     """
     Runs the main query and processing workflow in forward processing mode.
@@ -1025,62 +1049,26 @@ def main_historic(start_date, end_date = None, pairing_mode = None, job_list = F
         eq_sig = check_significance(earthquakes, start_date, end_date)
 
         if eq_sig is not None:
-            if job_list:    # produce the list of jobs needed for HYPE3 processing, but do not run any jobs
-                jobs_dict = []
-                for eq in eq_sig:
-                    title = eq.get('title', '')
-                    title = to_snake_case(title)
-                    print(f"title: {title}")
-                    coords = eq.get('coordinates', [])
-                    aoi = make_aoi(coords)
-                    
-                    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+            for eq in eq_sig:
 
-                    # Make an interactive map of the intersecting frames to attach to the email
-                    map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
-                                        eq.get('coordinates', []),
-                                        eq.get('url', ''))
-                    
-                    eq_jsons = []
-                    for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
-                        frame_numbers = list(set(fn[0] for fn in frame_numbers))
-                        SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
-                        isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode, job_list)
-                        eq_jsons.append(isce_jobs)
+                eq_jsons = process_earthquake(eq, pairing_mode, job_list)
 
+                if job_list:    # produce the list of jobs needed for HYPE3 processing, but do not run any jobs
+                    jobs_dict = []
                     for i, eq_json in enumerate(eq_jsons):
                         for j, json_data in enumerate(eq_json): 
                             jobs_dict.append(json_data)
 
-                # Get current time to use for naming
-                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+                    # Get current time to use for naming
+                    current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
 
-                # Write jobs_dict to a json file
-                with open(f'jobs_list_{current_time}', 'w') as f:
-                    json.dump(jobs_dict, f, indent=4)
+                    # Write jobs_dict to a json file
+                    with open(f'jobs_list_{current_time}', 'w') as f:
+                        json.dump(jobs_dict, f, indent=4)
 
-            else:       # run dockerizedTopsApp locally
-                for eq in eq_sig:
-                    title = eq.get('title', '')
-                    title = to_snake_case(title)
-                    print(f"title: {title}")
-                    coords = eq.get('coordinates', [])
-                    aoi = make_aoi(coords)
-                    
-                    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
-
-                    # Make an interactive map of the intersecting frames to attach to the email
-                    map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
-                                        eq.get('coordinates', []),
-                                        eq.get('url', ''))
-                    
-                    eq_jsons = []
-                    for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
-                        frame_numbers = list(set(fn[0] for fn in frame_numbers))
-                        SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
-                        isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode, job_list)
-                        eq_jsons.append(isce_jobs)
-
+                else:         # run dockerizedTopsApp locally
+            
+                    # Create directories for each group of SLCs based on the JSON data provided
                     dirnames, total = create_directories_from_json(eq_jsons, root_dir)
                     
                     for i, eq_json in enumerate(eq_jsons):
@@ -1101,10 +1089,11 @@ def main_historic(start_date, end_date = None, pairing_mode = None, job_list = F
                             except:
                                 print('Error running dockerized topsApp')
                                 continue
-            return
+                return
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
+            return
 
 
 if __name__ == "__main__":
