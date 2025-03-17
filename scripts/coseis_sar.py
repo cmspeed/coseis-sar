@@ -26,7 +26,8 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
+#root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
+root_dir = '/u/trappist-r0/colespeed/work/coseis/earthquakes/'
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -1049,25 +1050,18 @@ def main_historic(start_date, end_date = None, pairing_mode = None, job_list = F
         eq_sig = check_significance(earthquakes, start_date, end_date)
 
         if eq_sig is not None:
+            jobs_dict = []
             for eq in eq_sig:
 
                 eq_jsons = process_earthquake(eq, pairing_mode, job_list)
 
                 if job_list:    # produce the list of jobs needed for HYPE3 processing, but do not run any jobs
-                    jobs_dict = []
                     for i, eq_json in enumerate(eq_jsons):
                         for j, json_data in enumerate(eq_json): 
                             jobs_dict.append(json_data)
 
-                    # Get current time to use for naming
-                    current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
-
-                    # Write jobs_dict to a json file
-                    with open(f'jobs_list_{current_time}', 'w') as f:
-                        json.dump(jobs_dict, f, indent=4)
-
                 else:         # run dockerizedTopsApp locally
-            
+                    
                     # Create directories for each group of SLCs based on the JSON data provided
                     dirnames, total = create_directories_from_json(eq_jsons, root_dir)
                     
@@ -1089,11 +1083,17 @@ def main_historic(start_date, end_date = None, pairing_mode = None, job_list = F
                             except:
                                 print('Error running dockerized topsApp')
                                 continue
-                return
+                
+                                    # Get current time to use for naming
+                    current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+
+            if job_list and jobs_dict:  # Write only once after all earthquakes are processed
+                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+                with open(f'jobs_list_{current_time}.json', 'w') as f:
+                    json.dump(jobs_dict, f, indent=4)
                     
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
-            return
 
 
 if __name__ == "__main__":
