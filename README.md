@@ -1,4 +1,4 @@
-# coseissar
+# coseis-sar
 
 **coseis-sar** is a Python package designed to generate coseismic Sentinel-1 Single Look Complex synthetic aperture radar (SAR) image pairs for interferometric synthetic aperture radar (InSAR) processing using ISCE2's topsApp. It supports both local processing and cloud-based processing via HYP3.
 
