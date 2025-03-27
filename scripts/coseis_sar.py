@@ -935,6 +935,35 @@ def process_earthquake(eq, pairing_mode, job_list):
     return eq_jsons
 
 
+def get_next_pass(AOI, satellite="sentinel-1"):
+    """
+    Get the next satellite pass over the given AOI.
+    Uses the next_pass.py script to determine the next overpass.
+    :param AOI: Shapely Polygon object representing the AOI
+    :param satellite: Satellite name ('sentinel-1', 'sentinel-2', or 'landsat')
+    :return: Next overpass time or None if an error occurs
+    """
+    min_lon, min_lat, max_lon, max_lat = AOI.bounds  # Extract bbox from AOI
+
+    print("=========================================")
+    print(f"Querying next pass for {satellite} over AOI...")
+    print(f"BBOX: {min_lat}, {max_lat}, {min_lon}, {max_lon}")
+    print("=========================================")
+
+    command = [
+        "python", "/u/trappist-r0/colespeed/work/next_pass/next_pass.py",
+        "--bbox", str(min_lat), str(max_lat), str(min_lon), str(max_lon),
+        "--satellite", satellite
+    ]
+
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+
+    except subprocess.CalledProcessError as e:
+        print("Error running next_pass.py:\n", e.stderr)
+        return None
+
+
 def main_forward(pairing_mode = None):
     """
     Runs the main query and processing workflow in forward processing mode.
