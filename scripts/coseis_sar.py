@@ -263,7 +263,7 @@ def withinCoastline(earthquake, coastline):
     return within_coastline_buffer
 
 
-def check_significance(earthquakes, start_date, end_date=None):
+def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
     """
     Check the significance of each earthquake based on its 
     (1) magnitude (>=6.0), (2) USGS alert level (['green','yellow','orange','red]),
@@ -277,17 +277,28 @@ def check_significance(earthquakes, start_date, end_date=None):
 
     significant_earthquakes = []
     alert_list = ['green','yellow', 'orange', 'red']
-    #alert_list = ['yellow', 'orange', 'red']
     coastline = get_coastline(coastline_api)
 
-    for earthquake in earthquakes:
-        magnitude = earthquake.get('mag')
-        alert = earthquake.get('alert')
-        depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
-        within_Coastline_buffer = withinCoastline(earthquake, coastline)
-        if all(var is not None for var in (magnitude, alert, depth)):
-            if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
-                significant_earthquakes.append(earthquake)
+    # Include alert criteria for historic data
+    if mode == 'historic':
+        for earthquake in earthquakes:
+            magnitude = earthquake.get('mag')
+            alert = earthquake.get('alert')
+            depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
+            within_Coastline_buffer = withinCoastline(earthquake, coastline)
+            if all(var is not None for var in (magnitude, alert, depth)):
+                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+                    significant_earthquakes.append(earthquake)
+
+    # Base significance on magnitude, depth, and distance from land for forward-looking data
+    if mode =='forward':
+        for earthquake in earthquakes:
+            magnitude = earthquake.get('mag')
+            depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
+            within_Coastline_buffer = withinCoastline(earthquake, coastline)
+            if all(var is not None for var in (magnitude, depth)):
+                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
+                    significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
     if len(significant_earthquakes) > 0:
@@ -982,7 +993,7 @@ def main_forward(pairing_mode = None):
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
-        eq_sig = check_significance(earthquakes, start_date, end_date=None)
+        eq_sig = check_significance(earthquakes, start_date, end_date=None, mode = 'forward')
 
         if eq_sig is not None:
             for eq in eq_sig:
@@ -1079,7 +1090,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None, job_list = F
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
-        eq_sig = check_significance(earthquakes, start_date, end_date)
+        eq_sig = check_significance(earthquakes, start_date, end_date, mode='historic')
 
         if eq_sig is not None:
             jobs_dict = []
