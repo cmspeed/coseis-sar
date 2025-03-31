@@ -430,6 +430,35 @@ def make_aoi(coordinates):
     return AOI
 
 
+def load_aoi_from_json(aoi_path):
+    """
+    Load an AOI from a given GeoJSON file and return a Shapely Polygon or MultiPolygon.
+
+    :param aoi_path: Path to the AOI GeoJSON file.
+    :return: Shapely Polygon or MultiPolygon representing the AOI.
+    """
+    try:
+        with open(aoi_path, 'r') as f:
+            aoi_data = json.load(f)
+
+        # Ensure the GeoJSON contains features
+        features = aoi_data.get("features", [])
+        if not features:
+            raise ValueError("Invalid AOI file: No features found.")
+
+        # Extract geometry from the first feature
+        geometry = features[0].get("geometry", {})
+        if not geometry:
+            raise ValueError("Invalid AOI file: No geometry found in features.")
+
+        # Convert to Shapely object
+        return shape(geometry)
+
+    except Exception as e:
+        print(f"Error loading AOI from JSON: {e}")
+        exit(1)
+
+
 def convert_time(time):
     """
     Convert the given Unix timestamp in milliseconds to a UTC datetime object.
@@ -923,21 +952,38 @@ def send_email(subject, body, attachment=None):
     return
 
 
-def process_earthquake(eq, pairing_mode, job_list):
+def process_earthquake(eq, aoi, pairing_mode, job_list):
 
     title = eq.get('title', '')
     title = to_snake_case(title)
     print(f"title: {title}")
     coords = eq.get('coordinates', [])
-    aoi = make_aoi(coords)
-    
+
+    # Generate AOI or use the user-provided AOI
+    if aoi is None:
+        aoi = make_aoi(coords) # Create AOI if not provided
+    else:
+        aoi = load_aoi_from_json(aoi)  # Load AOI from the provided JSON file
+
     path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+
+    # Convert frame_dataframe to a GeoDataFrame and save as geojson
+    frame_gdf = gpd.GeoDataFrame(frame_dataframe, geometry="geometry", crs="EPSG:4326")
+    
+    # Convert any list-type columns to strings
+    for col in frame_gdf.columns:
+        if frame_gdf[col].apply(lambda x: isinstance(x, list)).any():
+            frame_gdf[col] = frame_gdf[col].astype(str)
+    
+    # Save the GeoDataFrame to a GeoJSON file
+    frame_geojson_filename = f"{title}_frames.geojson"
+    frame_gdf.to_file(frame_geojson_filename, driver="GeoJSON")
 
     # Make an interactive map of the intersecting frames to attach to the email
     map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
                         eq.get('coordinates', []),
                         eq.get('url', ''))
-
+    
     eq_jsons = []
     for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
         frame_numbers = list(set(fn[0] for fn in frame_numbers))
@@ -1062,7 +1108,7 @@ def main_forward(pairing_mode = None):
             return
 
 
-def main_historic(start_date, end_date = None, pairing_mode = None, job_list = False):
+def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -1070,6 +1116,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None, job_list = F
     A single date or date range can be provided for processing.
     :param start_date: The query start date in YYYY-MM-DD format
     :param end_date: The query end date in YYYY-MM-DD format (Optional)
+    :param aoi: The path to a JSON file representing the area of interest (AOI) (Optional)
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing.
     :param job_list: If True, create a list of jobs in HYP3 format for cloud processing.
     """
@@ -1096,7 +1143,7 @@ def main_historic(start_date, end_date = None, pairing_mode = None, job_list = F
             jobs_dict = []
             for eq in eq_sig:
 
-                eq_jsons = process_earthquake(eq, pairing_mode, job_list)
+                eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list)
 
                 if job_list:    # produce the list of jobs needed for HYPE3 processing, but do not run any jobs
                     for i, eq_json in enumerate(eq_jsons):
@@ -1159,6 +1206,7 @@ if __name__ == "__main__":
     parser.add_argument("--historic", action="store_true", help="Run historic processing.")
     parser.add_argument("--forward", action="store_true", help="Run forward processing.")
     parser.add_argument("--dates", nargs="+", help="Provide one or two dates in YYYY-MM-DD format for historic processing.")
+    parser.add_argument("--aoi", help="Specify a path to a json file representing the area of interest (AOI).")
     parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for historic processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
 
@@ -1183,12 +1231,14 @@ if __name__ == "__main__":
         start_date = args.dates[0]
         end_date = args.dates[1] if len(args.dates) == 2 else None
 
+        aoi = args.aoi if args.aoi else None
+
         if not args.pairing:
             print("Error: --pairing is required when using --historic mode. Options: 'all', 'sequential', 'coseismic'.")
             parser.print_help()
             exit(1)
 
-        main_historic(start_date, end_date, pairing_mode=args.pairing, job_list=args.job_list)
+        main_historic(start_date, end_date, aoi=aoi, pairing_mode=args.pairing, job_list=args.job_list)
 
     elif args.forward:
         if args.dates:
@@ -1198,6 +1248,11 @@ if __name__ == "__main__":
 
         if not args.pairing:
             print("Error: --pairing is required when using --forward mode. Options: 'all', 'sequential', 'coseismic'.")
+            parser.print_help()
+            exit(1)
+
+        if args.aoi:
+            print("Error: --aoi cannot be used with --forward mode.")
             parser.print_help()
             exit(1)
 
