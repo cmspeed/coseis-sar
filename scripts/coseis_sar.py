@@ -937,14 +937,17 @@ def send_email(subject, body, attachment=None):
     GMAIL_USER = 'aria.hazards.jpl@gmail.com'
     GMAIL_PSWD = os.environ['GMAIL_APP_PSWD']
     yag = yagmail.SMTP(GMAIL_USER,GMAIL_PSWD)
-    receivers=['cole.speed@jpl.nasa.gov','cole.speed@yahoo.com',
+
+    receivers = ['cole.speed@jpl.nasa.gov','cole.speed@yahoo.com',
                'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
                'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
                'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
-               'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov'
+               'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
+               'brett.a.buzzanga@jpl.nasa.gov'
                ]
     
-    yag.send(to=receivers,
+    yag.send(
+             bcc=receivers,
              subject=subject,
              contents=[body],
              attachments=[attachment]
