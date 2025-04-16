@@ -27,8 +27,7 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-#root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
-root_dir = '/u/trappist-r0/colespeed/work/coseis/earthquakes/'
+root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
@@ -571,8 +570,11 @@ def get_path_and_frame_numbers(AOI, time):
         return reformatted, frame_dataframe
 
     except requests.RequestException as e:
-        print(f"Error accessing ASF DAAC API: {e}")
+        print(f"Request error from ASF DAAC API: {e}")
         return None
+
+    except Exception as e:
+        print(f"Unexpected error while processing ASF DAAC response: {e}")
 
 
 def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode):
@@ -943,7 +945,7 @@ def send_email(subject, body, attachment=None):
                'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
                'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
                'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
-               'brett.a.buzzanga@jpl.nasa.gov'
+               'brett.a.buzzanga@jpl.nasa.gov, dmelgarm@uoregon.edu, msolares@uoregon.edu'
                ]
     
     yag.send(
