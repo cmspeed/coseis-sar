@@ -8,7 +8,7 @@ import folium
 import geojson
 import geopandas as gpd
 import csv
-from shapely.geometry import mapping, shape, Point, Polygon, LineString, MultiLineString, MultiPolygon
+from shapely.geometry import mapping, shape, box, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from shapely.ops import unary_union
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -17,6 +17,8 @@ from itertools import combinations
 import logging
 import yagmail
 import next_pass
+from time import sleep
+from urllib.parse import urlparse
 
 # Set logging level to WARNING to suppress DEBUG and INFO logs
 logging.basicConfig(level=logging.WARNING)
@@ -27,8 +29,9 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
-
+#root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
+#root_dir = '/u/trappist-r0/colespeed/work/coseis/earthquakes/'
+root_dir = '/u/trappist-r0/colespeed/work/coseis/scripts/test_run-all_earthquakes/'
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -109,6 +112,39 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
     except geojson.GeoJSONDecodeError as e:
         print(f"Error parsing GeoJSON data: {e}")
         return None
+
+
+def get_ffm_geojson_url(event_id):
+    """
+    Retrieves the URL to the FFM.geojson for a given earthquake event ID.
+    """
+    detail_url = f"https://earthquake.usgs.gov/fdsnws/event/1/query"
+    params = {
+        "eventid": event_id,
+        "format": "geojson"
+    }
+
+    print(f"Fetching event detail for {event_id}...")
+    response = requests.get(detail_url, params=params)
+    response.raise_for_status()
+    data = response.json()
+
+    products = data.get("properties", {}).get("products", {})
+    finite_faults = products.get("finite-fault", [])
+
+    if not finite_faults:
+        print("No finite-fault product available.")
+        return None
+
+    ff_product = finite_faults[0]
+    contents = ff_product.get("contents", {})
+
+    for key, info in contents.items():
+        if key.endswith("FFM.geojson"):
+            return info.get("url")
+
+    print("FFM.geojson not found in finite-fault contents.")
+    return None
 
 
 def check_for_new_data(eq_api):
@@ -233,6 +269,9 @@ def parse_geojson(geojson_data):
         # Add geometry coordinates to the dictionary
         feature_dict['coordinates'] = coordinates
         
+        # Add the USGS ID from the GeoJSON data
+        feature_dict['id'] = feature['id']
+
         # Append the dictionary to the list
         earthquakes.append(feature_dict)
     return earthquakes
@@ -286,7 +325,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, alert, depth)):
-                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+                if (magnitude >= 7.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Base significance on magnitude, depth, and distance from land for forward-looking data
@@ -296,7 +335,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, depth)):
-                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
+                if (magnitude >= 6.0) and (depth <= 10.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
@@ -429,29 +468,39 @@ def make_aoi(coordinates):
     return AOI
 
 
-def load_aoi_from_json(aoi_path):
+def load_aoi_from_json(aoi_path_or_url):
     """
-    Load an AOI from a given GeoJSON file and return a Shapely Polygon or MultiPolygon.
+    Load an AOI from a given GeoJSON file or URL and return a Shapely Polygon or MultiPolygon.
 
-    :param aoi_path: Path to the AOI GeoJSON file.
+    :param aoi_path_or_url: Path to the AOI GeoJSON file, or URL.
     :return: Shapely Polygon or MultiPolygon representing the AOI.
     """
     try:
-        with open(aoi_path, 'r') as f:
-            aoi_data = json.load(f)
+        # Determine if input is a URL
+        parsed = urlparse(aoi_path_or_url)
+        if parsed.scheme in ("http", "https"):
+            print(f"Loading AOI from URL: {aoi_path_or_url}")
+            response = requests.get(aoi_path_or_url)
+            response.raise_for_status()
+            aoi_data = response.json()
+        else:
+            print(f"Loading AOI from file: {aoi_path_or_url}")
+            with open(aoi_path_or_url, 'r') as f:
+                aoi_data = json.load(f)
 
         # Ensure the GeoJSON contains features
         features = aoi_data.get("features", [])
         if not features:
             raise ValueError("Invalid AOI file: No features found.")
 
-        # Extract geometry from the first feature
-        geometry = features[0].get("geometry", {})
-        if not geometry:
-            raise ValueError("Invalid AOI file: No geometry found in features.")
+        # Convert all geometries and union them
+        geometries = [shape(f["geometry"]) for f in features if "geometry" in f]
+        if not geometries:
+            raise ValueError("No valid geometries in features.")
 
-        # Convert to Shapely object
-        return shape(geometry)
+        combined = unary_union(geometries)
+        minx, miny, maxx, maxy = combined.bounds
+        return box(minx, miny, maxx, maxy)
 
     except Exception as e:
         print(f"Error loading AOI from JSON: {e}")
@@ -533,48 +582,60 @@ def get_path_and_frame_numbers(AOI, time):
 
     print('Performing ASF DAAC API query to return path and frame numbers for SLCs intersecting AOI over the preceding 24 days...')
 
-    try:
-        # Fetch data from the ASF DAAC API
-        response = requests.get(ASF_DAAC_API, params=params)
-        response.raise_for_status()  # Raise error if request fails
+    # Sometimes the request to ASF DAAC times out for various reasons. This logic is meant to reduce that.
+    MAX_RETRIES = 3
+    WAIT_SECONDS = 10
 
-        # Parse the response as GeoJSON
-        data = geojson.loads(response.text)
+    for attempt in range(MAX_RETRIES):
+        try:
+            # Fetch data from the ASF DAAC API
+            print(f"Attempt {attempt + 1} of {MAX_RETRIES}")
+            response = requests.get(ASF_DAAC_API, params=params, timeout=60)
+            response.raise_for_status()
 
-        # Convert the GeoJSON data to a GeoDataFrame for visualization
-        frame_dataframe = gpd.GeoDataFrame.from_features(data['features'], crs='EPSG:4326')
+            # Parse the response as GeoJSON
+            data = geojson.loads(response.text)
 
-        # Initialize an empty dictionary to store the path and frame numbers as sets
-        path_frame_numbers = defaultdict(lambda: defaultdict(set))
+            # Convert the GeoJSON data to a GeoDataFrame for visualization
+            frame_dataframe = gpd.GeoDataFrame.from_features(data['features'], crs='EPSG:4326')
 
-        # Extract the path and frame numbers from the GeoJSON data
-        for feature in data['features']:
-            flight_direction = feature['properties']['flightDirection']
-            start_time = datetime.strptime(feature['properties']['startTime'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%Y-%m-%d %H:%M:%S") + ' UTC'
-            path_number = feature['properties']['pathNumber']
-            frame_number = feature['properties']['frameNumber']
-            path_frame_numbers[flight_direction][path_number].add((frame_number,start_time))  # Use a set to avoid duplicates
+            # Initialize an empty dictionary to store the path and frame numbers as sets
+            path_frame_numbers = defaultdict(lambda: defaultdict(set))
 
-        # Reformat the dictionary into usable format with tuples as keys and lists as values
-        reformatted = {
-            (flight_direction, path_number): sorted(frame_numbers)
-            for flight_direction, path_frame in path_frame_numbers.items()
-            for path_number, frame_numbers in path_frame.items()
-        }
+            # Extract the path and frame numbers from the GeoJSON data
+            for feature in data['features']:
+                flight_direction = feature['properties']['flightDirection']
+                start_time = datetime.strptime(feature['properties']['startTime'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%Y-%m-%d %H:%M:%S") + ' UTC'
+                path_number = feature['properties']['pathNumber']
+                frame_number = feature['properties']['frameNumber']
+                path_frame_numbers[flight_direction][path_number].add((frame_number,start_time))  # Use a set to avoid duplicates
 
-        print('=========================================')
-        print('Reformatted Path and Frame Numbers for SLCs:')
-        print('=========================================')
-        for key, value in reformatted.items():
-            print(f"{key}: {value}")
-        return reformatted, frame_dataframe
+            # Reformat the dictionary into usable format with tuples as keys and lists as values
+            reformatted = {
+                (flight_direction, path_number): sorted(frame_numbers)
+                for flight_direction, path_frame in path_frame_numbers.items()
+                for path_number, frame_numbers in path_frame.items()
+            }
 
-    except requests.RequestException as e:
-        print(f"Request error from ASF DAAC API: {e}")
-        return None
+            print('=========================================')
+            print('Reformatted Path and Frame Numbers for SLCs:')
+            print('=========================================')
+            for key, value in reformatted.items():
+                print(f"{key}: {value}")
+            return reformatted, frame_dataframe
 
-    except Exception as e:
-        print(f"Unexpected error while processing ASF DAAC response: {e}")
+        except requests.exceptions.RequestException as e:
+                print(f"Request error from ASF DAAC API: {e}")
+                if attempt < MAX_RETRIES - 1:
+                    print(f"Retrying in {WAIT_SECONDS} seconds...")
+                    sleep(WAIT_SECONDS)
+                else:
+                    print("All retry attempts failed.")
+                    return None  # Or raise, or return, depending on your flow
+
+        except Exception as e:
+            print(f"Unexpected error while processing ASF DAAC response: {e}")
+            return None
 
 
 def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode):
@@ -620,51 +681,62 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
 
     print('Performing ASF DAAC API query to return SLCs for the given path and frame numbers...')
     
-    try:
-        # Fetch data from the ASF DAAC API
-        response = requests.get(ASF_DAAC_API, params=params)
-        response.raise_for_status()  # Raise error if request fails
+    # Sometimes the request to ASF DAAC times out for various reasons. This logic is meant to reduce that.
+    MAX_RETRIES = 3
+    WAIT_SECONDS = 10
 
-        # Parse the response as GeoJSON
-        data = geojson.loads(response.text)
+    for attempt in range(MAX_RETRIES):
+        try:
+            # Fetch data from the ASF DAAC API
+            print(f"Attempt {attempt + 1} of {MAX_RETRIES}")
+            response = requests.get(ASF_DAAC_API, params=params, timeout=60)
+            response.raise_for_status()
 
-        # Extract the file IDs from the GeoJSON data
-        SLCs = []
-        for feature in data['features']:
-            start_time = feature['properties']['startTime']
-            path = feature['properties']['pathNumber']
-            frame = feature['properties']['frameNumber']
+            # Parse the response as GeoJSON
+            data = geojson.loads(response.text)
 
-            ### The datetime are (sometimes) in slightly different formats, so we need to handle both cases
-            try:
-                date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%fZ').date().isoformat()
-            except ValueError:
+            # Extract the file IDs from the GeoJSON data
+            SLCs = []
+            for feature in data['features']:
+                start_time = feature['properties']['startTime']
+                path = feature['properties']['pathNumber']
+                frame = feature['properties']['frameNumber']
+
+                ### The datetime are (sometimes) in slightly different formats, so we need to handle both cases
                 try:
-                    date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%f').date().isoformat()
+                    date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%fZ').date().isoformat()
                 except ValueError:
-                    print(f"Warning: Unexpected date format in startTime: {start_time}")
-                    date = None  # Or handle it differently based on your needs
-            
-            SLC = {
-                'fileID': feature['properties']['fileID'],
-                'date': date,
-                'pathNumber': path,
-                'frameNumber': frame
-            }
+                    try:
+                        date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%f').date().isoformat()
+                    except ValueError:
+                        print(f"Warning: Unexpected date format in startTime: {start_time}")
+                        date = None
+                
+                SLC = {
+                    'fileID': feature['properties']['fileID'],
+                    'date': date,
+                    'pathNumber': path,
+                    'frameNumber': frame
+                }
 
-            SLCs.append(SLC)
+                SLCs.append(SLC)
 
-        # Print the SLCs
-        print('=========================================')
-        print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} and frame numbers {frame_numbers}.")
-        print('=========================================')
-        for SLC in SLCs:
-            print(f"FileID: {SLC['fileID']}, Date: {SLC['date']}")
-        return SLCs
-    
-    except requests.RequestException as e:
-        print(f"Error accessing ASF DAAC API: {e}")
-        return None
+            # Print the SLCs
+            print('=========================================')
+            print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} and frame numbers {frame_numbers}.")
+            print('=========================================')
+            for SLC in SLCs:
+                print(f"FileID: {SLC['fileID']}, Date: {SLC['date']}")
+            return SLCs
+        
+        except requests.exceptions.RequestException as e:
+            print(f"Request error from ASF DAAC API: {e}")
+            if attempt < MAX_RETRIES - 1:
+                print(f"Retrying in {WAIT_SECONDS} seconds...")
+                sleep(WAIT_SECONDS)
+            else:
+                print("All retry attempts failed.")
+                return None
 
 
 def generate_pairs(pairs, mode):
@@ -945,9 +1017,9 @@ def send_email(subject, body, attachment=None):
                'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
                'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
                'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
-               'brett.a.buzzanga@jpl.nasa.gov, dmelgarm@uoregon.edu, msolares@uoregon.edu'
+               'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
                ]
-    
+
     yag.send(
              bcc=receivers,
              subject=subject,
@@ -963,13 +1035,26 @@ def process_earthquake(eq, aoi, pairing_mode, job_list):
     title = to_snake_case(title)
     print(f"title: {title}")
     coords = eq.get('coordinates', [])
+    event_id = eq.get('id', '')
+
+    # Get the FFM geometry (if it exists)
+    ffm_url = get_ffm_geojson_url(event_id)
+
+    if ffm_url:
+        print("FFM URL found. Loading AOI from FFM GeoJSON...")
+        # Load the FFM geometry
+        aoi = load_aoi_from_json(ffm_url)
+
+    elif aoi:
+        print("AOI provided. Using the provided AOI...")
+        # Load the AOI from the provided JSON file
+        aoi = load_aoi_from_json(aoi)
 
     # Generate AOI or use the user-provided AOI
-    if aoi is None:
-        aoi = make_aoi(coords) # Create AOI if not provided
     else:
-        aoi = load_aoi_from_json(aoi)  # Load AOI from the provided JSON file
+        aoi = make_aoi(coords) # Create AOI if not provided
 
+    print(aoi)
     path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
 
     # Convert frame_dataframe to a GeoDataFrame and save as geojson
@@ -1083,9 +1168,9 @@ def main_forward(pairing_mode = None):
 
                 # Send the email with the formatted content
                 send_email(
-                    f"Significant Earthquake: {message_dict['title']}",
+                    f"{message_dict['title']}",
                     (
-                        f"Significant earthquake detected: {message_dict['title']} at {message_dict['time']} UTC\n"
+                        f"{message_dict['title']} at {message_dict['time']} UTC\n"
                         f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
                         f"Depth: {message_dict['depth']} km\n"
@@ -1148,7 +1233,10 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
             jobs_dict = []
             for eq in eq_sig:
 
-                eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list)
+                try:
+                    eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list)
+                except:
+                    continue
 
                 if job_list:    # produce the list of jobs needed for HYPE3 processing, but do not run any jobs
                     for i, eq_json in enumerate(eq_jsons):
