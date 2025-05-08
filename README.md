@@ -7,7 +7,7 @@
 - Supports **historic** and **forward** processing modes
 - Produces a `job_list.json` file for cloud processing via HYP3 (if specified).
 - Runs ISCE2 topsApp locally when `job_list` is not specified.
-- Generates an AOI around an earthquake epicenter and and automatically detects Sentinel-1 path and frame numbers for recent earthquakes.
+- Generates an AOI around an earthquake epicenter dynamically and and automatically identifies intersecting Sentinel-1 SLCs intersecting the AOI and temporally bounding the earthquake event.
 
 ## Installation
 Clone the repository and install any required dependencies:
@@ -16,10 +16,10 @@ Clone the repository and install any required dependencies:
 git clone https://github.com/cmspeed/coseis-sar.git
 cd coseis-sar
 pip install -r requirements.txt
+```
 
 ## Usage
 
-### Command-line Arguments
 ```bash
 python coseis_sar.py --historic --dates <date1> <date2> --pairing <pairing_mode> [--job_list]
 python coseis_sar.py --forward --pairing <pairing_mode>
