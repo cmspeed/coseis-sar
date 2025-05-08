@@ -29,9 +29,8 @@ USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
-#root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
-#root_dir = '/u/trappist-r0/colespeed/work/coseis/earthquakes/'
-root_dir = '/u/trappist-r0/colespeed/work/coseis/scripts/test_run-all_earthquakes/'
+root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
+
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -325,7 +324,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, alert, depth)):
-                if (magnitude >= 5.5) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Base significance on magnitude, depth, and distance from land for forward-looking data
@@ -335,7 +334,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, depth)):
-                if (magnitude >= 6.0) and (depth <= 10.0) and within_Coastline_buffer:
+                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
@@ -396,7 +395,7 @@ def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_da
 
     # Output the data to GeoJSON and CSV files
     if start_date and end_date:
-        with open(f'significant_earthquakes_{start_date}_to_{end_date}.geojson', 'w') as f:
+        with open(f'significant_earthquakes_{start_date}_to_{end_date}_M6.geojson', 'w') as f:
             geojson.dump(geojson_data, f)
 
         with open(f'significant_earthquakes_{start_date}_to_{end_date}.csv', 'w', newline='') as f:
@@ -1260,12 +1259,12 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                                 json.dump(json_data, f, indent=4)
                             
                             print(f'working directory: {os.getcwd()}')
-                            print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                            try:
-                                run_dockerized_topsApp(json_data)
-                            except:
-                                print('Error running dockerized topsApp')
-                                continue
+                            # print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                            # try:
+                            #     run_dockerized_topsApp(json_data)
+                            # except:
+                            #     print('Error running dockerized topsApp')
+                            #     continue
                 
                                     # Get current time to use for naming
                     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
