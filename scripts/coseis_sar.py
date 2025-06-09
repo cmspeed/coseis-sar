@@ -16,8 +16,8 @@ from collections import defaultdict
 from itertools import combinations
 import logging
 import yagmail
-import next_pass
 from time import sleep
+from types import SimpleNamespace
 from urllib.parse import urlparse
 
 # Set logging level to WARNING to suppress DEBUG and INFO logs
@@ -1093,21 +1093,35 @@ def get_next_pass(AOI, satellite="sentinel-1"):
     :param satellite: Satellite name ('sentinel-1', 'sentinel-2', or 'landsat')
     :return: Next overpass time or None if an error occurs
     """
+    import next_pass
+    import plot_maps
+    from datetime import date, datetime
+
     min_lon, min_lat, max_lon, max_lat = AOI.bounds
+    bbox = [min_lat, max_lat, min_lon, max_lon]
 
     print("=========================================")
     print(f"Querying next pass for {satellite} over AOI...")
     print(f"BBOX: {min_lat}, {max_lat}, {min_lon}, {max_lon}")
     print("=========================================")
-
-    result = next_pass.find_next_overpass(min_lat, max_lat, min_lon, max_lon, satellite)
     
-    if result:
-        s1_next_collect_info = result.get("next_collect_info", "No collection info available")
-        return s1_next_collect_info
-    else:
-        print("No next pass data available.")
-        return None
+    args = SimpleNamespace(bbox=bbox, sat=satellite, event_date=date.today)
+
+    result = next_pass.find_next_overpass(args)
+    result_s1 = result["sentinel-1"] 
+    result_s2 = result["sentinel-2"]
+    result_l = result["landsat"]
+    plot_maps.make_overpasses_map(result_s1, result_s2, result_l, args.bbox)
+
+    # loop over results and display only missions that were requested
+    for mission, mission_result in result.items():
+        if mission_result:
+            s1_next_collect_info = mission_result.get("next_collect_info",
+                                     "No collection info available.")
+            return s1_next_collect_info
+        else:
+            print("No next pass data available.")
+            return None
 
 
 def main_forward(pairing_mode = None):
@@ -1143,9 +1157,9 @@ def main_forward(pairing_mode = None):
                 path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
 
                 # Make an interactive map of the intersecting frames to attach to the email
-                map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
-                                     eq.get('coordinates', []),
-                                     eq.get('url', ''))
+                # map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
+                #                      eq.get('coordinates', []),
+                #                      eq.get('url', ''))
 
                 # Send an email with the earthquake information
                 message_dict = {
@@ -1159,13 +1173,23 @@ def main_forward(pairing_mode = None):
                 }
 
                 # Format the intersecting path and frame numbers into a string
-                intersecting_paths_and_frames =  "\n".join(
-                        f"{key[0]} {key[1]}:\n" + "\n".join(f"  - Frame {frame}: {timestamp}" for frame, timestamp in value)
-                        for key, value in path_frame_numbers.items()
-                )
+                # intersecting_paths_and_frames =  "\n".join(
+                #         f"{key[0]} {key[1]}:\n" + "\n".join(f"  - Frame {frame}: {timestamp}" for frame, timestamp in value)
+                #         for key, value in path_frame_numbers.items()
+                # )
 
                 # Run next_pass to get the next S1 overpasses
                 next_pass_info = get_next_pass(aoi, satellite="sentinel-1")
+
+                # Rename sentinel-1 overpass and opera granule maps
+                original_filename = "satellite_overpasses_map.html"
+                s1_map_filename = f"{title}_Sentinel-1_Next_Overpasses.html"
+
+                if os.path.exists(original_filename):
+                    os.rename(original_filename, s1_map_filename)
+                    print(f"Renamed to {s1_map_filename}")
+                else:
+                    print(f"Expected file {original_filename} not found.")
 
                 # Send the email with the formatted content
                 send_email(
@@ -1176,18 +1200,18 @@ def main_forward(pairing_mode = None):
                         f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
                         f"Depth: {message_dict['depth']} km\n"
                         f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
+                        # f"------------------------------------------------------------------------------------------------------------------------\n"
+                        # f"Intersecting Sentinel-1 path and frame numbers over most recent 24-day period:\n"
+                        # f"{intersecting_paths_and_frames}\n"
                         f"------------------------------------------------------------------------------------------------------------------------\n"
-                        f"Intersecting Sentinel-1 path and frame numbers over most recent 24-day period:\n"
-                        f"{intersecting_paths_and_frames}\n"
-                        f"------------------------------------------------------------------------------------------------------------------------\n"
-                        f"Following are the next acquisition times and relative orbits for Sentinel-1 frames intersecting the earthquake AOI:\n"
+                        f"Next acquisition times and relative orbits for Sentinel-1 frames intersecting the earthquake AOI:\n"
                         f"{next_pass_info}\n"
                         f"------------------------------------------------------------------------------------------------------------------------\n"
-                        f"View an interactive map of intersecting Sentinel-1 frames and the earthquake epicenter location by downloading the attachment and launching in your web browser.\n"
+                        f"View an interactive map of intersecting Sentinel-1 orbits by downloading the attachment and launching it your web browser.\n"
                         f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"This is an automated message. Please do not reply. For product-specific inquiries contact Dr. Cole Speed (<a href=\"mailto:cole.speed@jpl.nasa.gov\">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href=\"mailto:bato@jpl.nasa.gov\">bato@jpl.nasa.gov</a>)."
                     ),
-                    map_filename
+                    s1_map_filename
                 )
 
                 print('=========================================')
