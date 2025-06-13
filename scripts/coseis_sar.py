@@ -1172,12 +1172,6 @@ def main_forward(pairing_mode = None):
                     "url": eq.get('url', '')
                 }
 
-                # Format the intersecting path and frame numbers into a string
-                # intersecting_paths_and_frames =  "\n".join(
-                #         f"{key[0]} {key[1]}:\n" + "\n".join(f"  - Frame {frame}: {timestamp}" for frame, timestamp in value)
-                #         for key, value in path_frame_numbers.items()
-                # )
-
                 # Run next_pass to get the next S1 overpasses
                 next_pass_info = get_next_pass(aoi, satellite="sentinel-1")
 
@@ -1191,7 +1185,6 @@ def main_forward(pairing_mode = None):
                 else:
                     print(f"Expected file {original_filename} not found.")
 
-                # Send the email with the formatted content
                 send_email(
                     f"{message_dict['title']}",
                     (
@@ -1200,9 +1193,6 @@ def main_forward(pairing_mode = None):
                         f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
                         f"Depth: {message_dict['depth']} km\n"
                         f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
-                        # f"------------------------------------------------------------------------------------------------------------------------\n"
-                        # f"Intersecting Sentinel-1 path and frame numbers over most recent 24-day period:\n"
-                        # f"{intersecting_paths_and_frames}\n"
                         f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"Next acquisition times and relative orbits for Sentinel-1 frames intersecting the earthquake AOI:\n"
                         f"{next_pass_info}\n"
@@ -1285,12 +1275,12 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                                 json.dump(json_data, f, indent=4)
                             
                             print(f'working directory: {os.getcwd()}')
-                            # print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                            # try:
-                            #     run_dockerized_topsApp(json_data)
-                            # except:
-                            #     print('Error running dockerized topsApp')
-                            #     continue
+                            print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                            try:
+                                run_dockerized_topsApp(json_data)
+                            except:
+                                print('Error running dockerized topsApp')
+                                continue
                 
                                     # Get current time to use for naming
                     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
