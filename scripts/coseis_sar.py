@@ -2,6 +2,8 @@ import re
 import os
 import argparse
 import asf_search as asf
+from dateutil import parser as dateparser
+from pathlib import Path
 import requests
 import json
 import folium
@@ -31,8 +33,7 @@ USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Ear
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
 root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
-#root_dir = '/u/trappist-r0/colespeed/work/coseis/earthquakes/'
-root_dir = '/u/trappist-r0/colespeed/work/coseis/scripts/test_run-all_earthquakes/'
+
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -606,7 +607,9 @@ def get_path_and_frame_numbers(AOI, time):
             # Extract the path and frame numbers from the GeoJSON data
             for feature in data['features']:
                 flight_direction = feature['properties']['flightDirection']
-                start_time = datetime.strptime(feature['properties']['startTime'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%Y-%m-%d %H:%M:%S") + ' UTC'
+                start_time = dateparser.isoparse(
+                    feature['properties']['startTime']
+                    ).strftime("%Y-%m-%d %H:%M:%S") + ' UTC'
                 path_number = feature['properties']['pathNumber']
                 frame_number = feature['properties']['frameNumber']
                 path_frame_numbers[flight_direction][path_number].add((frame_number,start_time))  # Use a set to avoid duplicates
@@ -1085,7 +1088,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list):
     return eq_jsons
 
 
-def get_next_pass(AOI, satellite="sentinel-1"):
+def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     """
     Get the next satellite pass over the given AOI.
     Uses the next_pass.py script to determine the next overpass.
@@ -1111,10 +1114,10 @@ def get_next_pass(AOI, satellite="sentinel-1"):
     result_s1 = result["sentinel-1"] 
     result_s2 = result["sentinel-2"]
     result_l = result["landsat"]
-    plot_maps.make_overpasses_map(result_s1, result_s2, result_l, args.bbox)
+    plot_maps.make_overpasses_map(result_s1, result_s2, result_l, args.bbox, timestamp_dir)
 
     # loop over results and display only missions that were requested
-    for mission, mission_result in result.items():
+    for _, mission_result in result.items():
         if mission_result:
             s1_next_collect_info = mission_result.get("next_collect_info",
                                      "No collection info available.")
@@ -1172,12 +1175,19 @@ def main_forward(pairing_mode = None):
                     "url": eq.get('url', '')
                 }
 
+                # Create a timestamp string
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                # Create the output directory
+                timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
+                timestamp_dir.mkdir(parents=True, exist_ok=True)
+
                 # Run next_pass to get the next S1 overpasses
-                next_pass_info = get_next_pass(aoi, satellite="sentinel-1")
+                next_pass_info = get_next_pass(aoi, timestamp_dir, satellite="sentinel-1")
 
                 # Rename sentinel-1 overpass and opera granule maps
-                original_filename = "satellite_overpasses_map.html"
-                s1_map_filename = f"{title}_Sentinel-1_Next_Overpasses.html"
+                original_filename = timestamp_dir / "satellite_overpasses_map.html"
+                s1_map_filename = timestamp_dir / f"{title}_Sentinel-1_Next_Overpasses.html"
 
                 if os.path.exists(original_filename):
                     os.rename(original_filename, s1_map_filename)
