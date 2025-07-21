@@ -3,6 +3,7 @@ import os
 import argparse
 import asf_search as asf
 from dateutil import parser as dateparser
+from dateutil.parser import isoparse
 from pathlib import Path
 import requests
 import json
@@ -33,7 +34,8 @@ USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Ear
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
 root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
-
+#root_dir = '/u/trappist-r0/colespeed/work/coseis/earthquakes/'
+root_dir = '/u/trappist-r0/colespeed/work/coseis/scripts/test_run-all_earthquakes/'
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -662,7 +664,6 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
     if processing_mode == 'historic':
         end_date = rupture_date + timedelta(days=30)    # 30 days after the earthquake
         end_date = end_date.replace(hour=23, minute=59, second=59)
-
     elif processing_mode == 'forward':
         today = datetime.now()
         end_date = today
@@ -674,7 +675,7 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
     # Define the query parameters
     params = {
         'flightDirection': flight_direction,
-        'frame': ','.join(frame_numbers),
+        'frame': ','.join(str(f) for f in frame_numbers),
         'relativeOrbit': path_number,
         'dataset':'SENTINEL-1',
         'processingLevel': 'SLC',
@@ -695,7 +696,6 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
             print(f"Attempt {attempt + 1} of {MAX_RETRIES}")
             response = requests.get(ASF_DAAC_API, params=params, timeout=60)
             response.raise_for_status()
-
             # Parse the response as GeoJSON
             data = geojson.loads(response.text)
 
@@ -706,15 +706,11 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
                 path = feature['properties']['pathNumber']
                 frame = feature['properties']['frameNumber']
 
-                ### The datetime are (sometimes) in slightly different formats, so we need to handle both cases
                 try:
-                    date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%fZ').date().isoformat()
-                except ValueError:
-                    try:
-                        date = datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S.%f').date().isoformat()
-                    except ValueError:
-                        print(f"Warning: Unexpected date format in startTime: {start_time}")
-                        date = None
+                    date = isoparse(start_time).date().isoformat()
+                except Exception:
+                    print(f"Warning: Unexpected date format in startTime: {start_time}")
+                    date = None
                 
                 SLC = {
                     'fileID': feature['properties']['fileID'],
@@ -759,7 +755,7 @@ def generate_pairs(pairs, mode):
         return []
 
 
-def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing_mode='sequential', job_list = False):
+def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing_mode='sequential', job_list = False, resolution=90):
     """
     Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, 
     and determine whether each pair is pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
@@ -770,6 +766,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     :param title: USGS title of the earthquake event, used for file organization
     :param pairing_mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'coseismic' for pairs bounding the rupture date only
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
+    :param resolution: Output resolution for the topsApp processing, default is 90m
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
     # Get the rupture date in the format YYYY-MM-DD
@@ -827,7 +824,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             reference_scenes_ids = [slc['fileID'] for slc in reference_scenes]
             secondary_scenes_ids = [slc['fileID'] for slc in secondary_scenes]
             if job_list:
-                json_output = make_job_json(title, flight_direction, path_number, reference_scenes_ids, secondary_scenes_ids)
+                json_output = make_job_json(title, flight_direction, path_number, reference_scenes_ids, secondary_scenes_ids, resolution)
             else:
                 json_output = make_json(title, timing, flight_direction, path_number, list(frame_numbers), 
                                         {'date': reference_date.strftime('%Y-%m-%d')}, 
@@ -877,7 +874,7 @@ def make_json(title, timing, flight_direction, path_number, frame_numbers, refer
     return isce_json
 
 
-def make_job_json(title, flight_direction, path_number, reference_scenes, secondary_scenes):
+def make_job_json(title, flight_direction, path_number, reference_scenes, secondary_scenes, resolution):
     """
     Create a JSON object containing parameters for dockerized topsApp on HYP3.
     :param title: USGS title of the earthquake event
@@ -885,19 +882,24 @@ def make_job_json(title, flight_direction, path_number, reference_scenes, second
     :param path_number: Sentinel-1 path number
     :param reference_scenes: List of reference SLC fileIDs
     :param secondary_scenes: List of secondary SLC fileIDs
+    :param resolution: Output resolution for the topsApp processing, default is 90m
     :return: JSON object containing the parameters for dockerized topsApp
     """
-    # Reformatting 'fight-direction' for readability in the json
-    #flight_direction = 'ASCENDING' if flight_direction == 'A' else 'DESCENDING'
     
     job_json = {
         "name": f"{title}-{flight_direction}{path_number}",
-        "job_type": "INSAR_ISCE",
+        "job_type": "ARIA_S1_COSEIS",
         "job_parameters": {
             "granules": reference_scenes,
             "secondary_granules": secondary_scenes,
             "frame_id": -1,
-            "weather_model": ""
+            "estimate_ionosphere_delay": True,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": True,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": True,
+            "dense_offsets": True,
+            "output_resolution": resolution
             }
     }
     return job_json
@@ -1033,8 +1035,16 @@ def send_email(subject, body, attachment=None):
     return
 
 
-def process_earthquake(eq, aoi, pairing_mode, job_list):
-
+def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90):
+    """
+    Process earthquake event and generate the necessary SLC pairs for InSAR processing.
+    :param eq: dictionary containing earthquake data
+    :param aoi: Area of Interest (AOI) as a GeoJSON file
+    :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
+    :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
+    :param resolution: Output resolution for the topsApp processing, default is 90m
+    :return: List of JSON objects containing the parameters for each pair of SLCs
+    """
     title = eq.get('title', '')
     title = to_snake_case(title)
     print(f"title: {title}")
@@ -1058,12 +1068,11 @@ def process_earthquake(eq, aoi, pairing_mode, job_list):
     else:
         aoi = make_aoi(coords) # Create AOI if not provided
 
-    print(aoi)
     path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
 
     # Convert frame_dataframe to a GeoDataFrame and save as geojson
     frame_gdf = gpd.GeoDataFrame(frame_dataframe, geometry="geometry", crs="EPSG:4326")
-    
+
     # Convert any list-type columns to strings
     for col in frame_gdf.columns:
         if frame_gdf[col].apply(lambda x: isinstance(x, list)).any():
@@ -1082,9 +1091,9 @@ def process_earthquake(eq, aoi, pairing_mode, job_list):
     for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
         frame_numbers = list(set(fn[0] for fn in frame_numbers))
         SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
-        isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, title, pairing_mode, job_list)
+        isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, 
+                                                       title, pairing_mode, job_list, resolution)
         eq_jsons.append(isce_jobs)
-
     return eq_jsons
 
 
@@ -1223,7 +1232,7 @@ def main_forward(pairing_mode = None):
             return
 
 
-def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False):
+def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False, resolution=90):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -1234,6 +1243,7 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
     :param aoi: The path to a JSON file representing the area of interest (AOI) (Optional)
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing.
     :param job_list: If True, create a list of jobs in HYP3 format for cloud processing.
+    :param resolution: Output resolution for the topsApp processing, default is 90m
     """
     if start_date and not end_date:
         print('=========================================')
@@ -1257,9 +1267,8 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
         if eq_sig is not None:
             jobs_dict = []
             for eq in eq_sig:
-
                 try:
-                    eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list)
+                    eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list, resolution)
                 except:
                     continue
 
@@ -1299,7 +1308,6 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
                 with open(f'jobs_list_{current_time}.json', 'w') as f:
                     json.dump(jobs_dict, f, indent=4)
-                    
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
@@ -1313,7 +1321,7 @@ if __name__ == "__main__":
       python coseis_sar.py --historic --dates 2021-08-14 --pairing all
       python coseis_sar.py --historic --dates 2021-08-14 2021-09-07 --pairing all
       python coseis_sar.py --historic --dates 2014-06-14 2025-02-12 --pairing coseismic (all coseismic pairs from beginning of S1 data to 2025-02-12)
-      python coseis_sar.py --historic --dates 2014-06-14 2025-02-12 --pairing coseismic --job_list (only produce the job list for HYP3 processing, don't run any jobs locally) 
+      python coseis_sar.py --historic --dates 2014-06-14 2025-02-12 --pairing coseismic --job_list --resolution 30 (only produce the job list for HYP3 processing, don't run any jobs locally) 
     Example usage for forward processing: 
       python coseis.py --forward
     """
@@ -1327,6 +1335,7 @@ if __name__ == "__main__":
     parser.add_argument("--aoi", help="Specify a path to a json file representing the area of interest (AOI).")
     parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for historic processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
+    parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
 
     args = parser.parse_args()
 
@@ -1356,7 +1365,7 @@ if __name__ == "__main__":
             parser.print_help()
             exit(1)
 
-        main_historic(start_date, end_date, aoi=aoi, pairing_mode=args.pairing, job_list=args.job_list)
+        main_historic(start_date, end_date, aoi=aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution)
 
     elif args.forward:
         if args.dates:
