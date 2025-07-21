@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import os
 import argparse
 import asf_search as asf
@@ -998,14 +999,18 @@ def run_dockerized_topsApp(json_data):
 
 def to_snake_case(input_string):
     """
-    Convert the given string to snake_case. Used to create uniform-case output directory names
-    :param input_string: string to convert to snake_case
-    :return: snake_case version of the input string
+    Convert the given string to snake_case with ASCII-safe characters.
+    Strips accents and transliterates Unicode to closest ASCII.
     """
+    # Normalize and transliterate Unicode characters to closest ASCII equivalent
+    normalized = unicodedata.normalize('NFKD', input_string).encode('ascii', 'ignore').decode('ascii')
+
     # Replace non-alphanumeric characters with spaces
-    cleaned_string = re.sub(r'[^\w\s]', '', input_string)
+    cleaned_string = re.sub(r'[^\w\s]', '', normalized)
+
     # Replace spaces with underscores and convert to lowercase
     snake_case_string = re.sub(r'\s+', '_', cleaned_string.strip()).lower()
+
     return snake_case_string
 
 
