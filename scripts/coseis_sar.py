@@ -822,8 +822,8 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
         for (secondary, reference) in pairs:
             reference_date, reference_scenes = reference
             secondary_date, secondary_scenes = secondary
-            reference_scenes_ids = [slc['fileID'] for slc in reference_scenes]
-            secondary_scenes_ids = [slc['fileID'] for slc in secondary_scenes]
+            reference_scenes_ids = [slc['fileID'].removesuffix("-SLC") for slc in reference_scenes]
+            secondary_scenes_ids = [slc['fileID'].removesuffix("-SLC") for slc in secondary_scenes]
             if job_list:
                 json_output = make_job_json(title, flight_direction, path_number, reference_scenes_ids, secondary_scenes_ids, resolution)
             else:
@@ -1087,10 +1087,11 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90):
     frame_geojson_filename = f"{title}_frames.geojson"
     frame_gdf.to_file(frame_geojson_filename, driver="GeoJSON")
 
-    # Make an interactive map of the intersecting frames to attach to the email
-    map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
-                        eq.get('coordinates', []),
-                        eq.get('url', ''))
+    if not job_list:
+        # Make an interactive map of the intersecting frames to attach to the email
+        map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
+                            eq.get('coordinates', []),
+                            eq.get('url', ''))
     
     eq_jsons = []
     for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
