@@ -1183,9 +1183,9 @@ def main_forward(pairing_mode = None):
                 message_dict = {
                     "title": eq.get('title', ''),
                     "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
-                    "coordinates": eq.get('coordinates', []),
+                    "coordinates": [round(coord, 3) for coord in eq.get('coordinates', [])],
                     "magnitude": eq.get('mag', ''),
-                    "depth": eq.get('coordinates', [])[2],
+                    "depth": round(eq.get('coordinates', [])[2], 1),
                     "alert": eq.get('alert', ''),
                     "url": eq.get('url', '')
                 }
