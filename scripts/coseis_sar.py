@@ -35,8 +35,7 @@ USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Ear
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
 root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
-#root_dir = '/u/trappist-r0/colespeed/work/coseis/earthquakes/'
-root_dir = '/u/trappist-r0/colespeed/work/coseis/scripts/test_run-all_earthquakes/'
+
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -100,7 +99,7 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
             "starttime": start_date,
             "endtime": end_date,
             "minmagnitude": 5.0,
-            "maxdepth": 30.0
+            "maxdepth": 40.0
         }
 
         # Fetch data from the USGS Earthquake API
@@ -330,7 +329,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, alert, depth)):
-                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Base significance on magnitude, depth, and distance from land for forward-looking data
@@ -340,7 +339,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, depth)):
-                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
+                if (magnitude >= 6.0) and (depth <= 40.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
