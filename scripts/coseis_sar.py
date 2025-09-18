@@ -39,14 +39,13 @@ root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
 # Global variables
 PENDING_EARTHQUAKES_FILE = "pending_earthquakes.json"
-# PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
-#                       'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
-#                       'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
-#                       'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
-#                       'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
-#                       'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
-#                       ]
-PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov']
+PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
+                      'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
+                      'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
+                      'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
+                      'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
+                      'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
+                      ]
 
 SECONDARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com']
 
@@ -1286,7 +1285,7 @@ def main_forward(pairing_mode=None):
     print('=========================================')
     
     # Check for New Earthquakes
-    geojson_data = check_for_new_data(USGS_api_30day)
+    geojson_data = check_for_new_data(USGS_api_hourly)
 
     start_date = datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
