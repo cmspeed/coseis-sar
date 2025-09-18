@@ -23,11 +23,12 @@ import yagmail
 from time import sleep
 from types import SimpleNamespace
 from urllib.parse import urlparse
+from typing import List, Dict, Any, Optional
 
 # Set logging level to WARNING to suppress DEBUG and INFO logs
 logging.basicConfig(level=logging.WARNING)
 
-# API Endpoints
+# API endpoints
 USGS_api_hourly = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"  # USGS Earthquake API - Hourly
 USGS_api_daily = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson"  # USGS Earthquake API - Daily
 USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson"  # USGS Earthquake API - Monthly
@@ -36,6 +37,18 @@ coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
 root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
+# Global variables
+PENDING_EARTHQUAKES_FILE = "pending_earthquakes.json"
+# PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
+#                       'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
+#                       'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
+#                       'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
+#                       'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
+#                       'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
+#                       ]
+PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov']
+
+SECONDARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com']
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -587,14 +600,14 @@ def get_path_and_frame_numbers(AOI, time):
     print('Performing ASF DAAC API query to return path and frame numbers for SLCs intersecting AOI over the preceding 24 days...')
 
     # Sometimes the request to ASF DAAC times out for various reasons. This logic is meant to reduce that.
-    MAX_RETRIES = 3
-    WAIT_SECONDS = 10
+    MAX_RETRIES = 10
+    WAIT_SECONDS = 30
 
     for attempt in range(MAX_RETRIES):
         try:
             # Fetch data from the ASF DAAC API
             print(f"Attempt {attempt + 1} of {MAX_RETRIES}")
-            response = requests.get(ASF_DAAC_API, params=params, timeout=60)
+            response = requests.get(ASF_DAAC_API, params=params, timeout=160)
             response.raise_for_status()
 
             # Parse the response as GeoJSON
@@ -687,14 +700,14 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
     print('Performing ASF DAAC API query to return SLCs for the given path and frame numbers...')
     
     # Sometimes the request to ASF DAAC times out for various reasons. This logic is meant to reduce that.
-    MAX_RETRIES = 3
-    WAIT_SECONDS = 10
+    MAX_RETRIES = 10
+    WAIT_SECONDS = 30
 
     for attempt in range(MAX_RETRIES):
         try:
             # Fetch data from the ASF DAAC API
             print(f"Attempt {attempt + 1} of {MAX_RETRIES}")
-            response = requests.get(ASF_DAAC_API, params=params, timeout=60)
+            response = requests.get(ASF_DAAC_API, params=params, timeout=160)
             response.raise_for_status()
             # Parse the response as GeoJSON
             data = geojson.loads(response.text)
@@ -1023,28 +1036,26 @@ def to_snake_case(input_string):
     return snake_case_string
 
 
-def send_email(subject, body, attachment=None):
+def send_email(subject, body, attachment=None, recipients=None):
     """
-    Send an email with the earthquake information.
-    :param message: dictionary containing earthquake data
+    Send an email with the earthquake information to a specified list of recipients.
+    :param subject: Email subject
+    :param body: Email body content
+    :param attachment: Path to an optional file to attach
+    :param recipients: List of email addresses to send the email to
     """
+    if recipients is None:
+        recipients = PRIMARY_RECIPIENTS
+    
     GMAIL_USER = 'aria.hazards.jpl@gmail.com'
     GMAIL_PSWD = os.environ['GMAIL_APP_PSWD']
-    yag = yagmail.SMTP(GMAIL_USER,GMAIL_PSWD)
-
-    receivers = ['cole.speed@jpl.nasa.gov','cole.speed@yahoo.com',
-               'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
-               'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
-               'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
-               'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
-               'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
-               ]
+    yag = yagmail.SMTP(GMAIL_USER, GMAIL_PSWD)
 
     yag.send(
-             bcc=receivers,
+             bcc=recipients,
              subject=subject,
              contents=[body],
-             attachments=[attachment]
+             attachments=[attachment] if attachment else None
              )
     return
 
@@ -1151,7 +1162,119 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
             return None
 
 
-def main_forward(pairing_mode = None):
+def load_pending_earthquakes() -> List[Dict[str, Any]]:
+    """Loads the list of pending earthquakes from the JSON file."""
+    if not os.path.exists(PENDING_EARTHQUAKES_FILE):
+        return []
+    with open(PENDING_EARTHQUAKES_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_pending_earthquakes(earthquakes: List[Dict[str, Any]]):
+    """Saves the list of pending earthquakes to the JSON file."""
+    with open(PENDING_EARTHQUAKES_FILE, "w") as f:
+        json.dump(earthquakes, f, indent=4)
+
+
+def store_pending_earthquake(eq: dict, aoi: Polygon):
+    """Stores a newly detected significant earthquake for later processing."""
+    pending_list = load_pending_earthquakes()
+    pending_list.append({
+        "id": eq.get('id'),
+        "title": to_snake_case(eq.get('title')),
+        "time": eq.get('time'),
+        "coords": eq.get('coordinates'),
+        "aoi": mapping(aoi)  # Store AOI geometry as a GeoJSON-compatible dictionary
+    })
+    save_pending_earthquakes(pending_list)
+    print(f"Stored pending earthquake '{eq.get('title')}' for future checks.")
+
+
+def check_pending_slcs(pairing_mode: str, resolution: int):
+    """
+    Checks the pending earthquakes queue for available SLCs to form co-seismic pairs.
+    If pairs are found, it generates a job list and sends an email.
+    """
+    pending_list = load_pending_earthquakes()
+    if not pending_list:
+        print("No pending earthquakes to check for SLCs.")
+        return
+
+    print('=========================================')
+    print("Checking for available co-seismic SLCs for pending earthquakes...")
+    print('=========================================')
+
+    updated_pending_list = []
+    completed_jobs_list = []
+
+    for eq in pending_list:
+        event_id = eq['id']
+        title = eq['title']
+        time = eq['time']
+        
+        # FFM check and AOI update 
+        ffm_url = get_ffm_geojson_url(event_id)
+        if ffm_url:
+            print(f"FFM found for {title}. Updating AOI...")
+            aoi = load_aoi_from_json(ffm_url)
+            eq['aoi'] = mapping(aoi) # Update the AOI in the dictionary
+        else:
+            # If no FFM, use the stored AOI
+            aoi_geom = eq['aoi']
+            aoi = shape(aoi_geom)
+
+        print(f"Processing '{title}' with AOI: {aoi}")
+        
+        path_frame_numbers, _ = get_path_and_frame_numbers(aoi, time)
+        
+        found_pairs_for_eq = False
+        for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+            frame_numbers = list(set(fn[0] for fn in frame_numbers))
+            SLCs = get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode='forward')
+            
+            # Find coseismic pairs only
+            isce_jobs = find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number,
+                                                           title, pairing_mode='coseismic', job_list=True, resolution=resolution)
+
+            if isce_jobs:
+                # Add found jobs to the master list
+                if filter_S1C(isce_jobs[0]):
+                    completed_jobs_list.extend(isce_jobs)
+                    found_pairs_for_eq = True
+        
+        if found_pairs_for_eq:
+            # Earthquake has a completed coseismic pair, so don't re-add to the pending list
+            print(f"Co-seismic pair found for '{title}'. Job will be generated.")
+        else:
+            # No coseismic pair found yet, so keep it in the pending list (with updated AOI)
+            print(f"No co-seismic pair found yet for '{title}'. Will check again later.")
+            updated_pending_list.append(eq)
+
+    save_pending_earthquakes(updated_pending_list)
+
+    if completed_jobs_list:
+        current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+        job_list_filename = f'jobs_list_{current_time}.json'
+        with open(job_list_filename, 'w') as f:
+            json.dump(completed_jobs_list, f, indent=4)
+        print(f"Generated job list: {job_list_filename}")
+
+        # Send second email
+        send_email(
+            subject=f"COSEISMIC JOB LIST READY",
+            body=(
+                f"A job list has been generated for one or more co-seismic events.\n\n"
+                f"The job list file, '{job_list_filename}', is ready and stored on the server.\n\n"
+                f"This is an automated message. Please do not reply."
+            ),
+            recipients=SECONDARY_RECIPIENTS
+        )
+        print('=========================================')
+        print('Job list alert emailed to secondary recipients.')
+        print('=========================================')
+
+
+def main_forward(pairing_mode=None):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
@@ -1162,8 +1285,8 @@ def main_forward(pairing_mode = None):
     print("Running cronjob to check for new earthquakes...")
     print('=========================================')
     
-    # Fetch GeoJSON data from the USGS Earthquake Hazard Portal each hour
-    geojson_data = check_for_new_data(USGS_api_hourly)
+    # Check for New Earthquakes
+    geojson_data = check_for_new_data(USGS_api_30day)
 
     start_date = datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
@@ -1175,20 +1298,44 @@ def main_forward(pairing_mode = None):
 
         if eq_sig is not None:
             for eq in eq_sig:
+                # Check for duplicate entry in the pending queue
+                pending_list = load_pending_earthquakes()
+                if any(p['id'] == eq.get('id') for p in pending_list):
+                    print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
+                    continue
+
                 title = eq.get('title', '')
-                title = to_snake_case(title)
-                print(f"title: {title}")
+                title_snake = to_snake_case(title)
+                print(f"title: {title_snake}")
                 coords = eq.get('coordinates', [])
+                
+                # Initial AOI creation (a 1-degree box)
                 aoi = make_aoi(coords)
 
+                # Get path/frame numbers for the initial AOI
                 path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+                
+                # Create a timestamp string
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-                # Make an interactive map of the intersecting frames to attach to the email
-                # map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
-                #                      eq.get('coordinates', []),
-                #                      eq.get('url', ''))
+                # Create the output directory
+                timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
+                timestamp_dir.mkdir(parents=True, exist_ok=True)
 
-                # Send an email with the earthquake information
+                # Run next_pass to get the next S1 overpasses
+                next_pass_info = get_next_pass(aoi, timestamp_dir, satellite="sentinel-1")
+                
+                # Rename sentinel-1 overpass and opera granule maps
+                original_filename = timestamp_dir / "satellite_overpasses_map.html"
+                s1_map_filename = timestamp_dir / f"{title_snake}_Sentinel-1_Next_Overpasses.html"
+
+                if os.path.exists(original_filename):
+                    os.rename(original_filename, s1_map_filename)
+                    print(f"Renamed to {s1_map_filename}")
+                else:
+                    print(f"Expected file {original_filename} not found.")
+
+                # Construct and send the initial email alert
                 message_dict = {
                     "title": eq.get('title', ''),
                     "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
@@ -1199,29 +1346,9 @@ def main_forward(pairing_mode = None):
                     "url": eq.get('url', '')
                 }
 
-                # Create a timestamp string
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                # Create the output directory
-                timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
-                timestamp_dir.mkdir(parents=True, exist_ok=True)
-
-                # Run next_pass to get the next S1 overpasses
-                next_pass_info = get_next_pass(aoi, timestamp_dir, satellite="sentinel-1")
-
-                # Rename sentinel-1 overpass and opera granule maps
-                original_filename = timestamp_dir / "satellite_overpasses_map.html"
-                s1_map_filename = timestamp_dir / f"{title}_Sentinel-1_Next_Overpasses.html"
-
-                if os.path.exists(original_filename):
-                    os.rename(original_filename, s1_map_filename)
-                    print(f"Renamed to {s1_map_filename}")
-                else:
-                    print(f"Expected file {original_filename} not found.")
-
                 send_email(
-                    f"{message_dict['title']}",
-                    (
+                    subject=f"{message_dict['title']}",
+                    body=(
                         f"{message_dict['title']} at {message_dict['time']} UTC\n"
                         f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
@@ -1235,16 +1362,21 @@ def main_forward(pairing_mode = None):
                         f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"This is an automated message. Please do not reply. For product-specific inquiries contact Dr. Cole Speed (<a href=\"mailto:cole.speed@jpl.nasa.gov\">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href=\"mailto:bato@jpl.nasa.gov\">bato@jpl.nasa.gov</a>)."
                     ),
-                    s1_map_filename
+                    attachment=s1_map_filename,
+                    recipients=PRIMARY_RECIPIENTS
                 )
 
                 print('=========================================')
                 print('Alert emailed to recipients.')
                 print('=========================================')
-                            
+
+                # Store the new earthquake for later checks
+                store_pending_earthquake(eq, aoi)
         else:
-            print(f"No significant earthquakes found as of {current_time}.")
-            return
+            print(f"No new significant earthquakes found as of {current_time}.")
+
+    # Check ASF DAAC for available SLCs for poending earthquakes
+    check_pending_slcs(pairing_mode, args.resolution)
 
 
 def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False, resolution=90):
