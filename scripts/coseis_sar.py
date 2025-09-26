@@ -591,6 +591,7 @@ def get_path_and_frame_numbers(AOI, time):
         'intersectsWith': AOI.wkt,
         'dataset': 'SENTINEL-1',
         'processingLevel': 'SLC',
+        'beamSwath': 'IW',
         'start': start_date,
         'end': end_date,
         'output': 'geojson'
@@ -691,6 +692,7 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
         'relativeOrbit': path_number,
         'dataset':'SENTINEL-1',
         'processingLevel': 'SLC',
+        'beamSwath': 'IW',
         'start':start_date,
         'end':end_date,
         'output': 'geojson'
