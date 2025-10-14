@@ -1,0 +1,3462 @@
+[
+    {
+        "name": "m_60_145_km_ese_of_petropavlovskkamchatsky_russia-A038",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250916T070833_20250916T070903_061010_079A03_802C"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250904T070833_20250904T070903_060835_0792FF_5BD7"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_165_km_sse_of_vilyuchinsk_russia-A111",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250804T071611_20250804T071641_060383_078159_D1BE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250723T071611_20250723T071641_060208_077B51_BA4A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_124_km_ene_of_ozernovskiy_russia-A111",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250804T071611_20250804T071641_060383_078159_D1BE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250723T071611_20250723T071641_060208_077B51_BA4A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_124_km_ene_of_ozernovskiy_russia-D060",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250731T194127_20250731T194155_060332_077F9D_26D6"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250719T194127_20250719T194155_060157_077999_E68C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_78_km_se_of_petropavlovskkamchatsky_russia-A111",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250804T071639_20250804T071707_060383_078159_6579",
+                "S1A_IW_SLC__1SDV_20250804T071611_20250804T071641_060383_078159_D1BE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250723T071639_20250723T071707_060208_077B51_A9CB",
+                "S1A_IW_SLC__1SDV_20250723T071611_20250723T071641_060208_077B51_BA4A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_78_km_se_of_petropavlovskkamchatsky_russia-D060",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250731T194127_20250731T194155_060332_077F9D_26D6",
+                "S1A_IW_SLC__1SDV_20250731T194101_20250731T194129_060332_077F9D_D442"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250719T194127_20250719T194155_060157_077999_E68C",
+                "S1A_IW_SLC__1SDV_20250719T194101_20250719T194129_060157_077999_B71C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_94_km_se_of_petropavlovskkamchatsky_russia-A111",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250804T071639_20250804T071707_060383_078159_6579",
+                "S1A_IW_SLC__1SDV_20250804T071611_20250804T071641_060383_078159_D1BE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250723T071639_20250723T071707_060208_077B51_A9CB",
+                "S1A_IW_SLC__1SDV_20250723T071611_20250723T071641_060208_077B51_BA4A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_78_km_se_of_petropavlovskkamchatsky_russia-A038",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250730T070833_20250730T070902_060310_077EC4_BF38"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250718T070833_20250718T070903_060135_0778C4_653D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_94_km_se_of_petropavlovskkamchatsky_russia-D060",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250731T194127_20250731T194155_060332_077F9D_26D6",
+                "S1A_IW_SLC__1SDV_20250731T194101_20250731T194129_060332_077F9D_D442"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250719T194127_20250719T194155_060157_077999_E68C",
+                "S1A_IW_SLC__1SDV_20250719T194101_20250719T194129_060157_077999_B71C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_69_125_km_se_of_petropavlovskkamchatsky_russia-D060",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250731T194127_20250731T194155_060332_077F9D_26D6",
+                "S1A_IW_SLC__1SDV_20250731T194101_20250731T194129_060332_077F9D_D442"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250719T194127_20250719T194155_060157_077999_E68C",
+                "S1A_IW_SLC__1SDV_20250719T194101_20250719T194129_060157_077999_B71C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_69_125_km_se_of_petropavlovskkamchatsky_russia-A111",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250804T071639_20250804T071707_060383_078159_6579",
+                "S1A_IW_SLC__1SDV_20250804T071611_20250804T071641_060383_078159_D1BE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250723T071639_20250723T071707_060208_077B51_A9CB",
+                "S1A_IW_SLC__1SDV_20250723T071611_20250723T071641_060208_077B51_BA4A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_94_km_se_of_petropavlovskkamchatsky_russia-A038",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250730T070833_20250730T070902_060310_077EC4_BF38"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250718T070833_20250718T070903_060135_0778C4_653D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_147_km_e_of_petropavlovskkamchatsky_russia-A038",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250730T070833_20250730T070902_060310_077EC4_BF38"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250718T070833_20250718T070903_060135_0778C4_653D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_153_km_ese_of_petropavlovskkamchatsky_russia-D060",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250731T194101_20250731T194129_060332_077F9D_D442"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250719T194101_20250719T194129_060157_077999_B71C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_153_km_ese_of_petropavlovskkamchatsky_russia-A038",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250730T070833_20250730T070902_060310_077EC4_BF38"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250718T070833_20250718T070903_060135_0778C4_653D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_74_2025_eastern_kamchatka_russia_earthquake-D060",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250731T194127_20250731T194155_060332_077F9D_26D6",
+                "S1A_IW_SLC__1SDV_20250731T194101_20250731T194129_060332_077F9D_D442"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250719T194127_20250719T194155_060157_077999_E68C",
+                "S1A_IW_SLC__1SDV_20250719T194101_20250719T194129_060157_077999_B71C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_74_2025_eastern_kamchatka_russia_earthquake-A038",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250730T070833_20250730T070902_060310_077EC4_BF38"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250718T070833_20250718T070903_060135_0778C4_653D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_134_km_e_of_petropavlovskkamchatsky_russia-D060",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250731T194127_20250731T194155_060332_077F9D_26D6",
+                "S1A_IW_SLC__1SDV_20250731T194101_20250731T194129_060332_077F9D_D442"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250719T194127_20250719T194155_060157_077999_E68C",
+                "S1A_IW_SLC__1SDV_20250719T194101_20250719T194129_060157_077999_B71C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_134_km_e_of_petropavlovskkamchatsky_russia-A038",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250730T070833_20250730T070902_060310_077EC4_BF38"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250718T070833_20250718T070903_060135_0778C4_653D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_91_km_sse_of_sand_point_alaska-D102",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250722T164739_20250722T164809_060199_077B02_7E01"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250710T164739_20250710T164810_060024_0774FF_7CD7"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_44_km_e_of_barcelona_philippines-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20240812T212415_20240812T212442_055185_06B9DE_6FCC",
+                "S1A_IW_SLC__1SDV_20240812T212349_20240812T212417_055185_06B9DE_3C2E"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20240731T212415_20240731T212442_055010_06B3A6_5F43",
+                "S1A_IW_SLC__1SDV_20240731T212349_20240731T212417_055010_06B3A6_2E0C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_34_km_sw_of_atiquipa_peru-D025",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20240710T102428_20240710T102502_054697_06A8C7_A23F"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20240616T102429_20240616T102503_054347_069C9B_DF40"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_10_km_sw_of_atiquipa_peru-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20240709T233316_20240709T233343_054690_06A887_C31D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20240615T233317_20240615T233345_054340_069C5C_F2FC"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_29_km_s_of_hualien_city_taiwan-A069",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20240502T100133_20240502T100201_053691_068591_C0FF",
+                "S1A_IW_SLC__1SDV_20240502T100105_20240502T100135_053691_068591_ECDA"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20240420T100132_20240420T100200_053516_067EB1_1AEE",
+                "S1A_IW_SLC__1SDV_20240420T100105_20240420T100135_053516_067EB1_B250"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_64_15_km_nne_of_hualien_city_taiwan-D105",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20240410T215258_20240410T215326_053377_067938_F9D8",
+                "S1A_IW_SLC__1SDV_20240410T215231_20240410T215301_053377_067938_D08D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20240329T215259_20240329T215327_053202_06725A_3D2F",
+                "S1A_IW_SLC__1SDV_20240329T215232_20240329T215301_053202_06725A_BCBE"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_8_km_sw_of_anamizu_japan-D017",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20240111T205947_20240111T210017_052064_064AD6_3456"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231230T205948_20231230T210018_051889_0644E6_C826"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_8_km_sw_of_anamizu_japan-D119",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20240106T205151_20240106T205219_051991_06485E_89FF",
+                "S1A_IW_SLC__1SDV_20240106T205124_20240106T205154_051991_06485E_623D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231225T205152_20231225T205220_051816_064261_0B5B",
+                "S1A_IW_SLC__1SDV_20231225T205124_20231225T205154_051816_064261_BF0F"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_58_km_e_of_marihatag_philippines-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231204T212419_20231204T212446_051510_0637B9_8819",
+                "S1A_IW_SLC__1SDV_20231204T212353_20231204T212421_051510_0637B9_6181"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231122T212419_20231122T212446_051335_0631BC_9483",
+                "S1A_IW_SLC__1SDV_20231122T212354_20231122T212421_051335_0631BC_7F7C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_47_km_ene_of_hinatuan_philippines-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231204T212419_20231204T212446_051510_0637B9_8819",
+                "S1A_IW_SLC__1SDV_20231204T212353_20231204T212421_051510_0637B9_6181"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231122T212419_20231122T212446_051335_0631BC_9483",
+                "S1A_IW_SLC__1SDV_20231122T212354_20231122T212421_051335_0631BC_7F7C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_49_km_ne_of_barcelona_philippines-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231204T212419_20231204T212446_051510_0637B9_8819",
+                "S1A_IW_SLC__1SDV_20231204T212353_20231204T212421_051510_0637B9_6181"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231122T212419_20231122T212446_051335_0631BC_9483",
+                "S1A_IW_SLC__1SDV_20231122T212354_20231122T212421_051335_0631BC_7F7C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_41_km_ne_of_barcelona_philippines-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231204T212419_20231204T212446_051510_0637B9_8819",
+                "S1A_IW_SLC__1SDV_20231204T212353_20231204T212421_051510_0637B9_6181"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231122T212419_20231122T212446_051335_0631BC_9483",
+                "S1A_IW_SLC__1SDV_20231122T212354_20231122T212421_051335_0631BC_7F7C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_64_47_km_ne_of_barcelona_philippines-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231204T212419_20231204T212446_051510_0637B9_8819",
+                "S1A_IW_SLC__1SDV_20231204T212353_20231204T212421_051510_0637B9_6181"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231122T212419_20231122T212446_051335_0631BC_9483",
+                "S1A_IW_SLC__1SDV_20231122T212354_20231122T212421_051335_0631BC_7F7C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_69_34_km_ene_of_arasasan_philippines-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231204T212419_20231204T212446_051510_0637B9_8819",
+                "S1A_IW_SLC__1SDV_20231204T212353_20231204T212421_051510_0637B9_6181"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231122T212419_20231122T212446_051335_0631BC_9483",
+                "S1A_IW_SLC__1SDV_20231122T212354_20231122T212421_051335_0631BC_7F7C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_24_km_nnw_of_herat_afghanistan-D020",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231020T015702_20231020T015729_050842_0620C7_2431",
+                "S1A_IW_SLC__1SDV_20231020T015637_20231020T015704_050842_0620C7_053D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231008T015702_20231008T015729_050667_061AD1_A9F8",
+                "S1A_IW_SLC__1SDV_20231008T015637_20231008T015704_050667_061AD1_D4A6"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_24_km_nnw_of_herat_afghanistan-A013",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231019T135509_20231019T135536_050835_062084_8286",
+                "S1A_IW_SLC__1SDV_20231019T135443_20231019T135511_050835_062084_CC56"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231007T135509_20231007T135536_050660_061A89_4AA1",
+                "S1A_IW_SLC__1SDV_20231007T135443_20231007T135511_050660_061A89_E9E9"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_25_km_nne_of_zindah_jan_afghanistan-A115",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231014T134659_20231014T134726_050762_061E09_AE50",
+                "S1A_IW_SLC__1SDV_20231014T134633_20231014T134701_050762_061E09_15CE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231002T134659_20231002T134726_050587_061808_2E84",
+                "S1A_IW_SLC__1SDV_20231002T134633_20231002T134701_050587_061808_A23D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_25_km_nne_of_zindah_jan_afghanistan-D122",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231015T014855_20231015T014922_050769_061E47_0CBC",
+                "S1A_IW_SLC__1SDV_20231015T014830_20231015T014857_050769_061E47_8C6E"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231003T014855_20231003T014922_050594_061846_7001",
+                "S1A_IW_SLC__1SDV_20231003T014830_20231003T014857_050594_061846_A356"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_32_km_nne_of_zindah_jan_afghanistan-A115",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231014T134659_20231014T134726_050762_061E09_AE50",
+                "S1A_IW_SLC__1SDV_20231014T134633_20231014T134701_050762_061E09_15CE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231002T134659_20231002T134726_050587_061808_2E84",
+                "S1A_IW_SLC__1SDV_20231002T134633_20231002T134701_050587_061808_A23D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_32_km_nne_of_zindah_jan_afghanistan-D122",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231015T014855_20231015T014922_050769_061E47_0CBC",
+                "S1A_IW_SLC__1SDV_20231015T014830_20231015T014857_050769_061E47_8C6E"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20231003T014855_20231003T014922_050594_061846_7001",
+                "S1A_IW_SLC__1SDV_20231003T014830_20231003T014857_050594_061846_A356"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_32_km_nne_of_zindah_jan_afghanistan-D020",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20231008T015702_20231008T015729_050667_061AD1_A9F8",
+                "S1A_IW_SLC__1SDV_20231008T015637_20231008T015704_050667_061AD1_D4A6"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230926T015702_20230926T015729_050492_0614D2_EFEF",
+                "S1A_IW_SLC__1SDV_20230926T015637_20230926T015704_050492_0614D2_669A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_12_km_w_of_celikhan_turkey-D021",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230210T033426_20230210T033454_047168_05A8CD_FAA6"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230129T033427_20230129T033455_046993_05A2FE_6FF2"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_12_km_w_of_celikhan_turkey-A116",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230216T152632_20230216T152659_047263_05AC04_0445"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230204T152633_20230204T152700_047088_05A621_DF42",
+                "S1A_IW_SLC__1SDV_20230204T152607_20230204T152635_047088_05A621_4129"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_12_km_w_of_celikhan_turkey-D123",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230217T032616_20230217T032644_047270_05AC3F_71A3"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230205T032616_20230205T032644_047095_05A659_8912"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_4_km_nne_of_goksun_turkey-D094",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230215T034246_20230215T034314_047241_05AB34_0847",
+                "S1A_IW_SLC__1SDV_20230215T034221_20230215T034248_047241_05AB34_C76D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230203T034246_20230203T034314_047066_05A559_0568",
+                "S1A_IW_SLC__1SDV_20230203T034221_20230203T034248_047066_05A559_E4A0"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_4_km_nne_of_goksun_turkey-D021",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230210T033426_20230210T033454_047168_05A8CD_FAA6"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230129T033427_20230129T033455_046993_05A2FE_6FF2"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_4_km_nne_of_goksun_turkey-A116",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230216T152632_20230216T152659_047263_05AC04_0445"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230204T152633_20230204T152700_047088_05A621_DF42",
+                "S1A_IW_SLC__1SDV_20230204T152607_20230204T152635_047088_05A621_4129"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_4_km_nne_of_goksun_turkey-A014",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230209T153423_20230209T153450_047161_05A88A_9FEC"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230128T153424_20230128T153451_046986_05A2B6_00C8"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_67_14_km_e_of_nurda_turkey-D021",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230210T033451_20230210T033518_047168_05A8CD_E5B0",
+                "S1A_IW_SLC__1SDV_20230210T033426_20230210T033454_047168_05A8CD_FAA6"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230129T033452_20230129T033519_046993_05A2FE_BE0B",
+                "S1A_IW_SLC__1SDV_20230129T033427_20230129T033455_046993_05A2FE_6FF2"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_67_14_km_e_of_nurda_turkey-A116",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230216T152542_20230216T152609_047263_05AC04_9A32"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230204T152607_20230204T152635_047088_05A621_4129",
+                "S1A_IW_SLC__1SDV_20230204T152542_20230204T152609_047088_05A621_A745"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_67_14_km_e_of_nurda_turkey-A014",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230209T153423_20230209T153450_047161_05A88A_9FEC",
+                "S1A_IW_SLC__1SDV_20230209T153357_20230209T153425_047161_05A88A_BB1A"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230128T153424_20230128T153451_046986_05A2B6_00C8",
+                "S1A_IW_SLC__1SDV_20230128T153358_20230128T153426_046986_05A2B6_1629"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_68_55_km_ssw_of_aguililla_mexico-A151",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220928T005706_20220928T005733_045198_0566F1_6F56",
+                "S1A_IW_SLC__1SDV_20220928T005641_20220928T005708_045198_0566F1_AB90"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220916T005706_20220916T005733_045023_05610C_D873",
+                "S1A_IW_SLC__1SDV_20220916T005641_20220916T005708_045023_05610C_AE3F"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_96_km_se_of_lugu_taiwan-D105",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220924T215257_20220924T215325_045152_05657C_2149"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220912T215257_20220912T215325_044977_055F93_BBA9"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_96_km_se_of_lugu_taiwan-A069",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220922T100129_20220922T100157_045116_056439_6D2F",
+                "S1A_IW_SLC__1SDV_20220922T100102_20220922T100131_045116_056439_D2A4"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220910T100130_20220910T100158_044941_055E50_8374",
+                "S1A_IW_SLC__1SDV_20220910T100102_20220910T100132_044941_055E50_076E"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_papua_indonesia-A155",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220916T090459_20220916T090528_045027_05613A_5D8D",
+                "S1A_IW_SLC__1SDV_20220916T090434_20220916T090501_045027_05613A_17F0"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220904T090459_20220904T090528_044852_055B5B_FF5F",
+                "S1A_IW_SLC__1SDV_20220904T090434_20220904T090501_044852_055B5B_34CF"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_papua_indonesia-D002",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220917T202952_20220917T203020_045049_0561FA_79D3",
+                "S1A_IW_SLC__1SDV_20220917T202924_20220917T202954_045049_0561FA_E3D3"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220905T202952_20220905T203020_044874_055C1A_1378",
+                "S1A_IW_SLC__1SDV_20220905T202924_20220905T202954_044874_055C1A_3730"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_52_km_ne_of_bandare_lengeh_iran-D064",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220712T022331_20220712T022358_044061_054264_3893",
+                "S1A_IW_SLC__1SDV_20220712T022306_20220712T022333_044061_054264_0471"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220630T022330_20220630T022358_043886_053D31_33AD",
+                "S1A_IW_SLC__1SDV_20220630T022305_20220630T022332_043886_053D31_CAA8"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_52_km_ne_of_bandare_lengeh_iran-D166",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220707T021521_20220707T021548_043988_054034_086E",
+                "S1A_IW_SLC__1SDV_20220707T021455_20220707T021523_043988_054034_1B1A"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220625T021521_20220625T021548_043813_053B04_E6E5",
+                "S1A_IW_SLC__1SDV_20220625T021455_20220625T021523_043813_053B04_32B7"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_52_km_ne_of_bandare_lengeh_iran-A057",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220711T141720_20220711T141747_044054_05422A_CCFC"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220629T141719_20220629T141746_043879_053CFA_D054"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_52_km_ne_of_bandare_lengeh_iran-A130",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220704T142531_20220704T142559_043952_053F28_53F4"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220622T142531_20220622T142559_043777_0539F8_9BF3"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_50_km_ese_of_manay_philippines-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20220425T212431_20220425T212458_042935_05202A_4685",
+                "S1A_IW_SLC__1SDV_20220425T212407_20220425T212434_042935_05202A_DB68"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20220401T212430_20220401T212457_042585_05147E_5DEA",
+                "S1A_IW_SLC__1SDV_20220401T212406_20220401T212433_042585_05147E_E126"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_110_km_nw_of_rabaul_papua_new_guinea-D089",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20211209T194037_20211209T194105_040936_04DC8F_105F",
+                "S1A_IW_SLC__1SDV_20211209T194010_20211209T194040_040936_04DC8F_416C"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20211127T194038_20211127T194106_040761_04D67E_A8C7",
+                "S1A_IW_SLC__1SDV_20211127T194010_20211127T194040_040761_04D67E_56D7"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_110_km_nw_of_rabaul_papua_new_guinea-D016",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20211204T193231_20211204T193259_040863_04DA11_1406",
+                "S1A_IW_SLC__1SDV_20211204T193204_20211204T193234_040863_04DA11_A6BA"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20211110T193232_20211110T193300_040513_04CDF2_A9B9",
+                "S1A_IW_SLC__1SDV_20211110T193205_20211110T193234_040513_04CDF2_EB1F"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_110_km_nw_of_rabaul_papua_new_guinea-A067",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20211208T081518_20211208T081544_040914_04DBD3_38D6",
+                "S1A_IW_SLC__1SDV_20211208T081453_20211208T081520_040914_04DBD3_5820"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20211126T081518_20211126T081545_040739_04D5BC_BEEE",
+                "S1A_IW_SLC__1SDV_20211126T081454_20211126T081521_040739_04D5BC_7F13"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_62_km_nnw_of_bandar_abbas_iran-A057",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20211125T141742_20211125T141810_040729_04D557_7161",
+                "S1A_IW_SLC__1SDV_20211125T141717_20211125T141744_040729_04D557_C15C"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20211113T141742_20211113T141810_040554_04CF4E_777B",
+                "S1A_IW_SLC__1SDV_20211113T141718_20211113T141745_040554_04CF4E_5858"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_62_km_nnw_of_bandar_abbas_iran-A130",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20211118T142555_20211118T142622_040627_04D1DF_322B",
+                "S1A_IW_SLC__1SDV_20211118T142529_20211118T142557_040627_04D1DF_54FF"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20211106T142555_20211106T142622_040452_04CBDB_7E04",
+                "S1A_IW_SLC__1SDV_20211106T142529_20211106T142557_040452_04CBDB_4676"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_62_km_nnw_of_bandar_abbas_iran-D166",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20211121T021519_20211121T021546_040663_04D31A_D5F6",
+                "S1A_IW_SLC__1SDV_20211121T021453_20211121T021521_040663_04D31A_9FE1"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20211109T021519_20211109T021546_040488_04CD16_81BF",
+                "S1A_IW_SLC__1SDV_20211109T021453_20211109T021521_040488_04CD16_276B"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_62_km_nnw_of_bandar_abbas_iran-D093",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20211116T020655_20211116T020722_040590_04D09E_97E4",
+                "S1A_IW_SLC__1SDV_20211116T020631_20211116T020658_040590_04D09E_FDD3"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20211104T020655_20211104T020722_040415_04CA82_DA51",
+                "S1A_IW_SLC__1SDV_20211104T020631_20211104T020658_040415_04CA82_9136"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_104_km_nw_of_portvila_vanuatu-A081",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20200909T071337_20200909T071404_034278_03FBE5_3AD8"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20200903T071256_20200903T071326_023207_02C128_7F67"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_104_km_nw_of_portvila_vanuatu-D059",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20200913T182054_20200913T182124_023360_02C5E6_E672"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20200901T182054_20200901T182124_023185_02C06C_FCFD"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_78_km_nw_of_vallenar_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20200908T100222_20200908T100249_023282_02C375_1C5B",
+                "S1B_IW_SLC__1SDV_20200908T100156_20200908T100224_023282_02C375_6A4D"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20200827T100221_20200827T100248_023107_02BDF6_A442",
+                "S1B_IW_SLC__1SDV_20200827T100155_20200827T100223_023107_02BDF6_34C0"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_78_km_nw_of_vallenar_chile-A120",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20200905T232104_20200905T232131_023246_02C258_EADF",
+                "S1B_IW_SLC__1SDV_20200905T232039_20200905T232106_023246_02C258_3FB4"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20200824T232104_20200824T232131_023071_02BCE8_B740",
+                "S1B_IW_SLC__1SDV_20200824T232039_20200824T232106_023071_02BCE8_0380"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_94_km_nw_of_vallenar_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20200908T100222_20200908T100249_023282_02C375_1C5B",
+                "S1B_IW_SLC__1SDV_20200908T100156_20200908T100224_023282_02C375_6A4D"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20200827T100221_20200827T100248_023107_02BDF6_A442",
+                "S1B_IW_SLC__1SDV_20200827T100155_20200827T100223_023107_02BDF6_34C0"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_94_km_nw_of_vallenar_chile-A120",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20200905T232104_20200905T232131_023246_02C258_EADF",
+                "S1B_IW_SLC__1SDV_20200905T232039_20200905T232106_023246_02C258_3FB4"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20200824T232104_20200824T232131_023071_02BCE8_B740",
+                "S1B_IW_SLC__1SDV_20200824T232039_20200824T232106_023071_02BCE8_0380"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_141_km_ssw_of_kokopo_papua_new_guinea-D016",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20200904T193252_20200904T193318_034213_03F9A1_AAA8",
+                "S1A_IW_SLC__1SDV_20200904T193226_20200904T193254_034213_03F9A1_D5D7"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20200823T193251_20200823T193318_034038_03F37B_6D2E",
+                "S1A_IW_SLC__1SDV_20200823T193225_20200823T193253_034038_03F37B_A382"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_141_km_ssw_of_kokopo_papua_new_guinea-A067",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20200827T081423_20200827T081450_034089_03F548_2DB5"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20200815T081422_20200815T081449_033914_03EF1F_F489"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_101_km_ese_of_sand_point_alaska-D102",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20200724T164733_20200724T164803_033599_03E4D8_426E"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20200712T164732_20200712T164802_033424_03DF7A_2CCA"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_2_km_ene_of_bulatukan_philippines-A069",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20191107T095554_20191107T095622_018820_0237C4_D84E",
+                "S1B_IW_SLC__1SDV_20191107T095527_20191107T095557_018820_0237C4_F923"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20191026T095555_20191026T095622_018645_023225_3635",
+                "S1B_IW_SLC__1SDV_20191026T095527_20191026T095557_018645_023225_4400"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_64_ridgecrest_earthquake_sequence-D144",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20190709T140000_20190709T140027_028041_032AB8_A7D4"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20190627T135959_20190627T140026_027866_032561_B2D0"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_230_km_w_of_abepura_indonesia-D002",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20190629T202929_20190629T202957_027899_03265A_26AD",
+                "S1A_IW_SLC__1SDV_20190629T202902_20190629T202931_027899_03265A_2988"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20190617T202928_20190617T202956_027724_032120_6271",
+                "S1A_IW_SLC__1SDV_20190617T202901_20190617T202931_027724_032120_60EE"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_230_km_w_of_abepura_indonesia-A155",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20190628T090436_20190628T090505_027877_0325B5_2040",
+                "S1A_IW_SLC__1SDV_20190628T090411_20190628T090438_027877_0325B5_9909"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20190616T090435_20190616T090504_027702_03207D_8E0F",
+                "S1A_IW_SLC__1SDV_20190616T090410_20190616T090437_027702_03207D_FE7D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_142_km_wsw_of_waingapu_indonesia-D061",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20190128T213709_20190128T213739_025683_02DA73_6505"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20190116T213709_20190116T213739_025508_02D40F_6272"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_142_km_wsw_of_waingapu_indonesia-A010",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20190125T102432_20190125T102502_025632_02D88F_1DFE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20190113T102432_20190113T102502_025457_02D22A_1D9C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_19_km_nnw_of_labuan_lombok_indonesia-D032",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180823T215302_20180823T215331_023379_028B27_A36E",
+                "S1A_IW_SLC__1SDV_20180823T215236_20180823T215304_023379_028B27_B9D1"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20180817T215225_20180817T215300_012308_016AE7_CA51",
+                "S1B_IW_SLC__1SDV_20180817T215157_20180817T215227_012308_016AE7_65CB"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_19_km_nnw_of_labuan_lombok_indonesia-A083",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180827T103310_20180827T103340_023430_028CCD_6D93"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180815T103309_20180815T103339_023255_02872D_F033"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_19_km_nnw_of_labuan_lombok_indonesia-A156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180820T104146_20180820T104216_023328_028992_2363",
+                "S1A_IW_SLC__1SDV_20180820T104118_20180820T104148_023328_028992_2A82"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20180814T104101_20180814T104136_012257_016962_07A6",
+                "S1B_IW_SLC__1SDV_20180814T104034_20180814T104103_012257_016962_13F8"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_73_km_ssw_of_kaktovik_alaska-D160",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180820T161053_20180820T161121_023332_0289AD_BDB9",
+                "S1A_IW_SLC__1SDV_20180820T161025_20180820T161055_023332_0289AD_A7DD"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180808T161052_20180808T161120_023157_028404_18E9",
+                "S1A_IW_SLC__1SDV_20180808T161024_20180808T161054_023157_028404_5B04"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_73_km_ssw_of_kaktovik_alaska-D131",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180818T162714_20180818T162742_023303_0288C8_ED14",
+                "S1A_IW_SLC__1SDV_20180818T162647_20180818T162717_023303_0288C8_FB53"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180806T162714_20180806T162741_023128_02831D_16CF",
+                "S1A_IW_SLC__1SDV_20180806T162646_20180806T162716_023128_02831D_39D8"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_73_km_ssw_of_kaktovik_alaska-A050",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20180831T025704_20180831T025740_012501_0170DF_0CA4",
+                "S1B_IW_SLC__1SDV_20180831T025637_20180831T025707_012501_0170DF_0D74"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180720T025743_20180720T025811_022872_027AF4_9884",
+                "S1A_IW_SLC__1SDV_20180720T025718_20180720T025745_022872_027AF4_7849"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_67_140_km_e_of_kimbe_papua_new_guinea-D016",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180331T193230_20180331T193257_021263_024930_E441"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180307T193230_20180307T193257_020913_023E1C_DD79",
+                "S1A_IW_SLC__1SDV_20180307T193204_20180307T193232_020913_023E1C_896A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_150_km_e_of_kimbe_papua_new_guinea-D016",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180331T193230_20180331T193257_021263_024930_E441"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180307T193230_20180307T193257_020913_023E1C_DD79",
+                "S1A_IW_SLC__1SDV_20180307T193204_20180307T193232_020913_023E1C_896A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_150_km_e_of_kimbe_papua_new_guinea-A067",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_WV_SLC__1SSV_20180329T081315_20180329T082447_010243_0129F2_BA17"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180323T081401_20180323T081428_021139_024555_92C9"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_150_km_e_of_kimbe_papua_new_guinea-A140",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180328T082216_20180328T082245_021212_0247A2_13FA",
+                "S1A_IW_SLC__1SDV_20180328T082151_20180328T082218_021212_0247A2_0B3E"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180304T082216_20180304T082245_020862_023C85_09C3",
+                "S1A_IW_SLC__1SDV_20180304T082151_20180304T082218_020862_023C85_F55F"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_66_km_sw_of_tari_papua_new_guinea-D133",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180327T200535_20180327T200602_021205_02476C_738B",
+                "S1A_IW_SLC__1SDV_20180327T200509_20180327T200537_021205_02476C_6027"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180303T200534_20180303T200601_020855_023C4F_C113",
+                "S1A_IW_SLC__1SDV_20180303T200509_20180303T200536_020855_023C4F_45C6"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_66_km_sw_of_tari_papua_new_guinea-D031",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180308T201341_20180308T201408_020928_023E99_8AC2",
+                "S1A_IW_SLC__1SDV_20180308T201316_20180308T201344_020928_023E99_6218"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180224T201342_20180224T201408_020753_023916_98B2",
+                "S1A_IW_SLC__1SDV_20180224T201316_20180224T201344_020753_023916_3BBE"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_66_km_sw_of_tari_papua_new_guinea-A082",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180312T085510_20180312T085537_020979_024043_7920",
+                "S1A_IW_SLC__1SDV_20180312T085445_20180312T085512_020979_024043_84BE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180228T085510_20180228T085537_020804_023ABE_C376",
+                "S1A_IW_SLC__1SDV_20180228T085445_20180228T085512_020804_023ABE_8453"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_66_km_sw_of_tari_papua_new_guinea-A009",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180307T084707_20180307T084733_020906_023DE8_9E5D",
+                "S1A_IW_SLC__1SDV_20180307T084641_20180307T084709_020906_023DE8_B6CE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180223T084707_20180223T084734_020731_02385D_7155",
+                "S1A_IW_SLC__1SDV_20180223T084641_20180223T084709_020731_02385D_EDDD"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_63_km_sw_of_tari_papua_new_guinea-A009",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180307T084707_20180307T084733_020906_023DE8_9E5D",
+                "S1A_IW_SLC__1SDV_20180307T084641_20180307T084709_020906_023DE8_B6CE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180223T084707_20180223T084734_020731_02385D_7155",
+                "S1A_IW_SLC__1SDV_20180223T084641_20180223T084709_020731_02385D_EDDD"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_63_km_sw_of_tari_papua_new_guinea-D031",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180308T201341_20180308T201408_020928_023E99_8AC2",
+                "S1A_IW_SLC__1SDV_20180308T201316_20180308T201344_020928_023E99_6218"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180224T201342_20180224T201408_020753_023916_98B2",
+                "S1A_IW_SLC__1SDV_20180224T201316_20180224T201344_020753_023916_3BBE"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_63_km_sw_of_tari_papua_new_guinea-D133",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180303T200534_20180303T200601_020855_023C4F_C113",
+                "S1A_IW_SLC__1SDV_20180303T200509_20180303T200536_020855_023C4F_45C6"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180219T200534_20180219T200601_020680_0236C3_AF63",
+                "S1A_IW_SLC__1SDV_20180219T200509_20180219T200536_020680_0236C3_72DE"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_67_62_km_sw_of_tari_papua_new_guinea-D031",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180308T201341_20180308T201408_020928_023E99_8AC2",
+                "S1A_IW_SLC__1SDV_20180308T201316_20180308T201344_020928_023E99_6218"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180224T201342_20180224T201408_020753_023916_98B2",
+                "S1A_IW_SLC__1SDV_20180224T201316_20180224T201344_020753_023916_3BBE"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_59_km_sw_of_mendi_papua_new_guinea-D133",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180303T200534_20180303T200601_020855_023C4F_C113",
+                "S1A_IW_SLC__1SDV_20180303T200509_20180303T200536_020855_023C4F_45C6"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180219T200534_20180219T200601_020680_0236C3_AF63",
+                "S1A_IW_SLC__1SDV_20180219T200509_20180219T200536_020680_0236C3_72DE"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_67_62_km_sw_of_tari_papua_new_guinea-A009",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180307T084707_20180307T084733_020906_023DE8_9E5D",
+                "S1A_IW_SLC__1SDV_20180307T084641_20180307T084709_020906_023DE8_B6CE"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180223T084707_20180223T084734_020731_02385D_7155",
+                "S1A_IW_SLC__1SDV_20180223T084641_20180223T084709_020731_02385D_EDDD"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_59_km_sw_of_mendi_papua_new_guinea-A082",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180228T085510_20180228T085537_020804_023ABE_C376",
+                "S1A_IW_SLC__1SDV_20180228T085445_20180228T085512_020804_023ABE_8453"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180216T085510_20180216T085537_020629_02352A_0B1E",
+                "S1A_IW_SLC__1SDV_20180216T085445_20180216T085512_020629_02352A_1030"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_22_km_nne_of_hualien_city_taiwan-A069",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20180215T100056_20180215T100124_020616_0234B9_22BC"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20180203T100056_20180203T100124_020441_022F24_61A8"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_53_km_nne_of_kerman_iran-D093",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20171219T020540_20171219T020607_019765_0219D0_4C56",
+                "S1A_IW_SLC__1SDV_20171219T020515_20171219T020542_019765_0219D0_B3D6"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20171207T020540_20171207T020607_019590_02145C_0C1C",
+                "S1A_IW_SLC__1SDV_20171207T020515_20171207T020542_019590_02145C_3CDC"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_53_km_nne_of_kerman_iran-A057",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20171216T141807_20171216T141834_019729_0218AB_9B45",
+                "S1A_IW_SLC__1SDV_20171216T141742_20171216T141809_019729_0218AB_10AF"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20171210T141723_20171210T141742_008658_00F621_374E",
+                "S1B_IW_SLC__1SDV_20171210T141656_20171210T141726_008658_00F621_5566"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_47_km_nw_of_mosquito_lake_alaska-A079",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20170516T023831_20170516T023859_016601_01B8A1_408B",
+                "S1A_IW_SLC__1SDV_20170516T023806_20170516T023833_016601_01B8A1_16AF"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20170422T023829_20170422T023857_016251_01ADFF_883F",
+                "S1A_IW_SLC__1SDV_20170422T023804_20170422T023831_016251_01ADFF_D294"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_47_km_nw_of_mosquito_lake_alaska-A050",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20170502T025438_20170502T025505_016397_01B266_F90B"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20170408T025436_20170408T025503_016047_01A7BA_BCBC"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_47_km_nw_of_mosquito_lake_alaska-D145",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SSV_20170502T153107_20170502T153121_005421_00980E_EB87"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SSV_20170420T153107_20170420T153120_005246_0092FF_4E78"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_37_km_w_of_valparaiso_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20170503T100329_20170503T100356_005432_00985E_A2E8",
+                "S1B_IW_SLC__1SDV_20170503T100304_20170503T100331_005432_00985E_5BC1"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20170421T100328_20170421T100355_005257_009353_9E9A",
+                "S1B_IW_SLC__1SDV_20170421T100304_20170421T100331_005257_009353_A608"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_79_km_wsw_of_kirakira_solomon_islands-A125",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20161220T073852_20161220T073922_003476_005F0C_AB52"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20161126T073853_20161126T073922_003126_005511_9303"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_69_92_km_wsw_of_kirakira_solomon_islands-A023",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_S6_SLC__1SDV_20161225T074655_20161225T074714_003549_006120_B4B9"
+            ],
+            "secondary_granules": [
+                "S1B_S6_SLC__1SDV_20161201T074656_20161201T074715_003199_00571C_0B92"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_69_92_km_wsw_of_kirakira_solomon_islands-A125",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20161220T073852_20161220T073922_003476_005F0C_AB52"
+            ],
+            "secondary_granules": [
+                "S1B_IW_SLC__1SDV_20161126T073853_20161126T073922_003126_005511_9303"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_90_km_ssw_of_blenheim_new_zealand-A154",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20161116T071350_20161116T071418_002980_005109_2DC8"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20161110T071435_20161110T071505_013876_01652C_642B"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_90_km_ssw_of_blenheim_new_zealand-A052",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SSV_20161121T072205_20161121T072240_003053_005313_ED7D",
+                "S1B_IW_SLC__1SSV_20161121T072138_20161121T072207_003053_005313_8A72"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20161103T072248_20161103T072317_013774_0161F9_E78A",
+                "S1A_IW_SLC__1SSV_20161103T072220_20161103T072250_013774_0161F9_2F68"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_78_km_ssw_of_blenheim_new_zealand-A154",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20161116T071350_20161116T071418_002980_005109_2DC8"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20161110T071435_20161110T071505_013876_01652C_642B"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_78_km_ssw_of_blenheim_new_zealand-A052",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SSV_20161121T072205_20161121T072240_003053_005313_ED7D",
+                "S1B_IW_SLC__1SSV_20161121T072138_20161121T072207_003053_005313_8A72"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20161103T072248_20161103T072317_013774_0161F9_E78A",
+                "S1A_IW_SLC__1SSV_20161103T072220_20161103T072250_013774_0161F9_2F68"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_92_km_ssw_of_blenheim_new_zealand-A154",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20161116T071350_20161116T071418_002980_005109_2DC8"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20161110T071435_20161110T071505_013876_01652C_642B"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_92_km_ssw_of_blenheim_new_zealand-A052",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SSV_20161121T072205_20161121T072240_003053_005313_ED7D",
+                "S1B_IW_SLC__1SSV_20161121T072138_20161121T072207_003053_005313_8A72"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20161103T072248_20161103T072317_013774_0161F9_E78A",
+                "S1A_IW_SLC__1SSV_20161103T072220_20161103T072250_013774_0161F9_2F68"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_74_km_ne_of_amberley_new_zealand-A052",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SSV_20161121T072205_20161121T072240_003053_005313_ED7D",
+                "S1B_IW_SLC__1SSV_20161121T072138_20161121T072207_003053_005313_8A72"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20161103T072248_20161103T072317_013774_0161F9_E78A",
+                "S1A_IW_SLC__1SSV_20161103T072220_20161103T072250_013774_0161F9_2F68"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_2_km_nnw_of_visso_italy-D095",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1B_IW_SLC__1SDV_20161031T051858_20161031T051925_002746_004A65_7019",
+                "S1B_IW_SLC__1SDV_20161031T051833_20161031T051900_002746_004A65_51AD"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20161025T051948_20161025T052015_013642_015DDA_34B5",
+                "S1A_IW_SLC__1SDV_20161025T051923_20161025T051950_013642_015DDA_CF4F"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_179_km_ne_of_opotiki_new_zealand-D175",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20160912T172124_20160912T172154_013022_014A03_885D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20160819T172123_20160819T172153_012672_013E79_3694"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_83_km_wsw_of_puerto_madero_mexico-D099",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20160428T120217_20160428T120229_011021_01092A_C30B",
+                "S1A_IW_SLC__1SSV_20160428T120152_20160428T120219_011021_01092A_0322"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20160404T120216_20160404T120228_010671_00FE73_0EFC",
+                "S1A_IW_SLC__1SSV_20160404T120151_20160404T120218_010671_00FE73_1B70"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_5_km_ene_of_uto_japan-A156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20160420T091355_20160420T091423_010903_010569_F9CE",
+                "S1A_IW_SLC__1SSV_20160420T091328_20160420T091358_010903_010569_76E1"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20160408T091355_20160408T091430_010728_01001F_83EB",
+                "S1A_IW_SLC__1SSV_20160408T091327_20160408T091357_010728_01001F_819A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_5_km_ene_of_uto_japan-A054",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20160425T092218_20160425T092245_010976_0107B5_CF0E",
+                "S1A_IW_SLC__1SSV_20160425T092153_20160425T092220_010976_0107B5_EC93"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20160401T092217_20160401T092244_010626_00FD16_6579",
+                "S1A_IW_SLC__1SSV_20160401T092152_20160401T092219_010626_00FD16_40A4"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_5_km_ene_of_uto_japan-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20160420T211656_20160420T211723_010910_01059E_F15F",
+                "S1A_IW_SLC__1SSV_20160420T211630_20160420T211658_010910_01059E_8779"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20160327T211655_20160327T211722_010560_00FB2D_9908",
+                "S1A_IW_SLC__1SSV_20160327T211629_20160327T211657_010560_00FB2D_CC6B"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_2_km_sse_of_kumamoto_japan-A156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20160420T091355_20160420T091423_010903_010569_F9CE",
+                "S1A_IW_SLC__1SSV_20160420T091328_20160420T091358_010903_010569_76E1"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20160408T091355_20160408T091430_010728_01001F_83EB",
+                "S1A_IW_SLC__1SSV_20160408T091327_20160408T091357_010728_01001F_819A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_2_km_sse_of_kumamoto_japan-A054",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20160425T092218_20160425T092245_010976_0107B5_CF0E",
+                "S1A_IW_SLC__1SSV_20160425T092153_20160425T092220_010976_0107B5_EC93"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20160401T092217_20160401T092244_010626_00FD16_6579",
+                "S1A_IW_SLC__1SSV_20160401T092152_20160401T092219_010626_00FD16_40A4"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_2_km_sse_of_kumamoto_japan-D163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20160420T211656_20160420T211723_010910_01059E_F15F",
+                "S1A_IW_SLC__1SSV_20160420T211630_20160420T211658_010910_01059E_8779"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20160327T211655_20160327T211722_010560_00FB2D_9908",
+                "S1A_IW_SLC__1SSV_20160327T211629_20160327T211657_010560_00FB2D_CC6B"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_69_81_km_nw_of_coquimbo_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20151116T100246_20151116T100316_008628_00C416_CBEF"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20151104T100248_20151104T100315_008453_00BF3A_80FD"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_107_km_wnw_of_coquimbo_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20151116T100246_20151116T100316_008628_00C416_CBEF"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20151104T100248_20151104T100315_008453_00BF3A_80FD"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_54_km_w_of_illapel_chile-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20151013T232823_20151013T232851_008140_00B6D9_8F41",
+                "S1A_IW_SLC__1SSV_20151013T232758_20151013T232825_008140_00B6D9_1BDD"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150919T232822_20150919T232850_007790_00AD74_594B",
+                "S1A_IW_SLC__1SSV_20150919T232757_20150919T232824_007790_00AD74_0143"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_54_km_w_of_illapel_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20151011T100338_20151011T100406_008103_00B5CF_3D19",
+                "S1A_IW_SLC__1SSV_20151011T100313_20151011T100340_008103_00B5CF_7C23"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150917T100337_20150917T100405_007753_00AC77_9048",
+                "S1A_IW_SLC__1SSV_20150917T100312_20150917T100339_007753_00AC77_F0AA"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_79_km_w_of_la_ligua_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20151011T100338_20151011T100406_008103_00B5CF_3D19",
+                "S1A_IW_SLC__1SSV_20151011T100313_20151011T100340_008103_00B5CF_7C23"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150917T100337_20150917T100405_007753_00AC77_9048",
+                "S1A_IW_SLC__1SSV_20150917T100312_20150917T100339_007753_00AC77_F0AA"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_62_92_km_nw_of_valparaiso_chile-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150919T232822_20150919T232850_007790_00AD74_594B",
+                "S1A_IW_SLC__1SSV_20150919T232757_20150919T232824_007790_00AD74_0143"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150826T232822_20150826T232849_007440_00A406_F205",
+                "S1A_IW_SLC__1SSV_20150826T232757_20150826T232824_007440_00A406_980E"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_65_54_km_wnw_of_illapel_chile-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150919T232822_20150919T232850_007790_00AD74_594B",
+                "S1A_IW_SLC__1SSV_20150919T232757_20150919T232824_007790_00AD74_0143"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150826T232822_20150826T232849_007440_00A406_F205",
+                "S1A_IW_SLC__1SSV_20150826T232757_20150826T232824_007440_00A406_980E"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_22_km_wsw_of_illapel_chile-A120",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150926T232015_20150926T232042_007892_00B036_57A4",
+                "S1A_IW_SLC__1SSV_20150926T231950_20150926T232017_007892_00B036_3FE0"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150902T232014_20150902T232041_007542_00A6D3_5183",
+                "S1A_IW_SLC__1SSV_20150902T231949_20150902T232017_007542_00A6D3_6B86"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_67_61_km_wnw_of_illapel_chile-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150919T232822_20150919T232850_007790_00AD74_594B",
+                "S1A_IW_SLC__1SSV_20150919T232757_20150919T232824_007790_00AD74_0143"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150826T232822_20150826T232849_007440_00A406_F205",
+                "S1A_IW_SLC__1SSV_20150826T232757_20150826T232824_007440_00A406_980E"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_71_km_w_of_illapel_chile-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150919T232822_20150919T232850_007790_00AD74_594B",
+                "S1A_IW_SLC__1SSV_20150919T232757_20150919T232824_007790_00AD74_0143"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150826T232822_20150826T232849_007440_00A406_F205",
+                "S1A_IW_SLC__1SSV_20150826T232757_20150826T232824_007440_00A406_980E"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_71_km_w_of_illapel_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150917T100337_20150917T100405_007753_00AC77_9048",
+                "S1A_IW_SLC__1SSV_20150917T100312_20150917T100339_007753_00AC77_F0AA"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150824T100337_20150824T100404_007403_00A2FE_C3A8",
+                "S1A_IW_SLC__1SSV_20150824T100312_20150824T100339_007403_00A2FE_A7E8"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_55_km_wsw_of_illapel_chile-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150919T232822_20150919T232850_007790_00AD74_594B",
+                "S1A_IW_SLC__1SSV_20150919T232757_20150919T232824_007790_00AD74_0143"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150826T232822_20150826T232849_007440_00A406_F205",
+                "S1A_IW_SLC__1SSV_20150826T232757_20150826T232824_007440_00A406_980E"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_55_km_wsw_of_illapel_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150917T100337_20150917T100405_007753_00AC77_9048",
+                "S1A_IW_SLC__1SSV_20150917T100312_20150917T100339_007753_00AC77_F0AA"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150824T100337_20150824T100404_007403_00A2FE_C3A8",
+                "S1A_IW_SLC__1SSV_20150824T100312_20150824T100339_007403_00A2FE_A7E8"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_64_54_km_w_of_illapel_chile-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150919T232822_20150919T232850_007790_00AD74_594B",
+                "S1A_IW_SLC__1SSV_20150919T232757_20150919T232824_007790_00AD74_0143"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150826T232822_20150826T232849_007440_00A406_F205",
+                "S1A_IW_SLC__1SSV_20150826T232757_20150826T232824_007440_00A406_980E"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_64_54_km_w_of_illapel_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150917T100337_20150917T100405_007753_00AC77_9048",
+                "S1A_IW_SLC__1SSV_20150917T100312_20150917T100339_007753_00AC77_F0AA"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150824T100337_20150824T100404_007403_00A2FE_C3A8",
+                "S1A_IW_SLC__1SSV_20150824T100312_20150824T100339_007403_00A2FE_A7E8"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_70_25_km_wnw_of_illapel_chile-A018",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150919T232822_20150919T232850_007790_00AD74_594B",
+                "S1A_IW_SLC__1SSV_20150919T232757_20150919T232824_007790_00AD74_0143"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150826T232822_20150826T232849_007440_00A406_F205",
+                "S1A_IW_SLC__1SSV_20150826T232757_20150826T232824_007440_00A406_980E"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_42_km_sse_of_kodri_nepal-D019",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150604T001909_20150604T001937_006216_0081CF_6BD3",
+                "S1A_IW_SLC__1SSV_20150604T001844_20150604T001911_006216_0081CF_1C88"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150511T001908_20150511T001936_005866_0078D7_3490",
+                "S1A_IW_SLC__1SSV_20150511T001843_20150511T001910_005866_0078D7_D861"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_42_km_sse_of_kodri_nepal-D121",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150530T001058_20150530T001126_006143_007FA9_4C61",
+                "S1A_IW_SLC__1SSV_20150530T001033_20150530T001100_006143_007FA9_33F5"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150506T001057_20150506T001125_005793_007722_AEB8",
+                "S1A_IW_SLC__1SSV_20150506T001032_20150506T001059_005793_007722_31DA"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_42_km_sse_of_kodri_nepal-A085",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150515T122143_20150515T122211_005932_007A3F_B012",
+                "S1A_IW_SLC__1SSV_20150515T122118_20150515T122145_005932_007A3F_9BEB"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150503T122143_20150503T122211_005757_007649_F885",
+                "S1A_IW_SLC__1SSV_20150503T122118_20150503T122145_005757_007649_5EE7"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_63_42_km_sse_of_kodri_nepal-A012",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150522T121332_20150522T121400_006034_007CA2_A637",
+                "S1A_IW_SLC__1SSV_20150522T121307_20150522T121334_006034_007CA2_948F"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20150428T121331_20150428T121358_005684_0074A9_6246",
+                "S1A_IW_SLC__1SDV_20150428T121306_20150428T121333_005684_0074A9_0536"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_134_km_ssw_of_kokopo_papua_new_guinea-D016",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150510T193216_20150510T193244_005863_0078BC_129C",
+                "S1A_IW_SLC__1SSV_20150510T193151_20150510T193218_005863_0078BC_1932"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150428T193215_20150428T193243_005688_0074C8_488E",
+                "S1A_IW_SLC__1SSV_20150428T193151_20150428T193218_005688_0074C8_B700"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_156_km_ssw_of_kokopo_papua_new_guinea-D016",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150510T193216_20150510T193244_005863_0078BC_129C",
+                "S1A_IW_SLC__1SSV_20150510T193151_20150510T193218_005863_0078BC_1932"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150428T193215_20150428T193243_005688_0074C8_488E",
+                "S1A_IW_SLC__1SSV_20150428T193151_20150428T193218_005688_0074C8_B700"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_71_km_nne_of_bharatpur_nepal-D121",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150506T001057_20150506T001125_005793_007722_AEB8",
+                "S1A_IW_SLC__1SSV_20150506T001032_20150506T001059_005793_007722_31DA"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150424T001054_20150424T001124_005618_007323_5E98"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_71_km_nne_of_bharatpur_nepal-D019",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150523T001851_20150523T001919_006041_007CD6_B48D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150417T001852_20150417T001922_005516_0070C1_460B"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_0_km_nnw_of_dhulikhel_nepal-D121",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150506T001057_20150506T001125_005793_007722_AEB8",
+                "S1A_IW_SLC__1SSV_20150506T001032_20150506T001059_005793_007722_31DA"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150424T001054_20150424T001124_005618_007323_5E98"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_67_21_km_sse_of_kodri_nepal-D121",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150506T001057_20150506T001125_005793_007722_AEB8",
+                "S1A_IW_SLC__1SSV_20150506T001032_20150506T001059_005793_007722_31DA"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150424T001054_20150424T001124_005618_007323_5E98"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_66_71_km_nne_of_bharatpur_nepal-A158",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150426T123013_20150426T123043_005655_007407_0C9D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150402T123012_20150402T123042_005305_006B6E_50E2"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_69_km_sw_of_yonakuni_japan-A069",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150502T100048_20150502T100118_005741_0075EF_16E2",
+                "S1A_IW_SLC__1SSV_20150502T100021_20150502T100050_005741_0075EF_3DBC"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150408T100047_20150408T100116_005391_006D9C_D11E",
+                "S1A_IW_SLC__1SSV_20150408T100019_20150408T100049_005391_006D9C_E443"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_69_km_sw_of_yonakuni_japan-D105",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20150422T215147_20150422T215217_005602_0072C2_3DC0"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150329T215146_20150329T215216_005252_006A2A_50DF"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_72_km_sw_of_yonakuni_japan-A069",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150502T100048_20150502T100118_005741_0075EF_16E2",
+                "S1A_IW_SLC__1SSV_20150502T100021_20150502T100050_005741_0075EF_3DBC"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150408T100047_20150408T100116_005391_006D9C_D11E",
+                "S1A_IW_SLC__1SSV_20150408T100019_20150408T100049_005391_006D9C_E443"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_61_72_km_sw_of_yonakuni_japan-D105",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20150422T215147_20150422T215217_005602_0072C2_3DC0"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150329T215146_20150329T215216_005252_006A2A_50DF"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_15_km_ese_of_punta_de_burica_panama-D084",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20141222T112222_20141222T112249_003831_004952_2221"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20141128T112222_20141128T112249_003481_004154_C807"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_60_15_km_ese_of_punta_de_burica_panama-D011",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20141217T111448_20141217T111501_003758_0047B3_030D",
+                "S1A_IW_SLC__1SSV_20141217T111420_20141217T111450_003758_0047B3_BA29"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20141123T111449_20141123T111502_003408_003F9A_EE9B",
+                "S1A_IW_SLC__1SSV_20141123T111421_20141123T111451_003408_003F9A_56E2"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]

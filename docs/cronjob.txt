@@ -1,0 +1,1 @@
+*/50 * * * * /bin/bash -c "source ~/.bashrc && source /miniforge3/etc/profile.d/conda.sh && conda activate coseis-sar && cd /coseis/scripts && git checkout main && python /coseis/scripts/coseis_sar.py --forward --pairing coseismic >> /coseis/scripts/log.txt 2>&1"

@@ -1,0 +1,17 @@
+name: coseis-sar
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - asf_search
+  - bs4
+  - python-dateutil
+  - requests
+  - folium
+  - geojson
+  - geopandas
+  - lxml
+  - premailer
+  - shapely
+  - tabulate
+  - yagmail

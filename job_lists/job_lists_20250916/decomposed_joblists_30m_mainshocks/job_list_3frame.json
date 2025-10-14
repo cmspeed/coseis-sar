@@ -1,0 +1,98 @@
+[
+    {
+        "name": "m_78_pazarcik_earthquake_kahramanmaras_earthquake_sequence-D094",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20230215T034311_20230215T034338_047241_05AB34_4676",
+                "S1A_IW_SLC__1SDV_20230215T034246_20230215T034314_047241_05AB34_0847",
+                "S1A_IW_SLC__1SDV_20230215T034221_20230215T034248_047241_05AB34_C76D"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20230203T034312_20230203T034339_047066_05A559_CBE8",
+                "S1A_IW_SLC__1SDV_20230203T034246_20230203T034314_047066_05A559_0568",
+                "S1A_IW_SLC__1SDV_20230203T034221_20230203T034248_047066_05A559_E4A0"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_76_41_km_sw_of_quellon_chile-A062",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20170114T235003_20170114T235030_014834_0182E3_D27E",
+                "S1A_IW_SLC__1SSV_20170114T234938_20170114T235005_014834_0182E3_75E4",
+                "S1A_IW_SLC__1SSV_20170114T234913_20170114T234940_014834_0182E3_33D4"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20161221T235005_20161221T235032_014484_017826_F82F",
+                "S1A_IW_SLC__1SSV_20161221T234940_20161221T235007_014484_017826_9FE1",
+                "S1A_IW_SLC__1SSV_20161221T234915_20161221T234942_014484_017826_BA92"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_83_48_km_w_of_illapel_chile-D156",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150917T100337_20150917T100405_007753_00AC77_9048",
+                "S1A_IW_SLC__1SSV_20150917T100312_20150917T100339_007753_00AC77_F0AA",
+                "S1A_IW_SLC__1SSV_20150917T100248_20150917T100315_007753_00AC77_2BC0"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150824T100337_20150824T100404_007403_00A2FE_C3A8",
+                "S1A_IW_SLC__1SSV_20150824T100312_20150824T100339_007403_00A2FE_A7E8",
+                "S1A_IW_SLC__1SSV_20150824T100247_20150824T100314_007403_00A2FE_1DFF"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_83_48_km_w_of_illapel_chile-A120",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SSV_20150926T232040_20150926T232107_007892_00B036_FE23",
+                "S1A_IW_SLC__1SSV_20150926T232015_20150926T232042_007892_00B036_57A4",
+                "S1A_IW_SLC__1SSV_20150926T231950_20150926T232017_007892_00B036_3FE0"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SSV_20150902T232039_20150902T232106_007542_00A6D3_14A8",
+                "S1A_IW_SLC__1SSV_20150902T232014_20150902T232041_007542_00A6D3_5183",
+                "S1A_IW_SLC__1SSV_20150902T231949_20150902T232017_007542_00A6D3_6B86"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]

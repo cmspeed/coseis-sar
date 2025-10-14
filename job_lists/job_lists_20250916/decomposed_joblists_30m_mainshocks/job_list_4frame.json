@@ -1,0 +1,106 @@
+[
+    {
+        "name": "m_88_2025_kamchatka_peninsula_russia_earthquake-D133",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250817T195022_20250817T195037_060580_0788FA_064A",
+                "S1A_IW_SLC__1SDV_20250817T194957_20250817T195024_060580_0788FA_E5A3",
+                "S1A_IW_SLC__1SDV_20250817T194932_20250817T194959_060580_0788FA_D03A",
+                "S1A_IW_SLC__1SDV_20250817T194906_20250817T194934_060580_0788FA_090B"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250712T195022_20250712T195037_060055_077614_E672",
+                "S1A_IW_SLC__1SDV_20250712T194958_20250712T195025_060055_077614_62FA",
+                "S1A_IW_SLC__1SDV_20250712T194933_20250712T195000_060055_077614_6F6E",
+                "S1A_IW_SLC__1SDV_20250712T194907_20250712T194935_060055_077614_D83F"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_77_2025_mandalay_burma_myanmar_earthquake-A143",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250408T114746_20250408T114813_058665_07438A_16C7",
+                "S1A_IW_SLC__1SDV_20250408T114722_20250408T114748_058665_07438A_9C91",
+                "S1A_IW_SLC__1SDV_20250408T114657_20250408T114724_058665_07438A_2508",
+                "S1A_IW_SLC__1SDV_20250408T114631_20250408T114659_058665_07438A_AE51"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250327T114746_20250327T114813_058490_073C5E_FF9E",
+                "S1A_IW_SLC__1SDV_20250327T114721_20250327T114748_058490_073C5E_B388",
+                "S1A_IW_SLC__1SDV_20250327T114656_20250327T114723_058490_073C5E_9807",
+                "S1A_IW_SLC__1SDV_20250327T114631_20250327T114658_058490_073C5E_E617"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_77_2025_mandalay_burma_myanmar_earthquake-D106",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250417T233302_20250417T233329_058803_074935_B232",
+                "S1A_IW_SLC__1SDV_20250417T233238_20250417T233305_058803_074935_A5C8",
+                "S1A_IW_SLC__1SDV_20250417T233213_20250417T233240_058803_074935_BE7F",
+                "S1A_IW_SLC__1SDV_20250417T233148_20250417T233215_058803_074935_6BF1"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250324T233302_20250324T233329_058453_073AF4_3076",
+                "S1A_IW_SLC__1SDV_20250324T233237_20250324T233304_058453_073AF4_A3F4",
+                "S1A_IW_SLC__1SDV_20250324T233212_20250324T233239_058453_073AF4_1194",
+                "S1A_IW_SLC__1SDV_20250324T233147_20250324T233214_058453_073AF4_BD46"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    },
+    {
+        "name": "m_77_2025_mandalay_burma_myanmar_earthquake-D033",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [
+                "S1A_IW_SLC__1SDV_20250331T232454_20250331T232521_058555_073F0F_F589",
+                "S1A_IW_SLC__1SDV_20250331T232429_20250331T232456_058555_073F0F_2E50",
+                "S1A_IW_SLC__1SDV_20250331T232404_20250331T232431_058555_073F0F_DFCA",
+                "S1A_IW_SLC__1SDV_20250331T232339_20250331T232406_058555_073F0F_C313"
+            ],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20250319T232453_20250319T232520_058380_07380D_9362",
+                "S1A_IW_SLC__1SDV_20250319T232428_20250319T232455_058380_07380D_9F2A",
+                "S1A_IW_SLC__1SDV_20250319T232404_20250319T232431_058380_07380D_E5D3",
+                "S1A_IW_SLC__1SDV_20250319T232339_20250319T232406_058380_07380D_A0DF"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]
