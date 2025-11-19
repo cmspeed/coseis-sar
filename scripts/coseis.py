@@ -34,10 +34,14 @@ USGS_api_daily = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson"  # USGS Earthquake API - Monthly
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
-ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param"
+#coastline_api = "https://raw.githubusercontent.com/nvkelso/natural-earth-geojson/master/geojson/ne_110m_coastline.geojson"
+ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param" # ASF DAAC API endpoint
+CMR_API_URL = "https://cmr.earthdata.nasa.gov/search/granules.json" # NASA CMR API endpoint
 root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
 # Global variables
+OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
+
 PENDING_EARTHQUAKES_FILE = "pending_earthquakes.json"
 PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
                       'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
@@ -205,11 +209,20 @@ def get_coastline(coastline_api):
     """
     try:
         # Fetch data from the specified API
-        response = requests.get(coastline_api)
-        response.raise_for_status()  # Raise error if request fails
+        # response = requests.get(coastline_api)
+        # response.raise_for_status()  # Raise error if request fails
         
         # Parse the response as GeoJSON
-        coastline = geojson.loads(response.text)
+        # coastline = geojson.loads(response.text)
+        
+        try:
+            with open('/u/trappist-r0/colespeed/work/coseis/scripts/coastline.geojson', 'r') as f:
+                coastline = geojson.load(f)
+            print("Coastline data loaded successfully!")
+        except FileNotFoundError:
+            print("Error: The file was not found at the specified path.")
+        except Exception as e:
+            print(f"An error occurred during loading: {e}")
 
         # Extract the LineString features from the GeoJSON data
         features = []
@@ -749,6 +762,425 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
                 return None
 
 
+def search_copernicus_public(aoi_polygon, start_date, end_date):
+    """
+    Searches the Copernicus Data Space Ecosystem (CDSE) via public OData API.
+    NO CREDENTIALS REQUIRED.
+    Returns a list of Sentinel-2 L1C SAFE product names.
+    """
+    # Convert polygon to WKT for the query
+    wkt = aoi_polygon.wkt
+    
+    # API Endpoint
+    base_url = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
+    
+    # Construct OData Filter
+    # 1. Collection: Sentinel-2
+    # 2. Product Type: MSIL1C (Level-1C) - checked via Name to be safe
+    # 3. Intersects AOI (Spatial)
+    # 4. Date Range (Temporal)
+    # 5. Cloud Cover < Threshold (Quality)
+    
+    filter_query = (
+        f"Collection/Name eq 'SENTINEL-2' and "
+        f"contains(Name,'MSIL1C') and "
+        f"OData.CSC.Intersects(area=geography'SRID=4326;{wkt}') and "
+        f"ContentDate/Start ge {start_date} and "
+        f"ContentDate/Start le {end_date} and "
+        f"Attributes/OData.CSC.DoubleAttribute/any(att:att/Name eq 'cloudCover' and att/Value le {OPTICAL_CLOUD_THRESHOLD})"
+    )
+    
+    params = {
+        "$filter": filter_query,
+        "$orderby": "ContentDate/Start asc",
+        "$top": 1000, # Fetch up to 1000 per request
+        "$select": "Name,ContentDate" # We only need the SAFE Name and Date
+    }
+    
+    print(f"Searching Copernicus (Public OData) for Sentinel-2 L1C...")
+    
+    granules = []
+    next_link = base_url
+    
+    session = requests.Session()
+    
+    while next_link:
+        try:
+            # If it's the first page, use params. If next_link, params are in the URL already.
+            if next_link == base_url:
+                response = session.get(next_link, params=params)
+            else:
+                response = session.get(next_link)
+                
+            response.raise_for_status()
+            data = response.json()
+            
+            products = data.get('value', [])
+            for prod in products:
+                name = prod.get('Name') # This is the SAFE file name
+                start = prod.get('ContentDate', {}).get('Start')
+                
+                # Extract platform for metadata (S2A or S2B)
+                platform = "sentinel-2"
+                if name.startswith("S2A"):
+                    platform = "sentinel-2a"
+                elif name.startswith("S2B"):
+                    platform = "sentinel-2b"
+                    
+                granules.append({
+                    "granule_id": name, # e.g. S2A_MSIL1C_2025...
+                    "date": start.split("T")[0],
+                    "datetime": start,
+                    "cloud_cover": 0, # Placeholder (already filtered by API)
+                    "platform": platform
+                })
+            
+            # Handle pagination
+            next_link = data.get('@odata.nextLink')
+            
+        except Exception as e:
+            print(f"Error searching Public OData: {e}")
+            if "400" in str(e):
+                print("  Tip: Query might be too complex (AOI WKT too long).")
+            break
+
+    print(f"  Found {len(granules)} Sentinel-2 products.")
+    return granules
+
+
+# def find_optical_pairs(optical_scenes, rupture_time, title, job_list=True):
+#     """
+#     Generate Optical Pairs (Coseismic) grouped by Relative Orbit (Track).
+#     This ensures full coverage even if the AOI spans multiple satellite paths 
+#     acquired on different days.
+#     """
+#     rupture_dt = convert_time(rupture_time)
+    
+#     # Data Structure: 
+#     # { 
+#     #   "R076": { "2025-01-06": [granule1, granule2], "2025-01-11": [granule3] },
+#     #   "R033": { "2025-01-05": [granule4], ... }
+#     # }
+#     orbit_groups = defaultdict(lambda: defaultdict(list))
+    
+#     for scene in optical_scenes:
+#         granule_id = scene['granule_id']
+#         acq_date = scene['date']
+        
+#         # Extract Relative Orbit (Track) from SAFE Name
+#         # Format: S2A_MSIL1C_..._Nxxxx_Rxxx_Txxxxx...
+#         match = re.search(r'_R(\d{3})_', granule_id)
+#         if match:
+#             orbit_id = match.group(1) # e.g., "076"
+#         else:
+#             print(f"Warning: Could not parse orbit from {granule_id}. Skipping.")
+#             continue
+            
+#         orbit_groups[orbit_id][acq_date].append(scene)
+
+#     jobs = []
+#     print(f"  Found {len(orbit_groups)} unique satellite tracks (orbits) intersecting AOI.")
+
+#     # Process each orbit independently
+#     for orbit_id, dates_dict in orbit_groups.items():
+        
+#         sorted_dates = sorted(dates_dict.keys())
+        
+#         pre_dates = []
+#         post_dates = []
+        
+#         for d in sorted_dates:
+#             d_dt = datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+#             if d_dt < rupture_dt:
+#                 pre_dates.append(d)
+#             elif d_dt > rupture_dt:
+#                 post_dates.append(d)
+
+#         if not pre_dates or not post_dates:
+#             print(f"  Orbit {orbit_id}: Incomplete temporal coverage (Pre: {len(pre_dates)}, Post: {len(post_dates)}). Skipping.")
+#             continue
+
+#         # Select "Coseismic" Pair for this specific orbit
+#         primary_date = pre_dates[-1]   # Last date before rupture
+#         secondary_date = post_dates[0] # First date after rupture
+        
+#         primary_scenes = dates_dict[primary_date]
+#         secondary_scenes = dates_dict[secondary_date]
+        
+#         primary_ids = [s['granule_id'] for s in primary_scenes]
+#         secondary_ids = [s['granule_id'] for s in secondary_scenes]
+
+#         if job_list:
+#             # Job Name includes Orbit ID to distinguish them
+#             job_name = f"{title}-S2-R{orbit_id}-{primary_date}_{secondary_date}"
+            
+#             job = {
+#                 "name": job_name,
+#                 "job_type": "ARIA_OPTICAL_COSEIS",
+#                 "job_parameters": {
+#                     "granules": primary_ids,
+#                     "secondary_granules": secondary_ids,
+#                     "platform": "sentinel-2",
+#                     "orbit_number": orbit_id,
+#                     "ref_date": primary_date,
+#                     "sec_date": secondary_date,
+#                     "cloud_cover_filter": OPTICAL_CLOUD_THRESHOLD 
+#                 }
+#             }
+#             jobs.append(job)
+            
+#     return jobs
+
+def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_list=True):
+    """
+    Generate Optical Pairs grouped by Relative Orbit.
+    Handles multiple platforms on the same day by treating them as separate candidates.
+    Rank Priority: 
+      1. Max Unique MGRS Tile Count (Spatial Coverage)
+      2. Low Cloud Cover
+      3. Time Delta (Proximity to event)
+    """
+    rupture_dt = convert_time(rupture_time)
+
+    # 1. Group by Orbit -> Date
+    orbit_groups = defaultdict(lambda: defaultdict(list))
+    
+    for scene in optical_scenes:
+        granule_id = scene['granule_id']
+        
+        # Extract Orbit (Rxxx)
+        match = re.search(r'_R(\d{3})_', granule_id)
+        if match:
+            orbit_id = match.group(1)
+            orbit_groups[orbit_id][scene['date']].append(scene)
+
+    jobs = []
+    print(f"  Found {len(orbit_groups)} unique satellite tracks.")
+
+    for orbit_id, dates_dict in orbit_groups.items():
+        
+        pre_candidates = []
+        post_candidates = []
+        
+        # Iterate over every date found for this orbit
+        for date_str, scenes_on_date in dates_dict.items():
+            date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            
+            # --- SPLIT BY PLATFORM ---
+            # If S2A and S2C both acquired on this day, treat them as separate options.
+            platforms_on_date = defaultdict(list)
+            for s in scenes_on_date:
+                platforms_on_date[s['platform']].append(s)
+            
+            # Evaluate each platform separately
+            for platform, scenes in platforms_on_date.items():
+                
+                # Extract Unique MGRS Tiles (Txxxxx)
+                # This prevents duplicate files (reprocessing) from artificially inflating the count
+                unique_tiles = set()
+                clean_scenes = []
+                
+                # Sort scenes by length of name (heuristic: sometimes shorter is better/standard) 
+                # or just keep all. Let's deduplicate by Tile ID to ensure we send clean lists.
+                # We usually want the latest processing version if duplicates exist.
+                # Standard lexicographical sort usually puts higher 'N' (processing) numbers last.
+                scenes.sort(key=lambda x: x['granule_id'], reverse=True) 
+                
+                seen_tiles = set()
+                for s in scenes:
+                    # Regex to find Txxxxx
+                    t_match = re.search(r'_T(\w{5})_', s['granule_id'])
+                    if t_match:
+                        tile_id = t_match.group(1)
+                        unique_tiles.add(tile_id)
+                        
+                        # Simple Dedup: Only keep the first file encountered for this Tile ID
+                        # (Since we sorted reverse, this keeps the latest Nxxxx processing baseline)
+                        if tile_id not in seen_tiles:
+                            clean_scenes.append(s)
+                            seen_tiles.add(tile_id)
+                
+                # Calculate Metrics
+                tile_count = len(unique_tiles)
+                avg_cc = sum(s['cloud_cover'] for s in clean_scenes) / len(clean_scenes) if clean_scenes else 100
+                delta_days = abs((date_dt - rupture_dt).days)
+                
+                candidate = {
+                    'date': date_str,
+                    'scenes': clean_scenes,
+                    'platform': platform,
+                    'tile_count': tile_count, # Primary Sort Key
+                    'cc': avg_cc,             # Secondary Sort Key
+                    'delta': delta_days       # Tertiary Sort Key
+                }
+                
+                if date_dt < rupture_dt:
+                    pre_candidates.append(candidate)
+                elif date_dt > rupture_dt:
+                    post_candidates.append(candidate)
+
+        if not pre_candidates or not post_candidates:
+            continue
+
+        # --- RANKING ---
+        # Sort keys: 
+        # 1. -tile_count (Higher is better)
+        # 2. cc (Lower is better)
+        # 3. delta (Lower/Closer is better)
+        
+        pre_candidates.sort(key=lambda x: (-x['tile_count'], x['cc'], x['delta']))
+        best_pre = pre_candidates[0]
+        
+        post_candidates.sort(key=lambda x: (-x['tile_count'], x['cc'], x['delta']))
+        best_post = post_candidates[0]
+        
+        print(f"  Orbit {orbit_id}:")
+        print(f"    Best Pre : {best_pre['date']} ({best_pre['platform'].upper()}) - {best_pre['tile_count']} Tiles - {best_pre['cc']:.1f}% Cloud - {best_pre['delta']} days away")
+        print(f"    Best Post: {best_post['date']} ({best_post['platform'].upper()}) - {best_post['tile_count']} Tiles - {best_post['cc']:.1f}% Cloud - {best_post['delta']} days away")
+
+        if job_list:
+            # Job Name
+            job_name = f"{title}-S2-R{orbit_id}-{best_pre['date']}_{best_post['date']}"
+            
+            primary_ids = [s['granule_id'] for s in best_pre['scenes']]
+            secondary_ids = [s['granule_id'] for s in best_post['scenes']]
+            
+            # We use the platform of the Primary image for the metadata, though they might differ slightly
+            
+            job = {
+                "name": job_name,
+                "job_type": "ARIA_OPTICAL_COSEIS",
+                "job_parameters": {
+                    "granules": primary_ids,
+                    "secondary_granules": secondary_ids,
+                    "platform": "sentinel-2", # Generic identifier
+                    "orbit_number": orbit_id,
+                    "ref_date": best_pre['date'],
+                    "sec_date": best_post['date'],
+                    "cloud_cover_filter": OPTICAL_CLOUD_THRESHOLD,
+                    "notes": f"Pre: {best_pre['platform']} ({len(primary_ids)} files), Post: {best_post['platform']} ({len(secondary_ids)} files)"
+                }
+            }
+            jobs.append(job)
+            
+    return jobs
+
+### THIS VERSION RESULTS IN THE MOST GRANULES PER DAY, BUT THAT CAN INCLUDE DATA FROM MULTIPLE PLATFORMS IN THE SAME JOB (E.G., S2A + S2B).
+# def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_list=True):
+#     """
+#     Generate Optical Pairs (Coseismic) grouped by Relative Orbit.
+#     Selection Logic: Prioritizes Maximum AOI Coverage > Lowest Cloud Cover > Temporal Proximity.
+#     """
+#     rupture_dt = convert_time(rupture_time)
+#     aoi_area = aoi_polygon.area
+
+#     # 1. Group by Orbit -> Date
+#     orbit_groups = defaultdict(lambda: defaultdict(list))
+    
+#     # We need MGRS tile geometries to calculate coverage. 
+#     # Since we don't have the tile geometry in the metadata, we approximate or use the bbox if available.
+#     # Ideally, we'd query the grid, but for now, let's use a heuristic: count of granules.
+#     # BETTER: The OData API *does* provide footprints if we ask. 
+#     # For now, let's assume: More granules = Better Coverage. 
+    
+#     for scene in optical_scenes:
+#         granule_id = scene['granule_id']
+        
+#         match = re.search(r'_R(\d{3})_', granule_id)
+#         if match:
+#             orbit_id = match.group(1)
+#             orbit_groups[orbit_id][scene['date']].append(scene)
+
+#     jobs = []
+#     print(f"  Found {len(orbit_groups)} unique satellite tracks.")
+
+#     for orbit_id, dates_dict in orbit_groups.items():
+        
+#         # Analyze all potential dates for this orbit
+#         pre_candidates = []
+#         post_candidates = []
+        
+#         for date_str, scenes in dates_dict.items():
+#             date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            
+#             # Metric 1: Granule Count (Proxy for coverage)
+#             # Metric 2: Average Cloud Cover
+#             # Metric 3: Time delta (days from rupture)
+            
+#             count = len(scenes)
+#             avg_cc = sum(s['cloud_cover'] for s in scenes) / count
+#             delta_days = abs((date_dt - rupture_dt).days)
+            
+#             # Structure: (Date, Scenes, Count, CloudCover, DeltaDays)
+#             candidate = {
+#                 'date': date_str,
+#                 'scenes': scenes,
+#                 'count': count,
+#                 'cc': avg_cc,
+#                 'delta': delta_days
+#             }
+            
+#             if date_dt < rupture_dt:
+#                 pre_candidates.append(candidate)
+#             elif date_dt > rupture_dt:
+#                 post_candidates.append(candidate)
+
+#         if not pre_candidates or not post_candidates:
+#             continue
+
+#         # --- RANKING LOGIC ---
+#         # We want: Max Count, then Low Cloud, then Low Delta.
+#         # Python sorts tuples element-by-element. We use negative values for maximization.
+        
+#         # Sort Pre-Seismic
+#         pre_candidates.sort(key=lambda x: (
+#             -x['count'],   # 1. Maximize Granule Count (Primary)
+#             x['cc'],       # 2. Minimize Cloud Cover (Secondary)
+#             x['delta']     # 3. Minimize Time Distance (Tertiary)
+#         ))
+#         best_pre = pre_candidates[0]
+        
+#         # Sort Post-Seismic
+#         post_candidates.sort(key=lambda x: (
+#             -x['count'],   # 1. Maximize Granule Count
+#             x['cc'],       # 2. Minimize Cloud Cover
+#             x['delta']     # 3. Minimize Time Distance
+#         ))
+#         best_post = post_candidates[0]
+        
+#         # Validation: If the 'best' date has significantly fewer granules than the max possible
+#         # for this orbit, it might be a partial pass. But sorting by -count handles this generally.
+        
+#         # Debugging Output to verify logic
+#         print(f"  Orbit {orbit_id} Selection:")
+#         print(f"    Pre : {best_pre['date']} (Count: {best_pre['count']}, CC: {best_pre['cc']:.1f}%, Days: {best_pre['delta']})")
+#         print(f"    Post: {best_post['date']} (Count: {best_post['count']}, CC: {best_post['cc']:.1f}%, Days: {best_post['delta']})")
+
+#         if job_list:
+#             job_name = f"{title}-S2-R{orbit_id}-{best_pre['date']}_{best_post['date']}"
+            
+#             primary_ids = [s['granule_id'] for s in best_pre['scenes']]
+#             secondary_ids = [s['granule_id'] for s in best_post['scenes']]
+            
+#             job = {
+#                 "name": job_name,
+#                 "job_type": "ARIA_OPTICAL_COSEIS",
+#                 "job_parameters": {
+#                     "granules": primary_ids,
+#                     "secondary_granules": secondary_ids,
+#                     "platform": "sentinel-2",
+#                     "orbit_number": orbit_id,
+#                     "ref_date": best_pre['date'],
+#                     "sec_date": best_post['date'],
+#                     "cloud_cover_filter": OPTICAL_CLOUD_THRESHOLD,
+#                     "notes": f"Selected based on max coverage. Pre-CC: {best_pre['cc']:.1f}%, Post-CC: {best_post['cc']:.1f}%"
+#                 }
+#             }
+#             jobs.append(job)
+            
+#     return jobs
+
+
 def generate_pairs(pairs, mode):
     """
     Generate pairs of SLCs based on the selected pairing mode.
@@ -1057,7 +1489,7 @@ def send_email(subject, body, attachment=None, recipients=None):
     return
 
 
-def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90):
+def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar'):
     """
     Process earthquake event and generate the necessary SLC pairs for InSAR processing.
     :param eq: dictionary containing earthquake data
@@ -1065,6 +1497,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90):
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
     :param resolution: Output resolution for the topsApp processing, default is 90m
+    :param mode: 'sar' for SAR processing, 'optical' for optical processing
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
     title = eq.get('title', '')
@@ -1094,34 +1527,49 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90):
     with open(f'{title}_AOI.geojson', 'w') as f:
         geojson.dump(aoi, f, indent=2)
 
-    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+    all_jobs = []
 
-    # Convert frame_dataframe to a GeoDataFrame and save as geojson
-    frame_gdf = gpd.GeoDataFrame(frame_dataframe, geometry="geometry", crs="EPSG:4326")
+    if mode == 'sar':
+        path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+        
+        # Frame visualization logic (SAR specific)
+        if not job_list:
+            frame_gdf = gpd.GeoDataFrame(frame_dataframe, geometry="geometry", crs="EPSG:4326")
+            for col in frame_gdf.columns:
+                if frame_gdf[col].apply(lambda x: isinstance(x, list)).any():
+                    frame_gdf[col] = frame_gdf[col].astype(str)
+            frame_gdf.to_file(f"{title}_frames.geojson", driver="GeoJSON")
+            make_interactive_map(frame_dataframe, eq.get('title', ''), eq.get('coordinates', []), eq.get('url', ''))
 
-    # Convert any list-type columns to strings
-    for col in frame_gdf.columns:
-        if frame_gdf[col].apply(lambda x: isinstance(x, list)).any():
-            frame_gdf[col] = frame_gdf[col].astype(str)
-    
-    # Save the GeoDataFrame to a GeoJSON file
-    frame_geojson_filename = f"{title}_frames.geojson"
-    frame_gdf.to_file(frame_geojson_filename, driver="GeoJSON")
+        for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
+            frame_numbers = list(set(fn[0] for fn in frame_numbers))
+            SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
+            isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, 
+                                                           title, pairing_mode, job_list, resolution)
+            all_jobs.append(isce_jobs)
 
-    if not job_list:
-        # Make an interactive map of the intersecting frames to attach to the email
-        map_filename = make_interactive_map(frame_dataframe, eq.get('title', ''), 
-                            eq.get('coordinates', []),
-                            eq.get('url', ''))
-    
-    eq_jsons = []
-    for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
-        frame_numbers = list(set(fn[0] for fn in frame_numbers))
-        SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
-        isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, 
-                                                       title, pairing_mode, job_list, resolution)
-        eq_jsons.append(isce_jobs)
-    return eq_jsons
+    elif mode == 'optical':
+        rupture_time = eq.get('time')
+        rupture_dt = convert_time(rupture_time)
+        
+        # Search Window: -90 to +90 days
+        # OData expects ISO format like 2024-01-01T00:00:00Z
+        start_search = (rupture_dt - timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_search = (rupture_dt + timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        # 1. Search for Sentinel-2 L1C (No Credentials)
+        s2_scenes = search_copernicus_public(aoi, start_search, end_search)
+        
+        # 2. Pair them up
+        s2_jobs = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
+        
+        if s2_jobs:
+            print(f"Generated {len(s2_jobs)} Sentinel-2 jobs.")
+            all_jobs.append(s2_jobs)
+        else:
+            print("No optical pairs found.")
+
+    return all_jobs
 
 
 def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
@@ -1384,7 +1832,7 @@ def main_forward(pairing_mode=None):
     check_pending_slcs(pairing_mode, args.resolution)
 
 
-def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False, resolution=90):
+def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False, resolution=90, mode='sar'):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -1396,6 +1844,7 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing.
     :param job_list: If True, create a list of jobs in HYP3 format for cloud processing.
     :param resolution: Output resolution for the topsApp processing, default is 90m
+    :param mode: 'sar' for SAR processing, 'optical' for optical processing
     """
     if start_date and not end_date:
         print('=========================================')
@@ -1420,42 +1869,46 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
             jobs_dict = []
             for eq in eq_sig:
                 try:
-                    eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list, resolution)
-                except:
+                    eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
+                except Exception as e:
+                    print(f"Error processing {eq['title']}: {e}")
                     continue
 
                 if job_list:    # produce the list of jobs needed for HYPE3 processing, but do not run any jobs
                     for i, eq_json in enumerate(eq_jsons):
-                        for j, json_data in enumerate(eq_json): 
-                            if filter_S1C(json_data):  # apply filter to remove jobs contain Sentinel-1C granules
+                        for j, json_data in enumerate(eq_json):
+                            if mode == 'sar':
+                                if filter_S1C(json_data):  # apply filter to remove jobs contain Sentinel-1C granules
+                                    jobs_dict.append(json_data)
+                            else:
                                 jobs_dict.append(json_data)
 
-                else:           # run dockerizedTopsApp locally
+                else:   # run dockerizedTopsApp locally
                     
-                    # Create directories for each group of SLCs based on the JSON data provided
-                    dirnames, total = create_directories_from_json(eq_jsons, root_dir)
-                    
-                    for i, eq_json in enumerate(eq_jsons):
-                        for j, json_data in enumerate(eq_json):
-                            
-                            # Navigate to working directory for job
-                            working_dir = dirnames[i][j]
-                            os.chdir(working_dir)
+                    if mode == 'sar':
+                        # Create directories for each group of SLCs based on the JSON data provided
+                        dirnames, total = create_directories_from_json(eq_jsons, root_dir)
+                        
+                        for i, eq_json in enumerate(eq_jsons):
+                            for j, json_data in enumerate(eq_json):
+                                
+                                # Navigate to working directory for job
+                                working_dir = dirnames[i][j]
+                                os.chdir(working_dir)
 
-                            # Add json to the working directory 
-                            with open('isce_params.json', 'w') as f:
-                                json.dump(json_data, f, indent=4)
-                            
-                            print(f'working directory: {os.getcwd()}')
-                            print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                            try:
-                                run_dockerized_topsApp(json_data)
-                            except:
-                                print('Error running dockerized topsApp')
-                                continue
-                
-                                    # Get current time to use for naming
-                    current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+                                # Add json to the working directory 
+                                with open('isce_params.json', 'w') as f:
+                                    json.dump(json_data, f, indent=4)
+                                
+                                print(f'working directory: {os.getcwd()}')
+                                print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
+                                try:
+                                    run_dockerized_topsApp(json_data)
+                                except:
+                                    print('Error running dockerized topsApp')
+                                    continue
+                    else:
+                        print("Optical processing mode selected. Running jobs locally is not implemented yet.")
 
             if job_list and jobs_dict:  # Write only once after all earthquakes are processed
                 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
@@ -1489,6 +1942,7 @@ if __name__ == "__main__":
     parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for historic processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
     parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
+    parser.add_argument("--mode", choices=["sar", "optical"], default="sar", help="Processing mode: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
 
     args = parser.parse_args()
 
@@ -1518,7 +1972,7 @@ if __name__ == "__main__":
             parser.print_help()
             exit(1)
 
-        main_historic(start_date, end_date, aoi=aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution)
+        main_historic(start_date, end_date, aoi=aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, mode=args.mode)
 
     elif args.forward:
         if args.dates:
