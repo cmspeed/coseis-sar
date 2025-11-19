@@ -475,10 +475,6 @@ def make_aoi(coordinates):
     # Create the square polygon
     AOI = Polygon(square_coords)
 
-    # Write to a geojson file
-    with open('AOI.geojson', 'w') as f:
-        geojson.dump(AOI, f, indent=2)
-
     print(f"Area of Interest (AOI) created: {AOI}")
     print('=========================================')
     return AOI
@@ -1094,6 +1090,10 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90):
     else:
         aoi = make_aoi(coords) # Create AOI if not provided
 
+    # Write AOI to a geojson file
+    with open(f'{title}_AOI.geojson', 'w') as f:
+        geojson.dump(aoi, f, indent=2)
+
     path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
 
     # Convert frame_dataframe to a GeoDataFrame and save as geojson
@@ -1312,6 +1312,10 @@ def main_forward(pairing_mode=None):
                 
                 # Initial AOI creation (a 1-degree box)
                 aoi = make_aoi(coords)
+
+                # Write AOI to a geojson file
+                with open(f'{title}_AOI.geojson', 'w') as f:
+                    geojson.dump(aoi, f, indent=2)
 
                 # Get path/frame numbers for the initial AOI
                 path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
