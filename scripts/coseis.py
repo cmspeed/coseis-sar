@@ -34,13 +34,13 @@ USGS_api_daily = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_
 USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson"  # USGS Earthquake API - Monthly
 USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
-#coastline_api = "https://raw.githubusercontent.com/nvkelso/natural-earth-geojson/master/geojson/ne_110m_coastline.geojson"
+# coastline_api = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/refs/heads/master/geojson/ne_50m_coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param" # ASF DAAC API endpoint
 CMR_API_URL = "https://cmr.earthdata.nasa.gov/search/granules.json" # NASA CMR API endpoint
 root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
 # Global variables
-OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
+OPTICAL_CLOUD_THRESHOLD = 0.20  # Maximum cloud cover percentage for optical data
 
 PENDING_EARTHQUAKES_FILE = "pending_earthquakes.json"
 PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
@@ -209,21 +209,12 @@ def get_coastline(coastline_api):
     """
     try:
         # Fetch data from the specified API
-        # response = requests.get(coastline_api)
-        # response.raise_for_status()  # Raise error if request fails
+        response = requests.get(coastline_api)
+        response.raise_for_status()  # Raise error if request fails
         
         # Parse the response as GeoJSON
-        # coastline = geojson.loads(response.text)
+        coastline = geojson.loads(response.text)
         
-        try:
-            with open('/u/trappist-r0/colespeed/work/coseis/scripts/coastline.geojson', 'r') as f:
-                coastline = geojson.load(f)
-            print("Coastline data loaded successfully!")
-        except FileNotFoundError:
-            print("Error: The file was not found at the specified path.")
-        except Exception as e:
-            print(f"An error occurred during loading: {e}")
-
         # Extract the LineString features from the GeoJSON data
         features = []
         for feature in coastline["features"]:
