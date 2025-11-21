@@ -858,6 +858,7 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
     """
     Generate Optical Pairs grouped by Relative Orbit.
     Prioritizes: 1. True Coverage Area %, 2. Cloud Cover, 3. Time.
+    Returns: (jobs, scene_features)
     """
     rupture_dt = convert_time(rupture_time)
     aoi_area = aoi_polygon.area
@@ -873,23 +874,23 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
             orbit_groups[orbit_id][scene['date']].append(scene)
 
     jobs = []
-    print(f"  Found {len(orbit_groups)} unique satellite tracks.")
+    scene_features = [] 
+    
+    print(f"Found {len(orbit_groups)} unique satellite tracks.")
 
     for orbit_id, dates_dict in orbit_groups.items():
         pre_candidates = []
         post_candidates = []
         
-        # Evaluate every date for this orbit
         for date_str, scenes_on_date in dates_dict.items():
             date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
             
-            # Split by Platform (S2A vs S2B vs S2C)
+            # Split by Platform (S2A/S2B/S2C)
             platforms_on_date = defaultdict(list)
             for s in scenes_on_date:
                 platforms_on_date[s['platform']].append(s)
             
             for platform, scenes in platforms_on_date.items():
-                # Deduplicate tiles (Keep best version per Tile ID)
                 unique_scenes = []
                 seen_tiles = set()
                 scenes.sort(key=lambda x: x['granule_id'], reverse=True)
@@ -910,11 +911,12 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
                                 else:
                                     combined_poly = combined_poly.union(s['footprint'])
 
-                # --- CALCULATE COVERAGE ---
+                # Calculate Coverage
                 coverage_pct = 0.0
                 if combined_poly and aoi_polygon:
                     try:
-                        intersection = combined_poly.intersection(aoi_polygon)
+                        clean_poly = combined_poly.buffer(0)
+                        intersection = clean_poly.intersection(aoi_polygon)
                         coverage_pct = (intersection.area / aoi_area) * 100.0
                     except Exception:
                         pass
@@ -927,7 +929,7 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
                     'date': date_str,
                     'scenes': unique_scenes,
                     'platform': platform,
-                    'coverage': coverage_pct, # Primary Ranking Key
+                    'coverage': coverage_pct, 
                     'tile_count': tile_count,
                     'cc': avg_cc,             
                     'delta': delta_days       
@@ -950,30 +952,45 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
         
         print(f"  Orbit {orbit_id}: Pre={best_pre['date']} ({best_pre['coverage']:.1f}% Cov), Post={best_post['date']} ({best_post['coverage']:.1f}% Cov)")
 
+        # Build GeoJSON Features
+        for stage, candidate in [("Pre-Event", best_pre), ("Post-Event", best_post)]:
+            for scene in candidate['scenes']:
+                if scene.get('footprint'):
+                    feature = {
+                        "type": "Feature",
+                        "geometry": mapping(scene['footprint']),
+                        "properties": {
+                            "earthquake": title,
+                            "role": stage,
+                            "date": candidate['date'],
+                            "orbit": orbit_id,
+                            "platform": candidate['platform'],
+                            "granule_id": scene['granule_id'],
+                            "cloud_cover": scene['cloud_cover'],
+                            "coverage_pct": round(candidate['coverage'], 1)
+                        }
+                    }
+                    scene_features.append(feature)
+
         if job_list:
+            # Job Name includes metadata
             job_name = f"{title}-S2-R{orbit_id}-{best_pre['date']}_{best_post['date']}"
-            primary_ids = [s['granule_id'] for s in best_pre['scenes']]
-            secondary_ids = [s['granule_id'] for s in best_post['scenes']]
+            
+            # Strip .SAFE extension from IDs
+            primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
+            secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
             
             job = {
                 "name": job_name,
-                "job_type": "ARIA_OPTICAL_COSEIS",
+                "job_type": "AUTORIFT",
                 "job_parameters": {
-                    "granules": primary_ids,
-                    "secondary_granules": secondary_ids,
-                    "platform": "sentinel-2",
-                    "orbit_number": orbit_id,
-                    "ref_date": best_pre['date'],
-                    "sec_date": best_post['date'],
-                    "cloud_cover_filter": OPTICAL_CLOUD_THRESHOLD,
-                    "coverage_pre": round(best_pre['coverage'], 1),
-                    "coverage_post": round(best_post['coverage'], 1)
+                    "reference": primary_ids,
+                    "secondary": secondary_ids
                 }
             }
             jobs.append(job)
             
-    return jobs
-
+    return jobs, scene_features
 
 def generate_pairs(pairs, mode):
     """
@@ -1346,20 +1363,25 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
         rupture_time = eq.get('time')
         rupture_dt = convert_time(rupture_time)
         
-        # Search Window: -90 to +90 days
-        # OData expects ISO format like 2024-01-01T00:00:00Z
         start_search = (rupture_dt - timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
         end_search = (rupture_dt + timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        # 1. Search for Sentinel-2 L1C (No Credentials)
         s2_scenes = search_copernicus_public(aoi, start_search, end_search)
         
-        # 2. Pair them up
-        s2_jobs = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
+        # UPDATED: Unpack both return values
+        s2_jobs, s2_features = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
         
         if s2_jobs:
             print(f"Generated {len(s2_jobs)} Sentinel-2 jobs.")
             all_jobs.append(s2_jobs)
+            
+            # NEW: Save the footprints to GeoJSON
+            if s2_features:
+                fc = {"type": "FeatureCollection", "features": s2_features}
+                scene_filename = f"{title}_selected_scenes.geojson"
+                with open(scene_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved selected scene footprints to {scene_filename}")
         else:
             print("No optical pairs found.")
 
