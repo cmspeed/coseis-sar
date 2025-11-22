@@ -12,6 +12,7 @@ import folium
 import geojson
 import geopandas as gpd
 import csv
+from shapely import wkt
 from shapely.geometry import mapping, shape, box, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from shapely.ops import unary_union
 import subprocess
@@ -39,7 +40,7 @@ CMR_API_URL = "https://cmr.earthdata.nasa.gov/search/granules.json" # NASA CMR A
 root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 
 # Global variables
-OPTICAL_CLOUD_THRESHOLD = 0.20  # Maximum cloud cover percentage for optical data
+OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
 
 PENDING_EARTHQUAKES_FILE = "pending_earthquakes.json"
 PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
@@ -754,84 +755,99 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
 
 def search_copernicus_public(aoi_polygon, start_date, end_date):
     """
-    Searches the Copernicus Data Space Ecosystem (CDSE) via public OData API.
-    NO CREDENTIALS REQUIRED.
-    Returns a list of Sentinel-2 L1C SAFE product names.
+    Searches CDSE Public OData.
+    Fetches 'Footprint' to calculate true coverage area.
     """
-    # Convert polygon to WKT for the query
-    wkt = aoi_polygon.wkt
+    # OData requires strict WKT: "POLYGON((...))" (no space)
+    wkt_aoi = aoi_polygon.wkt.replace("POLYGON ((", "POLYGON((")
     
-    # API Endpoint
     base_url = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
     
-    # Construct OData Filter
-    # 1. Collection: Sentinel-2
-    # 2. Product Type: MSIL1C (Level-1C) - checked via Name to be safe
-    # 3. Intersects AOI (Spatial)
-    # 4. Date Range (Temporal)
-    # 5. Cloud Cover < Threshold (Quality)
-    
+    # Filter: Sentinel-2 L1C, Intersects AOI, Date Range, Cloud Cover < 20.0
     filter_query = (
         f"Collection/Name eq 'SENTINEL-2' and "
         f"contains(Name,'MSIL1C') and "
-        f"OData.CSC.Intersects(area=geography'SRID=4326;{wkt}') and "
+        f"OData.CSC.Intersects(area=geography'SRID=4326;{wkt_aoi}') and "
         f"ContentDate/Start ge {start_date} and "
         f"ContentDate/Start le {end_date} and "
         f"Attributes/OData.CSC.DoubleAttribute/any(att:att/Name eq 'cloudCover' and att/Value le {OPTICAL_CLOUD_THRESHOLD})"
     )
     
+    # Removing $select ensures we get the 'Footprint' field
     params = {
         "$filter": filter_query,
         "$orderby": "ContentDate/Start asc",
-        "$top": 1000, # Fetch up to 1000 per request
-        "$select": "Name,ContentDate" # We only need the SAFE Name and Date
+        "$top": 1000
     }
     
     print(f"Searching Copernicus (Public OData) for Sentinel-2 L1C...")
     
     granules = []
     next_link = base_url
-    
     session = requests.Session()
     
     while next_link:
         try:
-            # If it's the first page, use params. If next_link, params are in the URL already.
             if next_link == base_url:
                 response = session.get(next_link, params=params)
             else:
                 response = session.get(next_link)
-                
-            response.raise_for_status()
-            data = response.json()
             
+            if response.status_code != 200:
+                 print(f"Error URL: {response.url}")
+                 print(f"Response: {response.text}")
+                 response.raise_for_status()
+
+            data = response.json()
             products = data.get('value', [])
+            
             for prod in products:
-                name = prod.get('Name') # This is the SAFE file name
+                name = prod.get('Name')
                 start = prod.get('ContentDate', {}).get('Start')
                 
-                # Extract platform for metadata (S2A or S2B)
+                # --- PARSE GEOMETRY ---
+                # Format is: geography'SRID=4326;POLYGON ((...))'
+                raw_footprint = prod.get('Footprint')
+                footprint = None
+                
+                if raw_footprint:
+                    try:
+                        # Extract just the WKT part (POLYGON...)
+                        # Split by semicolon to remove SRID
+                        # Remove trailing quote if present
+                        clean_wkt = raw_footprint.split(';')[-1].replace("'", "")
+                        footprint = wkt.loads(clean_wkt)
+                    except Exception as e:
+                        # print(f"Geometry parse error: {e}") # Optional debug
+                        pass 
+
+                # --- EXTRACT CLOUD COVER ---
+                cloud_cover = 0.0
+                attrs = prod.get('Attributes', [])
+                for attr in attrs:
+                    if attr.get('Name') == 'cloudCover':
+                        cloud_cover = attr.get('Value', 0.0)
+                        break
+
+                # --- DETERMINE PLATFORM ---
                 platform = "sentinel-2"
-                if name.startswith("S2A"):
-                    platform = "sentinel-2a"
-                elif name.startswith("S2B"):
-                    platform = "sentinel-2b"
-                    
+                if name.startswith("S2A"): platform = "sentinel-2a"
+                elif name.startswith("S2B"): platform = "sentinel-2b"
+                elif name.startswith("S2C"): platform = "sentinel-2c"
+
                 granules.append({
-                    "granule_id": name, # e.g. S2A_MSIL1C_2025...
+                    "granule_id": name,
                     "date": start.split("T")[0],
                     "datetime": start,
-                    "cloud_cover": 0, # Placeholder (already filtered by API)
-                    "platform": platform
+                    "cloud_cover": cloud_cover,
+                    "platform": platform,
+                    "footprint": footprint # Successfully parsed geometry
                 })
             
-            # Handle pagination
             next_link = data.get('@odata.nextLink')
             
         except Exception as e:
             print(f"Error searching Public OData: {e}")
-            if "400" in str(e):
-                print("  Tip: Query might be too complex (AOI WKT too long).")
             break
 
     print(f"  Found {len(granules)} Sentinel-2 products.")
@@ -841,84 +857,82 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
 def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_list=True):
     """
     Generate Optical Pairs grouped by Relative Orbit.
-    Handles multiple platforms on the same day by treating them as separate candidates.
-    Rank Priority: 
-      1. Max Unique MGRS Tile Count (Spatial Coverage)
-      2. Low Cloud Cover
-      3. Time Delta (Proximity to event)
+    Prioritizes: 1. True Coverage Area %, 2. Cloud Cover, 3. Time.
+    Returns: (jobs, scene_features)
     """
     rupture_dt = convert_time(rupture_time)
+    aoi_area = aoi_polygon.area
 
-    # 1. Group by Orbit -> Date
+    # Group by Orbit -> Date
     orbit_groups = defaultdict(lambda: defaultdict(list))
     
     for scene in optical_scenes:
         granule_id = scene['granule_id']
-        
-        # Extract Orbit (Rxxx)
         match = re.search(r'_R(\d{3})_', granule_id)
         if match:
             orbit_id = match.group(1)
             orbit_groups[orbit_id][scene['date']].append(scene)
 
     jobs = []
-    print(f"  Found {len(orbit_groups)} unique satellite tracks.")
+    scene_features = [] 
+    
+    print(f"Found {len(orbit_groups)} unique satellite tracks.")
 
     for orbit_id, dates_dict in orbit_groups.items():
-        
         pre_candidates = []
         post_candidates = []
         
-        # Iterate over every date found for this orbit
         for date_str, scenes_on_date in dates_dict.items():
             date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
             
-            # --- SPLIT BY PLATFORM ---
-            # If S2A and S2C both acquired on this day, treat them as separate options.
+            # Split by Platform (S2A/S2B/S2C)
             platforms_on_date = defaultdict(list)
             for s in scenes_on_date:
                 platforms_on_date[s['platform']].append(s)
             
-            # Evaluate each platform separately
             for platform, scenes in platforms_on_date.items():
-                
-                # Extract Unique MGRS Tiles (Txxxxx)
-                # This prevents duplicate files (reprocessing) from artificially inflating the count
-                unique_tiles = set()
-                clean_scenes = []
-                
-                # Sort scenes by length of name (heuristic: sometimes shorter is better/standard) 
-                # or just keep all. Let's deduplicate by Tile ID to ensure we send clean lists.
-                # We usually want the latest processing version if duplicates exist.
-                # Standard lexicographical sort usually puts higher 'N' (processing) numbers last.
-                scenes.sort(key=lambda x: x['granule_id'], reverse=True) 
-                
+                unique_scenes = []
                 seen_tiles = set()
+                scenes.sort(key=lambda x: x['granule_id'], reverse=True)
+                
+                combined_poly = None
+                
                 for s in scenes:
-                    # Regex to find Txxxxx
                     t_match = re.search(r'_T(\w{5})_', s['granule_id'])
                     if t_match:
                         tile_id = t_match.group(1)
-                        unique_tiles.add(tile_id)
-                        
-                        # Simple Dedup: Only keep the first file encountered for this Tile ID
-                        # (Since we sorted reverse, this keeps the latest Nxxxx processing baseline)
                         if tile_id not in seen_tiles:
-                            clean_scenes.append(s)
+                            unique_scenes.append(s)
                             seen_tiles.add(tile_id)
+                            
+                            if s.get('footprint'):
+                                if combined_poly is None:
+                                    combined_poly = s['footprint']
+                                else:
+                                    combined_poly = combined_poly.union(s['footprint'])
+
+                # Calculate Coverage
+                coverage_pct = 0.0
+                if combined_poly and aoi_polygon:
+                    try:
+                        clean_poly = combined_poly.buffer(0)
+                        intersection = clean_poly.intersection(aoi_polygon)
+                        coverage_pct = (intersection.area / aoi_area) * 100.0
+                    except Exception:
+                        pass
                 
-                # Calculate Metrics
-                tile_count = len(unique_tiles)
-                avg_cc = sum(s['cloud_cover'] for s in clean_scenes) / len(clean_scenes) if clean_scenes else 100
+                tile_count = len(unique_scenes)
+                avg_cc = sum(s['cloud_cover'] for s in unique_scenes) / len(unique_scenes) if unique_scenes else 100
                 delta_days = abs((date_dt - rupture_dt).days)
                 
                 candidate = {
                     'date': date_str,
-                    'scenes': clean_scenes,
+                    'scenes': unique_scenes,
                     'platform': platform,
-                    'tile_count': tile_count, # Primary Sort Key
-                    'cc': avg_cc,             # Secondary Sort Key
-                    'delta': delta_days       # Tertiary Sort Key
+                    'coverage': coverage_pct, 
+                    'tile_count': tile_count,
+                    'cc': avg_cc,             
+                    'delta': delta_days       
                 }
                 
                 if date_dt < rupture_dt:
@@ -929,49 +943,54 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
         if not pre_candidates or not post_candidates:
             continue
 
-        # --- RANKING ---
-        # Sort keys: 
-        # 1. -tile_count (Higher is better)
-        # 2. cc (Lower is better)
-        # 3. delta (Lower/Closer is better)
-        
-        pre_candidates.sort(key=lambda x: (-x['tile_count'], x['cc'], x['delta']))
+        # Sort: Max Coverage > Low Cloud > Low Delta
+        pre_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
         best_pre = pre_candidates[0]
         
-        post_candidates.sort(key=lambda x: (-x['tile_count'], x['cc'], x['delta']))
+        post_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
         best_post = post_candidates[0]
         
-        print(f"  Orbit {orbit_id}:")
-        print(f"    Best Pre : {best_pre['date']} ({best_pre['platform'].upper()}) - {best_pre['tile_count']} Tiles - {best_pre['cc']:.1f}% Cloud - {best_pre['delta']} days away")
-        print(f"    Best Post: {best_post['date']} ({best_post['platform'].upper()}) - {best_post['tile_count']} Tiles - {best_post['cc']:.1f}% Cloud - {best_post['delta']} days away")
+        print(f"  Orbit {orbit_id}: Pre={best_pre['date']} ({best_pre['coverage']:.1f}% Cov), Post={best_post['date']} ({best_post['coverage']:.1f}% Cov)")
+
+        # We iterate through the chosen scenes and create features for the output file
+        for stage, candidate in [("Pre-Event", best_pre), ("Post-Event", best_post)]:
+            for scene in candidate['scenes']:
+                if scene.get('footprint'):
+                    feature = {
+                        "type": "Feature",
+                        "geometry": mapping(scene['footprint']),
+                        "properties": {
+                            "earthquake": title,
+                            "role": stage,
+                            "date": candidate['date'],
+                            "orbit": orbit_id,
+                            "platform": candidate['platform'],
+                            "granule_id": scene['granule_id'],
+                            "cloud_cover": scene['cloud_cover'],
+                            "coverage_pct": round(candidate['coverage'], 1)
+                        }
+                    }
+                    scene_features.append(feature)
 
         if job_list:
-            # Job Name
+            # Job Name includes metadata
             job_name = f"{title}-S2-R{orbit_id}-{best_pre['date']}_{best_post['date']}"
             
-            primary_ids = [s['granule_id'] for s in best_pre['scenes']]
-            secondary_ids = [s['granule_id'] for s in best_post['scenes']]
-            
-            # We use the platform of the Primary image for the metadata, though they might differ slightly
+            # Strip .SAFE extension from IDs
+            primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
+            secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
             
             job = {
                 "name": job_name,
-                "job_type": "ARIA_OPTICAL_COSEIS",
+                "job_type": "AUTORIFT",
                 "job_parameters": {
-                    "granules": primary_ids,
-                    "secondary_granules": secondary_ids,
-                    "platform": "sentinel-2", # Generic identifier
-                    "orbit_number": orbit_id,
-                    "ref_date": best_pre['date'],
-                    "sec_date": best_post['date'],
-                    "cloud_cover_filter": OPTICAL_CLOUD_THRESHOLD,
-                    "notes": f"Pre: {best_pre['platform']} ({len(primary_ids)} files), Post: {best_post['platform']} ({len(secondary_ids)} files)"
+                    "reference": primary_ids,
+                    "secondary": secondary_ids
                 }
             }
             jobs.append(job)
             
-    return jobs
-
+    return jobs, scene_features
 
 def generate_pairs(pairs, mode):
     """
@@ -1317,9 +1336,10 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
     # Write AOI to a geojson file
     with open(f'{title}_AOI.geojson', 'w') as f:
-        geojson.dump(aoi, f, indent=2)
+        geojson.dump(mapping(aoi), f, indent=2)
 
     all_jobs = []
+    all_features = []
 
     if mode == 'sar':
         path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
@@ -1344,24 +1364,28 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
         rupture_time = eq.get('time')
         rupture_dt = convert_time(rupture_time)
         
-        # Search Window: -90 to +90 days
-        # OData expects ISO format like 2024-01-01T00:00:00Z
         start_search = (rupture_dt - timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
         end_search = (rupture_dt + timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        # 1. Search for Sentinel-2 L1C (No Credentials)
         s2_scenes = search_copernicus_public(aoi, start_search, end_search)
         
-        # 2. Pair them up
-        s2_jobs = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
+        s2_jobs, s2_features = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
         
         if s2_jobs:
             print(f"Generated {len(s2_jobs)} Sentinel-2 jobs.")
             all_jobs.append(s2_jobs)
+            all_features.extend(s2_features) # Collect features
+        
+            if s2_features:
+                fc = {"type": "FeatureCollection", "features": s2_features}
+                scene_filename = f"{title}_selected_scenes.geojson"
+                with open(scene_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved selected scene footprints to {scene_filename}")
         else:
             print("No optical pairs found.")
 
-    return all_jobs
+    return all_jobs, all_features
 
 
 def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
@@ -1659,9 +1683,14 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
 
         if eq_sig is not None:
             jobs_dict = []
+            master_scene_features = []
             for eq in eq_sig:
                 try:
-                    eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
+                    eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
+
+                    if eq_features:
+                        master_scene_features.extend(eq_features)
+
                 except Exception as e:
                     print(f"Error processing {eq['title']}: {e}")
                     continue
@@ -1706,6 +1735,14 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
                 with open(f'jobs_list_{current_time}.json', 'w') as f:
                     json.dump(jobs_dict, f, indent=4)
+            
+            if master_scene_features:
+                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+                feature_filename = f'all_selected_scenes_{mode}_{current_time}.geojson'
+                fc = {"type": "FeatureCollection", "features": master_scene_features}
+                with open(feature_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved master scene footprints to {feature_filename}")
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
