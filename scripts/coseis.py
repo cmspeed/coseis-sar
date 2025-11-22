@@ -952,7 +952,7 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
         
         print(f"  Orbit {orbit_id}: Pre={best_pre['date']} ({best_pre['coverage']:.1f}% Cov), Post={best_post['date']} ({best_post['coverage']:.1f}% Cov)")
 
-        # Build GeoJSON Features
+        # We iterate through the chosen scenes and create features for the output file
         for stage, candidate in [("Pre-Event", best_pre), ("Post-Event", best_post)]:
             for scene in candidate['scenes']:
                 if scene.get('footprint'):
@@ -1369,15 +1369,13 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
         s2_scenes = search_copernicus_public(aoi, start_search, end_search)
         
-        # UNPACK BOTH VALUES
         s2_jobs, s2_features = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
         
         if s2_jobs:
             print(f"Generated {len(s2_jobs)} Sentinel-2 jobs.")
             all_jobs.append(s2_jobs)
             all_features.extend(s2_features) # Collect features
-            
-            # Save Individual Event Scene GeoJSON (as requested previously)
+        
             if s2_features:
                 fc = {"type": "FeatureCollection", "features": s2_features}
                 scene_filename = f"{title}_selected_scenes.geojson"
