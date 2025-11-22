@@ -1336,9 +1336,10 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
     # Write AOI to a geojson file
     with open(f'{title}_AOI.geojson', 'w') as f:
-        geojson.dump(aoi, f, indent=2)
+        geojson.dump(mapping(aoi), f, indent=2)
 
     all_jobs = []
+    all_features = []
 
     if mode == 'sar':
         path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
@@ -1368,14 +1369,15 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
         s2_scenes = search_copernicus_public(aoi, start_search, end_search)
         
-        # UPDATED: Unpack both return values
+        # UNPACK BOTH VALUES
         s2_jobs, s2_features = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
         
         if s2_jobs:
             print(f"Generated {len(s2_jobs)} Sentinel-2 jobs.")
             all_jobs.append(s2_jobs)
+            all_features.extend(s2_features) # Collect features
             
-            # NEW: Save the footprints to GeoJSON
+            # Save Individual Event Scene GeoJSON (as requested previously)
             if s2_features:
                 fc = {"type": "FeatureCollection", "features": s2_features}
                 scene_filename = f"{title}_selected_scenes.geojson"
@@ -1385,7 +1387,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
         else:
             print("No optical pairs found.")
 
-    return all_jobs
+    return all_jobs, all_features
 
 
 def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
@@ -1683,9 +1685,14 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
 
         if eq_sig is not None:
             jobs_dict = []
+            master_scene_features = []
             for eq in eq_sig:
                 try:
-                    eq_jsons = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
+                    eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
+
+                    if eq_features:
+                        master_scene_features.extend(eq_features)
+
                 except Exception as e:
                     print(f"Error processing {eq['title']}: {e}")
                     continue
@@ -1730,6 +1737,14 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
                 with open(f'jobs_list_{current_time}.json', 'w') as f:
                     json.dump(jobs_dict, f, indent=4)
+            
+            if master_scene_features:
+                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+                feature_filename = f'all_selected_scenes_{mode}_{current_time}.geojson'
+                fc = {"type": "FeatureCollection", "features": master_scene_features}
+                with open(feature_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved master scene footprints to {feature_filename}")
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
