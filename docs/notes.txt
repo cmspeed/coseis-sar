@@ -10,7 +10,7 @@ The job_list_mainshocks.json was decomposed into 1-,2-,3-,4-, and 5-frame jobs f
 Only 1-frame (N=374), 2-frame(N=486), and mismatched-frame (N=48) jobs were run on HyP3 with the 3-, 4-, 5-frame jobs run on gattaca2. 
 Two (2) jobs failed (part of `job_list_1frame.json`). The failures were due to SCLs straddling the International Dateline in Fiji. The two failed jobs were associated with the m_62_85_km_w_of_labasa_fiji earthquake (A066 and D146).
 
-Summary Statistics as of 9/16/2026:
+Summary Statistics as of 9/16/2025:
 Total earthquakes: 433
 Total mainshock earthquakes: 372
 Total mainshock earthquakes with conforming SLCs for HyP3 processing: 371
