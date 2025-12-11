@@ -43,15 +43,14 @@ root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
 
 TRACKING_FILE = "active_job_tracking.json"
-# PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
-#                       'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
-#                       'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
-#                       'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
-#                       'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
-#                       'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
-#                       ]
-PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov']
-SECONDARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov']
+PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
+                      'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
+                      'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
+                      'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
+                      'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
+                      'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
+                      ]
+SECONDARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'mary.grace.p.bato@jpl.nasa.gov']
 
 def load_tracker():
     """Loads the active job tracking file."""
@@ -1711,8 +1710,6 @@ def main_forward(pairing_mode=None):
     print('=========================================')
     print("Running cronjob to check for new earthquakes...")
     print('=========================================')
-    print(f"Primary recipients: {PRIMARY_RECIPIENTS}")
-    print(f"Secondary recipients: {SECONDARY_RECIPIENTS}")
     
     # Initialize the tracking file if it doesn't exist
     if not os.path.exists(TRACKING_FILE):
@@ -1720,7 +1717,7 @@ def main_forward(pairing_mode=None):
             json.dump({}, f)
 
     # Check for New Earthquakes
-    geojson_data = check_for_new_data(USGS_api_30day)
+    geojson_data = check_for_new_data(USGS_api_hourly)
 
     start_date = datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
