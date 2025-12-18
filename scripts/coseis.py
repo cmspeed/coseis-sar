@@ -118,7 +118,7 @@ def add_to_tracker(eq, aoi, resolution=90):
             
             if pre_dates:
                 reference_date = pre_dates[-1] # The last date before the earthquake
-                pre_slcs = [s['fileID'] for s in slcs if s['date'] == reference_date]
+                pre_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == reference_date]
             else:
                 print(f"No pre-seismic data found for {track_key}. Skipping track.")
                 continue
@@ -222,10 +222,9 @@ def check_tracker_for_updates():
                 
                 if post_dates:
                     secondary_date = post_dates[0] # The first date after earthquake
-                    post_slcs = [s['fileID'] for s in slcs if s['date'] == secondary_date]
+                    post_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == secondary_date]
             
             if post_slcs:
-                print(f"    FOUND post-seismic data: {secondary_date}")
                 
                 # LOAD PARTIAL JOB
                 partial_file = track_info['partial_job_file']
