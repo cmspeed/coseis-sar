@@ -42,7 +42,7 @@ root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
 # Global variables
 OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
 
-PENDING_EARTHQUAKES_FILE = "pending_earthquakes.json"
+TRACKING_FILE = "active_job_tracking.json"
 PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
                       'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
                       'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
@@ -50,8 +50,257 @@ PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
                       'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
                       'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
                       ]
+SECONDARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'mary.grace.p.bato@jpl.nasa.gov']
 
-SECONDARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com']
+def load_tracker():
+    """Loads the active job tracking file."""
+    if not os.path.exists(TRACKING_FILE):
+        return {}
+    try:
+        with open(TRACKING_FILE, "r") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_tracker(data):
+    """Saves the active job tracking file."""
+    with open(TRACKING_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+def add_to_tracker(eq, aoi, resolution=90):
+    """
+    Initializes tracking for a new earthquake.
+    1. Identifies intersecting tracks.
+    2. Finds pre-seismic SLCs for each track.
+    3. Creates a partial job file (granules=Empty, secondary_granules=Filled).
+    4. Adds entry to tracking file.
+    """
+    tracker = load_tracker()
+    event_id = eq.get('id')
+    title = to_snake_case(eq.get('title'))
+    event_time = eq.get('time')
+    
+    if event_id in tracker:
+        print(f"Event {title} is already being tracked.")
+        return
+
+    print('=========================================')
+    print(f"Initializing tracking for {title}...")
+    print('=========================================')
+
+    # Get intersecting tracks
+    path_frame_numbers, _ = get_path_and_frame_numbers(aoi, event_time)
+    
+    tracks_info = {}
+
+    for (flight_direction, path_number), frame_numbers_set in path_frame_numbers.items():
+        frame_numbers = list(set(fn[0] for fn in frame_numbers_set))
+        
+        # Unique key for this track
+        track_key = f"{flight_direction}_{path_number}"
+        
+        # 1. Find Pre-seismic SLCs (Historical search relative to event time)
+        # We look back 24 days to ensure we get the latest coverage
+        slcs = get_SLCs(flight_direction, path_number, frame_numbers, event_time, processing_mode='historic')
+        
+        # Filter for pre-seismic only (closest to event)
+        rupture_dt = convert_time(event_time).replace(tzinfo=None)
+        pre_slcs = []
+        if slcs:
+            # Sort by date
+            slcs.sort(key=lambda x: x['date'])
+            # Find the SLCs immediately preceding the rupture
+            # We want the single latest acquisition date before rupture
+            dates = sorted(list(set(s['date'] for s in slcs)))
+            pre_dates = [d for d in dates if datetime.strptime(d, "%Y-%m-%d") < rupture_dt]
+            
+            if pre_dates:
+                reference_date = pre_dates[-1] # The last date before the earthquake
+                pre_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == reference_date]
+            else:
+                print(f"No pre-seismic data found for {track_key}. Skipping track.")
+                continue
+        else:
+             print(f"No SLCs found for {track_key}. Skipping track.")
+             continue
+
+        if not pre_slcs:
+            continue
+
+        # 2. Create Partial Job List
+        # We leave 'granules' (post-seismic) empty for now
+        # We fill 'secondary_granules' (pre-seismic)
+        job_filename = f"job_{title}_{track_key}_partial.json"
+        
+        # Create the standard HYP3 structure
+        job_json = make_job_json(title, flight_direction, path_number, [], pre_slcs, resolution)
+        
+        # Save Partial File
+        with open(job_filename, "w") as f:
+            json.dump([job_json], f, indent=4) # List of 1 job
+
+        # 3. Add to tracks info
+        tracks_info[track_key] = {
+            "flight_direction": flight_direction,
+            "path_number": path_number,
+            "frame_numbers": frame_numbers,
+            "partial_job_file": job_filename,
+            "reference_date": reference_date,
+            "status": "AWAITING_POST_SEISMIC"
+        }
+        print(f"  Initialized track {track_key}. Pre-seismic date: {reference_date}. Waiting for post-seismic.")
+
+    if tracks_info:
+        tracker[event_id] = {
+            "title": title,
+            "time": event_time,
+            "aoi": mapping(aoi),
+            "tracks": tracks_info
+        }
+        save_tracker(tracker)
+        print(f"Added {title} to tracking file with {len(tracks_info)} tracks.")
+    else:
+        print(f"No valid tracks initialized for {title}.")
+
+
+def check_tracker_for_updates():
+    """
+    Iterates through the tracking file.
+    For every track 'AWAITING_POST_SEISMIC', queries ASF for new data.
+    If found:
+      1. Completes the job file.
+      2. Emails secondary recipients.
+      3. Removes track from tracker.
+      4. If event has no more tracks, removes event.
+    """
+    tracker = load_tracker()
+    if not tracker:
+        return
+
+    print('=========================================')
+    print("Checking active tracker for new post-seismic data...")
+    print('=========================================')
+
+    events_to_remove = []
+    completed_jobs_summary = []
+
+    for event_id, event_data in tracker.items():
+        title = event_data['title']
+        event_time = event_data['time']
+        tracks = event_data['tracks']
+        
+        tracks_to_remove = []
+
+        for track_key, track_info in tracks.items():
+            if track_info['status'] != "AWAITING_POST_SEISMIC":
+                continue
+
+            flight_dir = track_info['flight_direction']
+            path_num = track_info['path_number']
+            frames = track_info['frame_numbers']
+            
+            # Query ASF for POST-SEISMIC data
+            # We look from event_time forward to NOW
+            # Use 'forward' mode logic inside get_SLCs or custom call
+            
+            print(f"  Checking {title} - {track_key}...")
+            
+            # Custom query for this track's post-event data
+            # We only need the first valid acquisition after the event
+            slcs = get_SLCs(flight_dir, path_num, frames, event_time, processing_mode='forward')
+            
+            rupture_dt = convert_time(event_time).replace(tzinfo=None)
+            post_slcs = []
+            secondary_date = None
+
+            if slcs:
+                slcs.sort(key=lambda x: x['date'])
+                # Filter for dates AFTER rupture
+                post_dates = sorted(list(set(s['date'] for s in slcs if datetime.strptime(s['date'], "%Y-%m-%d") > rupture_dt)))
+                
+                if post_dates:
+                    secondary_date = post_dates[0] # The first date after earthquake
+                    post_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == secondary_date]
+            
+            if post_slcs:
+                
+                # LOAD PARTIAL JOB
+                partial_file = track_info['partial_job_file']
+                try:
+                    with open(partial_file, 'r') as f:
+                        job_list = json.load(f)
+                        job = job_list[0] # Assuming list of 1
+                        
+                    # COMPLETE JOB
+                    # Note: In make_job_json logic:
+                    # 'granules' = reference (post-seismic usually in coseismic pairs logic?) 
+                    # Actually, usually 'reference' is the earlier date and 'secondary' is later for InSAR conventions?
+                    # The prompt says: "pre-seismic ('secondary_granules') property already filled... post-seismic ('granules') property empty"
+                    # So we fill 'granules' with the new post-seismic data.
+                    
+                    job['job_parameters']['granules'] = post_slcs
+                    
+                    # Update name to reflect dates if desired, or keep as is.
+                    # existing name: f"{title}-{flight_direction}{path_number}"
+                    
+                    # SAVE COMPLETED JOB
+                    completed_filename = f"job_{title}_{track_key}_COMPLETED.json"
+                    with open(completed_filename, 'w') as f:
+                        json.dump([job], f, indent=4)
+                    
+                    print(f"    Created {completed_filename}")
+                    
+                    completed_jobs_summary.append({
+                        "title": title,
+                        "track": track_key,
+                        "file": completed_filename,
+                        "dates": f"{track_info['reference_date']} (Pre) - {secondary_date} (Post)"
+                    })
+                    
+                    tracks_to_remove.append(track_key)
+                    
+                    # Clean up partial file
+                    if os.path.exists(partial_file):
+                        os.remove(partial_file)
+
+                except Exception as e:
+                    print(f"    Error processing partial file {partial_file}: {e}")
+            else:
+                print(f"    No post-seismic data yet.")
+
+        # Remove completed tracks
+        for tk in tracks_to_remove:
+            del tracks[tk]
+        
+        # If no tracks left, mark event for removal
+        if not tracks:
+            events_to_remove.append(event_id)
+
+    # Clean up tracker
+    for eid in events_to_remove:
+        print(f"Event {tracker[eid]['title']} fully processed. Removing from tracker.")
+        del tracker[eid]
+    
+    save_tracker(tracker)
+
+    # Send Notification Email if jobs were completed
+    if completed_jobs_summary:
+        subject = f"COMPLETED JOB LISTS READY ({len(completed_jobs_summary)})"
+        body = "The following job lists have been completed and are ready for review:\n\n"
+        for item in completed_jobs_summary:
+            body += f"Event: {item['title']}\n"
+            body += f"Track: {item['track']}\n"
+            body += f"Dates: {item['dates']}\n"
+            body += f"File: {item['file']}\n"
+            body += "--------------------------------------\n"
+        
+        body += "\nThis is an automated message."
+        
+        print("Sending notification email to secondary recipients...")
+        send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
+
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
     """
@@ -670,15 +919,16 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
     """
     # Establish the date range for the query
     rupture_date = convert_time(time)
-    start_date = rupture_date - timedelta(days=90)  # 90 days before the earthquake
-    start_date= start_date.replace(hour=0, minute=0, second=0)
-
-    # Set the end date based on the processing mode
+    
     if processing_mode == 'historic':
+        start_date = rupture_date - timedelta(days=90)  # 90 days before the earthquake
+        start_date= start_date.replace(hour=0, minute=0, second=0)
         end_date = rupture_date + timedelta(days=30)    # 30 days after the earthquake
         end_date = end_date.replace(hour=23, minute=59, second=59)
     elif processing_mode == 'forward':
-        today = datetime.now()
+        # In forward mode for tracking, we want data acquired AFTER the earthquake
+        start_date = rupture_date
+        today = datetime.now(timezone.utc)
         end_date = today
 
     # Format the datetime object into a string
@@ -991,6 +1241,7 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
             jobs.append(job)
             
     return jobs, scene_features
+
 
 def generate_pairs(pairs, mode):
     """
@@ -1396,8 +1647,18 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     :param satellite: Satellite name ('sentinel-1', 'sentinel-2', or 'landsat')
     :return: Next overpass time or None if an error occurs
     """
+    import os
+    import sys
     import next_pass
-    import plot_maps
+    next_pass_dir = os.path.dirname(next_pass.__file__)
+    if next_pass_dir not in sys.path:
+        sys.path.append(next_pass_dir)
+    try:
+        from utils import plot_maps
+    except ImportError as e:
+        print(f"Could not import plot_maps from {next_pass_dir}/utils: {e}")
+        return None
+    
     from datetime import date, datetime
 
     min_lon, min_lat, max_lon, max_lat = AOI.bounds
@@ -1408,13 +1669,24 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     print(f"BBOX: {min_lat}, {max_lat}, {min_lon}, {max_lon}")
     print("=========================================")
     
-    args = SimpleNamespace(bbox=bbox, sat=satellite, event_date=date.today)
+    args = SimpleNamespace(bbox=bbox, sat=satellite, event_date=date.today(), look_back=14, cloudiness=False)
 
-    result = next_pass.find_next_overpass(args)
+    try:
+        result = next_pass.find_next_overpass(args)
+    except Exception as e:
+        # This catches the TopologyException/GEOSException
+        print(f"WARNING: 'next_pass' failed due to geometry error (likely antimeridian issue): {e}")
+        print("Skipping next pass calculation to preserve workflow.")
+        return "Next pass information unavailable due to complex geometry (antimeridian)."
+    
     result_s1 = result["sentinel-1"] 
     result_s2 = result["sentinel-2"]
     result_l = result["landsat"]
-    plot_maps.make_overpasses_map(result_s1, result_s2, result_l, args.bbox, timestamp_dir)
+    
+    try:
+        plot_maps.make_overpasses_map(result_s1, result_s2, result_l, args.bbox, timestamp_dir)
+    except Exception as e:
+        print(f"WARNING: Could not generate overpass map: {e}")
 
     # loop over results and display only missions that were requested
     for _, mission_result in result.items():
@@ -1425,118 +1697,6 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
         else:
             print("No next pass data available.")
             return None
-
-
-def load_pending_earthquakes() -> List[Dict[str, Any]]:
-    """Loads the list of pending earthquakes from the JSON file."""
-    if not os.path.exists(PENDING_EARTHQUAKES_FILE):
-        return []
-    with open(PENDING_EARTHQUAKES_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_pending_earthquakes(earthquakes: List[Dict[str, Any]]):
-    """Saves the list of pending earthquakes to the JSON file."""
-    with open(PENDING_EARTHQUAKES_FILE, "w") as f:
-        json.dump(earthquakes, f, indent=4)
-
-
-def store_pending_earthquake(eq: dict, aoi: Polygon):
-    """Stores a newly detected significant earthquake for later processing."""
-    pending_list = load_pending_earthquakes()
-    pending_list.append({
-        "id": eq.get('id'),
-        "title": to_snake_case(eq.get('title')),
-        "time": eq.get('time'),
-        "coords": eq.get('coordinates'),
-        "aoi": mapping(aoi)  # Store AOI geometry as a GeoJSON-compatible dictionary
-    })
-    save_pending_earthquakes(pending_list)
-    print(f"Stored pending earthquake '{eq.get('title')}' for future checks.")
-
-
-def check_pending_slcs(pairing_mode: str, resolution: int):
-    """
-    Checks the pending earthquakes queue for available SLCs to form co-seismic pairs.
-    If pairs are found, it generates a job list and sends an email.
-    """
-    pending_list = load_pending_earthquakes()
-    if not pending_list:
-        print("No pending earthquakes to check for SLCs.")
-        return
-
-    print('=========================================')
-    print("Checking for available co-seismic SLCs for pending earthquakes...")
-    print('=========================================')
-
-    updated_pending_list = []
-    completed_jobs_list = []
-
-    for eq in pending_list:
-        event_id = eq['id']
-        title = eq['title']
-        time = eq['time']
-        
-        # FFM check and AOI update 
-        ffm_url = get_ffm_geojson_url(event_id)
-        if ffm_url:
-            print(f"FFM found for {title}. Updating AOI...")
-            aoi = load_aoi_from_json(ffm_url)
-            eq['aoi'] = mapping(aoi) # Update the AOI in the dictionary
-        else:
-            # If no FFM, use the stored AOI
-            aoi_geom = eq['aoi']
-            aoi = shape(aoi_geom)
-
-        print(f"Processing '{title}' with AOI: {aoi}")
-        
-        path_frame_numbers, _ = get_path_and_frame_numbers(aoi, time)
-        
-        found_pairs_for_eq = False
-        for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
-            frame_numbers = list(set(fn[0] for fn in frame_numbers))
-            SLCs = get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode='forward')
-            
-            # Find coseismic pairs only
-            isce_jobs = find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number,
-                                                           title, pairing_mode='coseismic', job_list=True, resolution=resolution)
-
-            if isce_jobs:
-                # Add found jobs to the master list
-                if filter_S1C(isce_jobs[0]):
-                    completed_jobs_list.extend(isce_jobs)
-                    found_pairs_for_eq = True
-        
-        if found_pairs_for_eq:
-            # Earthquake has a completed coseismic pair, so don't re-add to the pending list
-            print(f"Co-seismic pair found for '{title}'. Job will be generated.")
-        else:
-            # No coseismic pair found yet, so keep it in the pending list (with updated AOI)
-            print(f"No co-seismic pair found yet for '{title}'. Will check again later.")
-            updated_pending_list.append(eq)
-
-    save_pending_earthquakes(updated_pending_list)
-
-    if completed_jobs_list:
-        current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
-        job_list_filename = f'jobs_list_{current_time}.json'
-        with open(job_list_filename, 'w') as f:
-            json.dump(completed_jobs_list, f, indent=4)
-        print(f"Generated job list: {job_list_filename}")
-
-        # Send second email
-        send_email(
-            subject=f"COSEISMIC JOB LIST READY",
-            body=(
-                f"A job list has been generated for one or more co-seismic events.\n\n"
-                f"The job list file, '{job_list_filename}', is ready and stored on the server.\n\n"
-                f"This is an automated message. Please do not reply."
-            ),
-            recipients=SECONDARY_RECIPIENTS
-        )
-        print('=========================================')
-        print('Job list alert emailed to secondary recipients.')
-        print('=========================================')
 
 
 def main_forward(pairing_mode=None):
@@ -1550,6 +1710,11 @@ def main_forward(pairing_mode=None):
     print("Running cronjob to check for new earthquakes...")
     print('=========================================')
     
+    # Initialize the tracking file if it doesn't exist
+    if not os.path.exists(TRACKING_FILE):
+        with open(TRACKING_FILE, 'w') as f:
+            json.dump({}, f)
+
     # Check for New Earthquakes
     geojson_data = check_for_new_data(USGS_api_hourly)
 
@@ -1564,8 +1729,8 @@ def main_forward(pairing_mode=None):
         if eq_sig is not None:
             for eq in eq_sig:
                 # Check for duplicate entry in the pending queue
-                pending_list = load_pending_earthquakes()
-                if any(p['id'] == eq.get('id') for p in pending_list):
+                tracker = load_tracker()
+                if eq.get('id') in tracker:
                     print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
                     continue
 
@@ -1598,9 +1763,12 @@ def main_forward(pairing_mode=None):
                 original_filename = timestamp_dir / "satellite_overpasses_map.html"
                 s1_map_filename = timestamp_dir / f"{title_snake}_Sentinel-1_Next_Overpasses.html"
 
+                attachment_file = None
+
                 if os.path.exists(original_filename):
                     os.rename(original_filename, s1_map_filename)
                     print(f"Renamed to {s1_map_filename}")
+                    attachment_file = str(s1_map_filename)
                 else:
                     print(f"Expected file {original_filename} not found.")
 
@@ -1631,7 +1799,7 @@ def main_forward(pairing_mode=None):
                         f"------------------------------------------------------------------------------------------------------------------------\n"
                         f"This is an automated message. Please do not reply. For product-specific inquiries contact Dr. Cole Speed (<a href=\"mailto:cole.speed@jpl.nasa.gov\">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href=\"mailto:bato@jpl.nasa.gov\">bato@jpl.nasa.gov</a>)."
                     ),
-                    attachment=s1_map_filename,
+                    attachment=attachment_file,
                     recipients=PRIMARY_RECIPIENTS
                 )
 
@@ -1639,13 +1807,15 @@ def main_forward(pairing_mode=None):
                 print('Alert emailed to recipients.')
                 print('=========================================')
 
-                # Store the new earthquake for later checks
-                store_pending_earthquake(eq, aoi)
+                # START TRACKING FOR THIS EVENT
+                # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
+                add_to_tracker(eq, aoi, args.resolution)
+                
         else:
             print(f"No new significant earthquakes found as of {current_time}.")
 
-    # Check ASF DAAC for available SLCs for poending earthquakes
-    check_pending_slcs(pairing_mode, args.resolution)
+    # Check ASF DAAC for available SLCs for pending earthquakes
+    check_tracker_for_updates()
 
 
 def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False, resolution=90, mode='sar'):
