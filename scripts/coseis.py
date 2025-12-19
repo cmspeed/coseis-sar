@@ -862,8 +862,18 @@ def get_path_and_frame_numbers(AOI, time):
             # Parse the response as GeoJSON
             data = geojson.loads(response.text)
 
+            # Check if features are returned
+            if not data.get('features'):
+                print("No SLC features found intersecting the AOI.")
+                return {}, gpd.GeoDataFrame()
+
             # Convert the GeoJSON data to a GeoDataFrame for visualization
-            frame_dataframe = gpd.GeoDataFrame.from_features(data['features'], crs='EPSG:4326')
+            # Wrapped in try/except to handle cases where features lack geometry
+            try:
+                frame_dataframe = gpd.GeoDataFrame.from_features(data['features'], crs='EPSG:4326')
+            except Exception as e:
+                print(f"Warning: Could not create GeoDataFrame (likely missing geometry): {e}")
+                return {}, gpd.GeoDataFrame()
 
             # Initialize an empty dictionary to store the path and frame numbers as sets
             path_frame_numbers = defaultdict(lambda: defaultdict(set))
@@ -893,17 +903,21 @@ def get_path_and_frame_numbers(AOI, time):
             return reformatted, frame_dataframe
 
         except requests.exceptions.RequestException as e:
-                print(f"Request error from ASF DAAC API: {e}")
-                if attempt < MAX_RETRIES - 1:
-                    print(f"Retrying in {WAIT_SECONDS} seconds...")
-                    sleep(WAIT_SECONDS)
-                else:
-                    print("All retry attempts failed.")
-                    return None  # Or raise, or return, depending on your flow
+            print(f"Request error from ASF DAAC API: {e}")
+            if attempt < MAX_RETRIES - 1:
+                print(f"Retrying in {WAIT_SECONDS} seconds...")
+                sleep(WAIT_SECONDS)
+            else:
+                print("All retry attempts failed.")
+                return {}, gpd.GeoDataFrame()
 
         except Exception as e:
             print(f"Unexpected error while processing ASF DAAC response: {e}")
-            return None
+            # IMPORTANT: Return empty structures to prevent unpacking errors in main loop
+            return {}, gpd.GeoDataFrame()
+
+    # Fallback if loop finishes without returning
+    return {}, gpd.GeoDataFrame()
 
 
 def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode):
@@ -1854,12 +1868,30 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
         if eq_sig is not None:
             jobs_dict = []
             master_scene_features = []
+            earthquake_infos = [] # List to hold earthquake metadata
+
             for eq in eq_sig:
                 try:
                     eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
 
                     if eq_features:
                         master_scene_features.extend(eq_features)
+                    
+                    # If jobs were generated, capture earthquake metadata
+                    if eq_jsons: 
+                        event_dt = convert_time(eq['time'])
+                        # Format Title, Epicenter, and Time
+                        eq_info = {
+                            "title": eq.get('title'),
+                            "epicenter": {
+                                "latitude": eq['coordinates'][1],
+                                "longitude": eq['coordinates'][0],
+                                "depth_km": eq['coordinates'][2],
+                                "usgs_event_url": eq.get('url', '')
+                            },
+                            "time": event_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                        }
+                        earthquake_infos.append(eq_info)
 
                 except Exception as e:
                     print(f"Error processing {eq['title']}: {e}")
@@ -1903,9 +1935,15 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
 
             if job_list and jobs_dict:  # Write only once after all earthquakes are processed
                 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+                
+                # Write Job List
                 with open(f'jobs_list_{current_time}.json', 'w') as f:
                     json.dump(jobs_dict, f, indent=4)
-            
+                
+                # Write Earthquake Info
+                with open(f'earthquake_info_{current_time}.json', 'w', encoding='utf-8') as f:
+                    json.dump(earthquake_infos, f, indent=4, ensure_ascii=False)
+
             if master_scene_features:
                 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
                 feature_filename = f'all_selected_scenes_{mode}_{current_time}.geojson'
