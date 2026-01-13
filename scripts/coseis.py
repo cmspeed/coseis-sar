@@ -1448,16 +1448,6 @@ def make_job_json(title, flight_direction, path_number, reference_scenes, second
     return job_json
 
 
-def filter_S1C(job):
-    """Return True if the job does NOT contain any S1C granules in primary or secondary."""
-    job_params = job.get("job_parameters", {})
-    granules = job_params.get("granules", [])
-    secondary = job_params.get("secondary_granules", [])
-
-    # Reject if any granule in either list starts with S1C_
-    return not any(g.startswith("S1C_") for g in granules + secondary)
-
-
 def create_directories_from_json(eq_jsons, root_dir):
     """
     Create directories for each group of SLCs based on the JSON data provided. These directories will be used to store the outputs of the dockerized topsApp.
@@ -1963,11 +1953,7 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                 if eq_jsons:
                     for i, eq_json in enumerate(eq_jsons):
                         for j, json_data in enumerate(eq_json):
-                            if mode == 'sar':
-                                if filter_S1C(json_data):  # apply filter to remove jobs contain Sentinel-1C granules
-                                    jobs_dict.append(json_data)
-                            else:
-                                jobs_dict.append(json_data)
+                            jobs_dict.append(json_data)
 
             if jobs_dict:  # Write only once after all earthquakes are processed
                 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
