@@ -246,7 +246,7 @@ def check_tracker_for_updates():
                         root_dir, 
                         title, 
                         f"{flight_dir}{int(path_num):03d}",
-                        "co_seismic",
+                        "coseismic",
                         pair_folder_name
                     )
                     
