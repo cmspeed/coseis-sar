@@ -37,7 +37,7 @@ USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Ear
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param" # ASF DAAC API endpoint
 CMR_API_URL = "https://cmr.earthdata.nasa.gov/search/granules.json" # NASA CMR API endpoint
-root_dir = os.path.join(os.getcwd(), "data")  # Defaults to ./data; change is
+root_dir = os.path.join(os.getcwd(), "data")
 
 # Global variables
 OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
@@ -171,9 +171,11 @@ def check_tracker_for_updates():
     For every track 'AWAITING_POST_SEISMIC', queries ASF for new data.
     If found:
       1. Completes the job file.
-      2. Emails secondary recipients.
-      3. Removes track from tracker.
-      4. If event has no more tracks, removes event.
+      2. Sends 'Processing Started' email.
+      3. Runs topsApp processing automatically.
+      4. Sends 'Processing Completed' email.
+      5. Removes track from tracker.
+      6. If event has no more tracks, removes event.
     """
     tracker = load_tracker()
     if not tracker:
@@ -201,19 +203,14 @@ def check_tracker_for_updates():
             path_num = track_info['path_number']
             frames = track_info['frame_numbers']
             
-            # Query ASF for POST-SEISMIC data
-            # We look from event_time forward to NOW
-            # Use 'forward' mode logic inside get_SLCs or custom call
-            
             print(f"  Checking {title} - {track_key}...")
             
             # Custom query for this track's post-event data
-            # We only need the first valid acquisition after the event
             slcs = get_SLCs(flight_dir, path_num, frames, event_time, processing_mode='forward')
             
             rupture_dt = convert_time(event_time).replace(tzinfo=None)
             post_slcs = []
-            secondary_date = None
+            secondary_date = None # This will be the Post-seismic date
 
             if slcs:
                 slcs.sort(key=lambda x: x['date'])
@@ -225,38 +222,65 @@ def check_tracker_for_updates():
                     post_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == secondary_date]
             
             if post_slcs:
+                # Rename these for absolute clarity before using them
+                pre_seismic_date = track_info['reference_date']
+                post_seismic_date = secondary_date
                 
                 # LOAD PARTIAL JOB
                 partial_file = track_info['partial_job_file']
                 try:
                     with open(partial_file, 'r') as f:
                         job_list = json.load(f)
-                        job = job_list[0] # Assuming list of 1
-                        
-                    # COMPLETE JOB
-                    # Note: In make_job_json logic:
-                    # 'granules' = reference (post-seismic usually in coseismic pairs logic?) 
-                    # Actually, usually 'reference' is the earlier date and 'secondary' is later for InSAR conventions?
-                    # The prompt says: "pre-seismic ('secondary_granules') property already filled... post-seismic ('granules') property empty"
-                    # So we fill 'granules' with the new post-seismic data.
+                        job = job_list[0]
                     
+                    # Fill 'granules' with Post-seismic (Newer/Reference)
                     job['job_parameters']['granules'] = post_slcs
+
+                    # Define Folder Names
+                    older_date_str = pre_seismic_date.replace("-", "")
+                    newer_date_str = post_seismic_date.replace("-", "")
+
+                    pair_folder_name = f"{flight_dir}{int(path_num):03d}_{older_date_str}_{newer_date_str}"
+
+                    processing_dir = os.path.join(
+                        root_dir, 
+                        title, 
+                        f"{flight_dir}{int(path_num):03d}",
+                        "coseismic",
+                        pair_folder_name
+                    )
                     
-                    # Update name to reflect dates if desired, or keep as is.
-                    # existing name: f"{title}-{flight_direction}{path_number}"
+                    # --- EMAIL 1: PROCESSING STARTED ---
+                    start_subject = f"PROCESSING STARTED: {title} ({track_key})"
+                    start_body = (
+                        f"New post-seismic data found for {title}.\n\n"
+                        f"Track: {track_key}\n"
+                        f"Pair: {pre_seismic_date} (Pre) - {post_seismic_date} (Post)\n"
+                        f"Output Directory: {processing_dir}\n\n"
+                        f"Automated processing is starting now..."
+                    )
+                    send_email(start_subject, start_body, recipients=SECONDARY_RECIPIENTS)
                     
-                    # SAVE COMPLETED JOB
-                    completed_filename = f"job_{title}_{track_key}_COMPLETED.json"
+                    # Run the processing
+                    print(f"    Starting automatic processing for {pair_folder_name}")
+                    try:
+                        run_dockerized_topsApp(job, processing_dir)
+                        processing_status = "Success"
+                    except Exception as e:
+                        print(f"    Processing failed for {pair_folder_name}: {e}")
+                        processing_status = f"Failed: {str(e)}"
+
+                    # SAVE COMPLETED JOB JSON IN PROCESSING DIR
+                    completed_filename = os.path.join(processing_dir, f"job_{title}_{track_key}_COMPLETED.json")
                     with open(completed_filename, 'w') as f:
                         json.dump([job], f, indent=4)
-                    
-                    print(f"    Created {completed_filename}")
                     
                     completed_jobs_summary.append({
                         "title": title,
                         "track": track_key,
-                        "file": completed_filename,
-                        "dates": f"{track_info['reference_date']} (Pre) - {secondary_date} (Post)"
+                        "dates": f"{pre_seismic_date} (Pre) - {post_seismic_date} (Post)",
+                        "status": processing_status,
+                        "location": processing_dir
                     })
                     
                     tracks_to_remove.append(track_key)
@@ -285,20 +309,21 @@ def check_tracker_for_updates():
     
     save_tracker(tracker)
 
-    # Send Notification Email if jobs were completed
+    # --- EMAIL 2: PROCESSING COMPLETED ---
     if completed_jobs_summary:
-        subject = f"COMPLETED JOB LISTS READY ({len(completed_jobs_summary)})"
-        body = "The following job lists have been completed and are ready for review:\n\n"
+        subject = f"PROCESSING COMPLETED: {len(completed_jobs_summary)} Jobs Ready"
+        body = "The following automated processing jobs have finished:\n\n"
         for item in completed_jobs_summary:
             body += f"Event: {item['title']}\n"
             body += f"Track: {item['track']}\n"
             body += f"Dates: {item['dates']}\n"
-            body += f"File: {item['file']}\n"
+            body += f"Status: {item['status']}\n"
+            body += f"Location: {item['location']}\n"
             body += "--------------------------------------\n"
         
         body += "\nThis is an automated message."
         
-        print("Sending notification email to secondary recipients...")
+        print("Sending completion email to secondary recipients...")
         send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
 
 
@@ -1468,60 +1493,82 @@ def create_directories_from_json(eq_jsons, root_dir):
     return dirnames, total
 
 
-def run_dockerized_topsApp(json_data):
+def run_dockerized_topsApp(json_data, working_dir):
     """
     Run dockerized topsApp InSAR processing workflow using the provided JSON data.
     Outputs are added to the root dir + an extension for each pair.
     :param json_data: JSON object containing the parameters for dockerized topsApp
+    :param working_dir: Working directory where the outputs will be stored
     """
     # Extract the parameters from the JSON data
-    reference_scenes = json_data['reference-scenes']
-    secondary_scenes = json_data['secondary-scenes']
-    frame_id = json_data['frame-id']
-    estimate_ionosphere_delay = json_data['estimate-ionosphere-delay']
-    esd_coherence_threshold = json_data['esd-coherence-threshold']
-    compute_solid_earth_tide = json_data['compute-solid-earth-tide']
-    goldstein_filter_power = json_data['goldstein-filter-power']
-    output_resolution = json_data['output-resolution']
-    unfiltered_coherence = json_data['unfiltered-coherence']
-    dense_offsets = json_data['dense-offsets']
-    process = 'coseis_sar'
+    params = json_data['job_parameters']
+    reference_scenes = " ".join(params['granules'])
+    secondary_scenes = " ".join(params['secondary_granules'])
+    
+    # Define static/dynamic parameters
+    frame_id = params.get('frame_id', -1)
+    estimate_ionosphere_delay = str(params.get('estimate_ionosphere_delay'))
+    esd_coherence_threshold = str(params.get('esd_coherence_threshold'))
+    compute_solid_earth_tide = str(params.get('compute_solid_earth_tide'))
+    goldstein_filter_power = str(params.get('goldstein_filter_power'))
+    output_resolution = str(params.get('output_resolution'))
+    unfiltered_coherence = str(params.get('unfiltered_coherence', True))
+    dense_offsets = str(params.get('dense_offsets', True))
     
     # Construct the command
-    command = [
+    cmd = [
+        "taskset", "-c", "0-16",
         "isce2_topsapp",
-        "--reference-scenes", " ".join(reference_scenes),
-        "--secondary-scenes", " ".join(secondary_scenes),
+        "--reference-scenes", reference_scenes,
+        "--secondary-scenes", secondary_scenes,
         "--frame-id", str(frame_id),
-        "--estimate-ionosphere-delay", str(estimate_ionosphere_delay),
-        "--esd-coherence-threshold", str(esd_coherence_threshold),
-        "--compute-solid-earth-tide", str(compute_solid_earth_tide),
-        "--goldstein-filter-power", str(goldstein_filter_power),
-        "--output-resolution", str(output_resolution),
-        "--unfiltered-coherence", str(unfiltered_coherence),
-        "--dense-offsets", str(dense_offsets),
-        "++process", process
+        "--estimate-ionosphere-delay", estimate_ionosphere_delay,
+        "--esd-coherence-threshold", esd_coherence_threshold,
+        "--compute-solid-earth-tide", compute_solid_earth_tide,
+        "--goldstein-filter-power", goldstein_filter_power,
+        "--output-resolution", output_resolution,
+        "--unfiltered-coherence", unfiltered_coherence,
+        "--dense-offsets", dense_offsets,
+        "++process", "coseis_sar"
     ]
     
-    print('=========================================')
-    print("Running the dockerized topsApp InSAR processing workflow...")
-    print('=========================================')
+    # Set Environment Variables
+    env = os.environ.copy()
+    env["XLA_PYTHON_CLIENT_MEM_FRACTION"] = ".20"
 
+    print('=========================================')
+    print(f"Running dockerized topsApp in {working_dir}...")
+    print(f"Command: {' '.join(cmd)}")
+    print('=========================================')
+    
     # Run the command
     try:
+        # Check if working dir exists, create if not
+        os.makedirs(working_dir, exist_ok=True)
+        
+        # Execute
         result = subprocess.run(
-            command,
+            cmd,
+            cwd=working_dir,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True,
+            check=True
         )
-        print("Command executed successfully!")
-        print("Output:\n", result.stdout)
+        print("Processing completed successfully.")
+        
+        # Optional: Save a log file in that directory
+        with open(os.path.join(working_dir, "topsapp_stdout.log"), "w") as log:
+            log.write(result.stdout)
+            
     except subprocess.CalledProcessError as e:
-        print("Error occurred while running the command.")
-        print("Error Output:\n", e.stderr)
-    return
+        print("Error occurred while running topsApp.")
+        print("Stderr:\n", e.stderr)
+        # Optional: Write error log
+        with open(os.path.join(working_dir, "topsapp_error.log"), "w") as log:
+            log.write(e.stderr)
+        raise e  # Re-raise to handle it in the calling function if needed
 
 
 def to_snake_case(input_string):
@@ -1713,123 +1760,138 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
             return None
 
 
-def main_forward(pairing_mode=None):
+def main_forward(pairing_mode=None, resolution = 90):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
+    :param resolution: Output resolution for the topsApp processing, default is 90m
     """
-
-    print('=========================================')
-    print("Running cronjob to check for new earthquakes...")
-    print('=========================================')
     
-    # Initialize the tracking file if it doesn't exist
-    if not os.path.exists(TRACKING_FILE):
-        with open(TRACKING_FILE, 'w') as f:
-            json.dump({}, f)
+    # A lock file to prevent overlapping runs
+    lock_file = "/tmp/coseis_processing.lock"
 
-    # Check for New Earthquakes
-    geojson_data = check_for_new_data(USGS_api_hourly)
+    if os.path.exists(lock_file):
+        print("Previous processing run still active. Exiting.")
+        return
+    try:
+        with open(lock_file, 'w') as f:
+            f.write("running")
 
-    start_date = datetime.now().strftime('%Y-%m-%d')
-    current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
+        print('=========================================')
+        print("Running cronjob to check for new earthquakes...")
+        print('=========================================')
+        
+        # Initialize the tracking file if it doesn't exist
+        if not os.path.exists(TRACKING_FILE):
+            with open(TRACKING_FILE, 'w') as f:
+                json.dump({}, f)
 
-    if geojson_data:
-        # Parse GeoJSON and create variables for each feature's properties
-        earthquakes = parse_geojson(geojson_data)
-        eq_sig = check_significance(earthquakes, start_date, end_date=None, mode = 'forward')
+        # Check for New Earthquakes
+        geojson_data = check_for_new_data(USGS_api_hourly)
 
-        if eq_sig is not None:
-            for eq in eq_sig:
-                # Check for duplicate entry in the pending queue
-                tracker = load_tracker()
-                if eq.get('id') in tracker:
-                    print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
-                    continue
+        start_date = datetime.now().strftime('%Y-%m-%d')
+        current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
 
-                title = eq.get('title', '')
-                title_snake = to_snake_case(title)
-                print(f"title: {title_snake}")
-                coords = eq.get('coordinates', [])
-                
-                # Initial AOI creation (a 1-degree box)
-                aoi = make_aoi(coords)
+        if geojson_data:
+            # Parse GeoJSON and create variables for each feature's properties
+            earthquakes = parse_geojson(geojson_data)
+            eq_sig = check_significance(earthquakes, start_date, end_date=None, mode = 'forward')
 
-                # Write AOI to a geojson file
-                with open(f'{title}_AOI.geojson', 'w') as f:
-                    geojson.dump(aoi, f, indent=2)
+            if eq_sig is not None:
+                for eq in eq_sig:
+                    # Check for duplicate entry in the pending queue
+                    tracker = load_tracker()
+                    if eq.get('id') in tracker:
+                        print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
+                        continue
 
-                # Get path/frame numbers for the initial AOI
-                path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
-                
-                # Create a timestamp string
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    title = eq.get('title', '')
+                    title_snake = to_snake_case(title)
+                    print(f"title: {title_snake}")
+                    coords = eq.get('coordinates', [])
+                    
+                    # Initial AOI creation (a 1-degree box)
+                    aoi = make_aoi(coords)
 
-                # Create the output directory
-                timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
-                timestamp_dir.mkdir(parents=True, exist_ok=True)
+                    # Write AOI to a geojson file
+                    with open(f'{title}_AOI.geojson', 'w') as f:
+                        geojson.dump(aoi, f, indent=2)
 
-                # Run next_pass to get the next S1 overpasses
-                next_pass_info = get_next_pass(aoi, timestamp_dir, satellite="sentinel-1")
-                
-                # Rename sentinel-1 overpass and opera granule maps
-                original_filename = timestamp_dir / "satellite_overpasses_map.html"
-                s1_map_filename = timestamp_dir / f"{title_snake}_Sentinel-1_Next_Overpasses.html"
+                    # Get path/frame numbers for the initial AOI
+                    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+                    
+                    # Create a timestamp string
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-                attachment_file = None
+                    # Create the output directory
+                    timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
+                    timestamp_dir.mkdir(parents=True, exist_ok=True)
 
-                if os.path.exists(original_filename):
-                    os.rename(original_filename, s1_map_filename)
-                    print(f"Renamed to {s1_map_filename}")
-                    attachment_file = str(s1_map_filename)
-                else:
-                    print(f"Expected file {original_filename} not found.")
+                    # Run next_pass to get the next S1 overpasses
+                    next_pass_info = get_next_pass(aoi, timestamp_dir, satellite="sentinel-1")
+                    
+                    # Rename sentinel-1 overpass and opera granule maps
+                    original_filename = timestamp_dir / "satellite_overpasses_map.html"
+                    s1_map_filename = timestamp_dir / f"{title_snake}_Sentinel-1_Next_Overpasses.html"
 
-                # Construct and send the initial email alert
-                message_dict = {
-                    "title": eq.get('title', ''),
-                    "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
-                    "coordinates": [round(coord, 3) for coord in eq.get('coordinates', [])],
-                    "magnitude": eq.get('mag', ''),
-                    "depth": round(eq.get('coordinates', [])[2], 1),
-                    "alert": eq.get('alert', ''),
-                    "url": eq.get('url', '')
-                }
+                    attachment_file = None
 
-                send_email(
-                    subject=f"{message_dict['title']}",
-                    body=(
-                        f"{message_dict['title']} at {message_dict['time']} UTC\n"
-                        f"------------------------------------------------------------------------------------------------------------------------\n"
-                        f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
-                        f"Depth: {message_dict['depth']} km\n"
-                        f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
-                        f"------------------------------------------------------------------------------------------------------------------------\n"
-                        f"Next acquisition times and relative orbits for Sentinel-1 frames intersecting the earthquake AOI:\n"
-                        f"{next_pass_info}\n"
-                        f"------------------------------------------------------------------------------------------------------------------------\n"
-                        f"View an interactive map of intersecting Sentinel-1 orbits by downloading the attachment and launching it your web browser.\n"
-                        f"------------------------------------------------------------------------------------------------------------------------\n"
-                        f"This is an automated message. Please do not reply. For product-specific inquiries contact Dr. Cole Speed (<a href=\"mailto:cole.speed@jpl.nasa.gov\">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href=\"mailto:bato@jpl.nasa.gov\">bato@jpl.nasa.gov</a>)."
-                    ),
-                    attachment=attachment_file,
-                    recipients=PRIMARY_RECIPIENTS
-                )
+                    if os.path.exists(original_filename):
+                        os.rename(original_filename, s1_map_filename)
+                        print(f"Renamed to {s1_map_filename}")
+                        attachment_file = str(s1_map_filename)
+                    else:
+                        print(f"Expected file {original_filename} not found.")
 
-                print('=========================================')
-                print('Alert emailed to recipients.')
-                print('=========================================')
+                    # Construct and send the initial email alert
+                    message_dict = {
+                        "title": eq.get('title', ''),
+                        "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
+                        "coordinates": [round(coord, 3) for coord in eq.get('coordinates', [])],
+                        "magnitude": eq.get('mag', ''),
+                        "depth": round(eq.get('coordinates', [])[2], 1),
+                        "alert": eq.get('alert', ''),
+                        "url": eq.get('url', '')
+                    }
 
-                # START TRACKING FOR THIS EVENT
-                # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
-                add_to_tracker(eq, aoi, args.resolution)
-                
-        else:
-            print(f"No new significant earthquakes found as of {current_time}.")
+                    send_email(
+                        subject=f"{message_dict['title']}",
+                        body=(
+                            f"{message_dict['title']} at {message_dict['time']} UTC\n"
+                            f"------------------------------------------------------------------------------------------------------------------------\n"
+                            f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
+                            f"Depth: {message_dict['depth']} km\n"
+                            f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
+                            f"------------------------------------------------------------------------------------------------------------------------\n"
+                            f"Next acquisition times and relative orbits for Sentinel-1 frames intersecting the earthquake AOI:\n"
+                            f"{next_pass_info}\n"
+                            f"------------------------------------------------------------------------------------------------------------------------\n"
+                            f"View an interactive map of intersecting Sentinel-1 orbits by downloading the attachment and launching it your web browser.\n"
+                            f"------------------------------------------------------------------------------------------------------------------------\n"
+                            f"This is an automated message. Please do not reply. For product-specific inquiries contact Dr. Cole Speed (<a href=\"mailto:cole.speed@jpl.nasa.gov\">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href=\"mailto:bato@jpl.nasa.gov\">bato@jpl.nasa.gov</a>)."
+                        ),
+                        attachment=attachment_file,
+                        recipients=PRIMARY_RECIPIENTS
+                    )
 
-    # Check ASF DAAC for available SLCs for pending earthquakes
-    check_tracker_for_updates()
+                    print('=========================================')
+                    print('Alert emailed to recipients.')
+                    print('=========================================')
+
+                    # START TRACKING FOR THIS EVENT
+                    # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
+                    add_to_tracker(eq, aoi, resolution)
+                    
+            else:
+                print(f"No new significant earthquakes found as of {current_time}.")
+
+        # Check ASF DAAC for available SLCs for pending earthquakes
+        check_tracker_for_updates()
+        
+    finally:
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
 
 
 def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False, resolution=90, mode='sar'):
@@ -1897,7 +1959,8 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                     print(f"Error processing {eq['title']}: {e}")
                     continue
 
-                if job_list:    # produce the list of jobs needed for HYPE3 processing, but do not run any jobs
+                # Produce the list of jobs needed for cloud processing
+                if eq_jsons:
                     for i, eq_json in enumerate(eq_jsons):
                         for j, json_data in enumerate(eq_json):
                             if mode == 'sar':
@@ -1906,34 +1969,7 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                             else:
                                 jobs_dict.append(json_data)
 
-                else:   # run dockerizedTopsApp locally
-                    
-                    if mode == 'sar':
-                        # Create directories for each group of SLCs based on the JSON data provided
-                        dirnames, total = create_directories_from_json(eq_jsons, root_dir)
-                        
-                        for i, eq_json in enumerate(eq_jsons):
-                            for j, json_data in enumerate(eq_json):
-                                
-                                # Navigate to working directory for job
-                                working_dir = dirnames[i][j]
-                                os.chdir(working_dir)
-
-                                # Add json to the working directory 
-                                with open('isce_params.json', 'w') as f:
-                                    json.dump(json_data, f, indent=4)
-                                
-                                print(f'working directory: {os.getcwd()}')
-                                print(f'Running dockerized topsApp for dates {json_data["secondary-date"]} to {json_data["reference-date"]}...')
-                                try:
-                                    run_dockerized_topsApp(json_data)
-                                except:
-                                    print('Error running dockerized topsApp')
-                                    continue
-                    else:
-                        print("Optical processing mode selected. Running jobs locally is not implemented yet.")
-
-            if job_list and jobs_dict:  # Write only once after all earthquakes are processed
+            if jobs_dict:  # Write only once after all earthquakes are processed
                 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
                 
                 # Write Job List
