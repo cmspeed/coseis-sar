@@ -319,21 +319,24 @@ def check_tracker_for_updates():
     save_tracker(tracker)
 
     # --- EMAIL 2: PROCESSING COMPLETED ---
-    if completed_jobs_summary:
-        subject = f"PROCESSING COMPLETED: {len(completed_jobs_summary)} Jobs Ready"
-        body = "The following automated processing jobs have finished:\n\n"
-        for item in completed_jobs_summary:
-            body += f"Event: {item['title']}\n"
-            body += f"Track: {item['track']}\n"
-            body += f"Dates: {item['dates']}\n"
-            body += f"Status: {item['status']}\n"
-            body += f"Location: {item['location']}\n"
-            body += "--------------------------------------\n"
-        
-        body += "\nThis is an automated message."
-        
-        print("Sending completion email to secondary recipients...")
-        send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
+    has_failures = any(item['status'].startswith("Failed") for item in completed_jobs_summary)
+    status_tag = "WITH FAILURES" if has_failures else "SUCCESS"
+    
+    subject = f"PROCESSING COMPLETED ({status_tag}): {len(completed_jobs_summary)} Jobs Processed"
+    
+    body = "The following automated processing jobs have finished:\n\n"
+    for item in completed_jobs_summary:
+        body += f"Event: {item['title']}\n"
+        body += f"Track: {item['track']}\n"
+        body += f"Dates: {item['dates']}\n"
+        body += f"Status: {item['status']}\n"
+        body += f"Location: {item['location']}\n"
+        body += "--------------------------------------\n"
+    
+    body += "\nThis is an automated message."
+    
+    print("Sending completion email to secondary recipients...")
+    send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
 
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
@@ -1516,6 +1519,7 @@ def run_dockerized_topsApp(json_data, working_dir):
     
     # Construct the command
     cmd = [
+        "conda", "run", "-n", "topsapp_env_trappist_python11",
         "taskset", "-c", "0-16",
         "isce2_topsapp",
         "--reference-scenes", reference_scenes,
