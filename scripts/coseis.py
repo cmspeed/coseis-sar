@@ -43,14 +43,23 @@ root_dir = os.path.join(os.getcwd(), "data")
 OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
 
 TRACKING_FILE = "active_job_tracking.json"
-PRIMARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'cole.speed@yahoo.com',
-                      'mary.grace.p.bato@jpl.nasa.gov', 'mgbato@gmail.com',
-                      'eric.j.fielding@jpl.nasa.gov', 'emre.havazli@jpl.nasa.gov',
-                      'bryan.raimbault@jpl.nasa.gov', 'karen.an@jpl.nasa.gov',
-                      'ines.fenni@jpl.nasa.gov', 'alexander.handwerger@jpl.nasa.gov',
-                      'brett.a.buzzanga@jpl.nasa.gov', 'dmelgarm@uoregon.edu', 'msolares@uoregon.edu'
-                      ]
-SECONDARY_RECIPIENTS = ['cole.speed@jpl.nasa.gov', 'mary.grace.p.bato@jpl.nasa.gov']
+
+def get_recipients_from_env(var_name):
+    """
+    Retrieves a list of emails from an environment variable.
+    """
+    env_val = os.getenv(var_name, "")
+    # Split by comma and strip whitespace
+    return [email.strip() for email in env_val.split(',') if email.strip()]
+
+# Load recipients from environment variables
+PRIMARY_RECIPIENTS = get_recipients_from_env('COSEIS_PRIMARY_RECIPIENTS')
+SECONDARY_RECIPIENTS = get_recipients_from_env('COSEIS_SECONDARY_RECIPIENTS')
+
+# Warning if variables are missing
+if not PRIMARY_RECIPIENTS:
+    logging.warning("No PRIMARY_RECIPIENTS found. Set 'COSEIS_PRIMARY_RECIPIENTS' environment variable.")
+
 
 def load_tracker():
     """Loads the active job tracking file."""
