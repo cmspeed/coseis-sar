@@ -190,9 +190,10 @@ def check_tracker_for_updates():
     if not tracker:
         return
 
-    print('=========================================')
-    print("Checking active tracker for new post-seismic data...")
-    print('=========================================')
+    # [SILENCED FOR CRON]
+    # print('=========================================')
+    # print("Checking active tracker for new post-seismic data...")
+    # print('=========================================')
 
     events_to_remove = []
     completed_jobs_summary = []
@@ -211,8 +212,6 @@ def check_tracker_for_updates():
             flight_dir = track_info['flight_direction']
             path_num = track_info['path_number']
             frames = track_info['frame_numbers']
-            
-            print(f"  Checking {title} - {track_key}...")
             
             # Custom query for this track's post-event data
             slcs = get_SLCs(flight_dir, path_num, frames, event_time, processing_mode='forward')
@@ -302,6 +301,7 @@ def check_tracker_for_updates():
                     print(f"    Error processing partial file {partial_file}: {e}")
             else:
                 print(f"    No post-seismic data yet.")
+                pass
 
         # Remove completed tracks
         for tk in tracks_to_remove:
@@ -319,24 +319,26 @@ def check_tracker_for_updates():
     save_tracker(tracker)
 
     # --- EMAIL 2: PROCESSING COMPLETED ---
-    has_failures = any(item['status'].startswith("Failed") for item in completed_jobs_summary)
-    status_tag = "WITH FAILURES" if has_failures else "SUCCESS"
-    
-    subject = f"PROCESSING COMPLETED ({status_tag}): {len(completed_jobs_summary)} Jobs Processed"
-    
-    body = "The following automated processing jobs have finished:\n\n"
-    for item in completed_jobs_summary:
-        body += f"Event: {item['title']}\n"
-        body += f"Track: {item['track']}\n"
-        body += f"Dates: {item['dates']}\n"
-        body += f"Status: {item['status']}\n"
-        body += f"Location: {item['location']}\n"
-        body += "--------------------------------------\n"
-    
-    body += "\nThis is an automated message."
-    
-    print("Sending completion email to secondary recipients...")
-    send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
+    # Only send email if there are items in the summary
+    if completed_jobs_summary:
+        has_failures = any(item['status'].startswith("Failed") for item in completed_jobs_summary)
+        status_tag = "WITH FAILURES" if has_failures else "SUCCESS"
+        
+        subject = f"PROCESSING COMPLETED ({status_tag}): {len(completed_jobs_summary)} Jobs Processed"
+        
+        body = "The following automated processing jobs have finished:\n\n"
+        for item in completed_jobs_summary:
+            body += f"Event: {item['title']}\n"
+            body += f"Track: {item['track']}\n"
+            body += f"Dates: {item['dates']}\n"
+            body += f"Status: {item['status']}\n"
+            body += f"Location: {item['location']}\n"
+            body += "--------------------------------------\n"
+        
+        body += "\nThis is an automated message."
+        
+        print("Sending completion email to secondary recipients...")
+        send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
 
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
