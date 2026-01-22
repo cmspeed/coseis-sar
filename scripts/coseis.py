@@ -1190,6 +1190,11 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
     """
     Generate Optical Pairs grouped by Relative Orbit.
     Prioritizes: 1. True Coverage Area %, 2. Cloud Cover, 3. Time.
+    
+    Updates:
+    - Merges S2A/S2B/S2C (no platform filtering).
+    - Creates 'partial' job entries if only one side (Pre/Post) is found.
+    - Logs detailed reasons for missing pairs (cloud stats).
     """
     rupture_dt = convert_time(rupture_time)
     aoi_area = aoi_polygon.area
@@ -1216,8 +1221,9 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
         for date_str, scenes_on_date in dates_dict.items():
             date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
             
-            # Combine scenes from same date (Mosaic logic)
+            # Combine scenes from same date (Mosaic logic) - No platform filtering
             scenes = scenes_on_date
+            # Use generic platform label
             platform = scenes[0]['platform'] if scenes else "sentinel-2"
 
             unique_scenes = []
@@ -1265,15 +1271,18 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
                 'delta': delta_days       
             }
             
+            # Note: Dates equal to rupture_dt (00:00 vs exact rupture) fall into 'post' or are skipped
+            # depending on specific needs, but standard logic is usually strictly pre/post.
             if date_dt < rupture_dt:
                 pre_candidates.append(candidate)
             elif date_dt > rupture_dt:
                 post_candidates.append(candidate)
 
-        # --- HANDLE INCOMPLETE PAIRS ---
+        # --- HANDLE INCOMPLETE PAIRS (PARTIAL JOBS) ---
         if not pre_candidates or not post_candidates:
-            print(f"  Orbit {orbit_id}: [PARTIAL] Incomplete pair.")
+            print(f"  Orbit {orbit_id}: [PARTIAL/FAILED] Incomplete pair.")
             
+            # Initialize placeholders for the job
             pre_date_str = "MISSING"
             post_date_str = "MISSING"
             primary_ids = []
