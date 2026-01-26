@@ -1190,6 +1190,11 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
     """
     Generate Optical Pairs grouped by Relative Orbit.
     Prioritizes: 1. True Coverage Area %, 2. Cloud Cover, 3. Time.
+    
+    Updates:
+    - Uses make_optical_job_json for ARIA_AUTORIFT formatting.
+    - Merges S2A/S2B/S2C (no platform filtering).
+    - Creates 'partial' job entries if only one side (Pre/Post) is found.
     """
     rupture_dt = convert_time(rupture_time)
     aoi_area = aoi_polygon.area
@@ -1222,7 +1227,6 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_lis
 
             unique_scenes = []
             seen_tiles = set()
-            # Sort by cloud cover (lowest first) to pick best tile if duplicates exist
             scenes.sort(key=lambda x: x['cloud_cover'])
             
             combined_poly = None
