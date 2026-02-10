@@ -300,7 +300,7 @@ def check_tracker_for_updates():
                 except Exception as e:
                     print(f"    Error processing partial file {partial_file}: {e}")
             else:
-                print(f"    No post-seismic data yet.")
+                # print(f"    No post-seismic data yet.")
                 pass
 
         # Remove completed tracks
@@ -1157,13 +1157,23 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
     return granules
 
 
-def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, secondary_ids, status="COMPLETE"):
+def get_utm_zone(granule_id):
+    """Extracts UTM zone from Sentinel-2 Granule ID (e.g., 'T46QHK' -> '46')."""
+    match = re.search(r'_T(\d{2})[A-Z]{3}_', granule_id)
+    return match.group(1) if match else "Unknown"
+
+
+def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, secondary_ids, status="COMPLETE", zone_suffix=None):
     """
     Helper function to create a JSON object for an AUTORIFT job.
     Matches the schema defined in ARIA_AUTORIFT.yml.
     """
     # Create a descriptive job name
-    job_name = f"{title}-S2-R{orbit_id}-{pre_date}_{post_date}"
+    orbit_str = f"R{orbit_id}"
+    if zone_suffix:
+        orbit_str += f"-{zone_suffix}" # e.g. R047-Z46
+        
+    job_name = f"{title}-S2-{orbit_str}-{pre_date}_{post_date}"
     
     job_json = {
         "name": job_name,
@@ -1186,169 +1196,195 @@ def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, s
     return job_json
 
 
-def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_list=True):
+def process_candidate_group(orbit_key, dates_dict, rupture_dt, aoi_polygon, title, aoi_area, strategy_name):
     """
-    Generate Optical Pairs grouped by Relative Orbit.
-    Prioritizes: 1. True Coverage Area %, 2. Cloud Cover, 3. Time.
+    Generic logic to select best Pre/Post pair from a grouped dictionary of candidates.
+    Used by both 'Dominant' and 'Split' strategies.
+    """
+    pre_candidates = []
+    post_candidates = []
     
-    Updates:
-    - Uses make_optical_job_json for ARIA_AUTORIFT formatting.
-    - Merges S2A/S2B/S2C (no platform filtering).
-    - Creates 'partial' job entries if only one side (Pre/Post) is found.
+    # 1. Evaluate candidates for every available date
+    for date_str, scenes in dates_dict.items():
+        if not scenes: continue
+        
+        date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        platform = scenes[0]['platform']
+
+        # Deduplicate tiles for this date/group
+        unique_scenes = []
+        seen_tiles = set()
+        scenes.sort(key=lambda x: x['cloud_cover'])
+        
+        combined_poly = None
+        for s in scenes:
+            # Create a unique key for the tile (UTM + Triplet, e.g., '46QHK')
+            t_match = re.search(r'_T(\w{5})_', s['granule_id'])
+            if t_match:
+                tile_id = t_match.group(1)
+                if tile_id not in seen_tiles:
+                    unique_scenes.append(s)
+                    seen_tiles.add(tile_id)
+                    if s.get('footprint'):
+                        if combined_poly is None: combined_poly = s['footprint']
+                        else: combined_poly = combined_poly.union(s['footprint'])
+
+        if not unique_scenes:
+            continue
+
+        # Calc coverage
+        coverage_pct = 0.0
+        if combined_poly and aoi_polygon:
+            try:
+                clean_poly = combined_poly.buffer(0)
+                intersection = clean_poly.intersection(aoi_polygon)
+                coverage_pct = (intersection.area / aoi_area) * 100.0
+            except: pass
+        
+        avg_cc = sum(s['cloud_cover'] for s in unique_scenes) / len(unique_scenes)
+        delta = abs((date_dt - rupture_dt).days)
+        
+        candidate = {
+            'date': date_str, 'scenes': unique_scenes, 'platform': platform,
+            'coverage': coverage_pct, 'tile_count': len(unique_scenes), 'cc': avg_cc, 'delta': delta
+        }
+        
+        if date_dt < rupture_dt: pre_candidates.append(candidate)
+        elif date_dt > rupture_dt: post_candidates.append(candidate)
+
+    jobs = []
+    features = []
+
+    # 2. Select Best Pair
+    if not pre_candidates or not post_candidates:
+        # (Partial logic could go here, but omitted for success path focus)
+        return [], []
+
+    # Sort: Max Coverage > Low Cloud > Low Delta
+    pre_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
+    best_pre = pre_candidates[0]
+    
+    post_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
+    best_post = post_candidates[0]
+    
+    print(f"  [{strategy_name}] {orbit_key}: Pre={best_pre['date']} ({best_pre['coverage']:.1f}% Cov), Post={best_post['date']} ({best_post['coverage']:.1f}% Cov)")
+
+    # 3. Generate Job
+    primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
+    secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
+    
+    # Handle naming differences based on strategy
+    zone_suffix = None
+    orbit_id = orbit_key
+    if "Z" in orbit_key: # Key is likely "047_Z46" (Orbit_Zone)
+        parts = orbit_key.split('_')
+        orbit_id = parts[0]
+        zone_suffix = parts[1] # "Z46"
+
+    job = make_optical_job_json(title, orbit_id, best_pre['date'], best_post['date'], primary_ids, secondary_ids, zone_suffix=zone_suffix)
+    jobs.append(job)
+
+    # 4. Generate GeoJSON Features for Visualization
+    for stage, candidate in [("Pre-Event", best_pre), ("Post-Event", best_post)]:
+        for scene in candidate['scenes']:
+            if scene.get('footprint'):
+                feat = {
+                    "type": "Feature",
+                    "geometry": mapping(scene['footprint']),
+                    "properties": {
+                        "job_name": job['name'], # Critical for grouping in QGIS
+                        "strategy": strategy_name,
+                        "role": stage,
+                        "date": candidate['date'],
+                        "orbit": orbit_id,
+                        "zone": get_utm_zone(scene['granule_id']),
+                        "granule_id": scene['granule_id']
+                    }
+                }
+                features.append(feat)
+                
+    return jobs, features
+
+
+def check_mixed_zones_in_group(dates_dict):
+    """
+    Checks if any single date/acquisition within an orbit group contains 
+    tiles from multiple UTM zones. This indicates a 'Mixed' case that 
+    requires Split/Dominant strategy comparison.
+    """
+    for date, scenes in dates_dict.items():
+        zones = set(get_utm_zone(s['granule_id']) for s in scenes)
+        if len(zones) > 1:
+            return True
+    return False
+
+
+def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon):
+    """
+    Generates optical pairs using two strategies concurrently for comparison:
+    1. DOMINANT: Enforces one UTM zone per Orbit (drops minority tiles).
+    2. SPLIT: Creates separate jobs for every UTM zone found.
+    
+    Returns:
+    - standard_jobs (Dominant jobs for all orbits, for general processing)
+    - mixed_dom_features (Features for Dominant strategy, ONLY for mixed cases)
+    - mixed_split_features (Features for Split strategy, ONLY for mixed cases)
     """
     rupture_dt = convert_time(rupture_time)
     aoi_area = aoi_polygon.area
 
-    # Group by Orbit -> Date
+    # -- 1. ORGANIZE DATA --
+    # Group by Orbit -> Date -> List of Scenes
     orbit_groups = defaultdict(lambda: defaultdict(list))
-    
     for scene in optical_scenes:
-        granule_id = scene['granule_id']
-        match = re.search(r'_R(\d{3})_', granule_id)
+        match = re.search(r'_R(\d{3})_', scene['granule_id'])
         if match:
-            orbit_id = match.group(1)
-            orbit_groups[orbit_id][scene['date']].append(scene)
+            orbit_groups[match.group(1)][scene['date']].append(scene)
 
-    jobs = []
-    scene_features = [] 
+    # Standard production output (Dominant strategy applied to ALL)
+    all_prod_jobs = []
     
-    print(f"Found {len(orbit_groups)} unique satellite tracks.")
+    # Comparison/Debug output (ONLY for orbits that actually have mixed zones)
+    mixed_dom_feats = []
+    mixed_split_feats = []
+
+    print(f"Processing {len(orbit_groups)} tracks with DOMINANT strategy (and SPLIT where applicable)...")
 
     for orbit_id, dates_dict in orbit_groups.items():
-        pre_candidates = []
-        post_candidates = []
         
-        for date_str, scenes_on_date in dates_dict.items():
-            date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            
-            # Combine scenes from same date (Mosaic logic)
-            scenes = scenes_on_date
-            platform = scenes[0]['platform'] if scenes else "sentinel-2"
-
-            unique_scenes = []
-            seen_tiles = set()
-            scenes.sort(key=lambda x: x['cloud_cover'])
-            
-            combined_poly = None
-            
-            for s in scenes:
-                t_match = re.search(r'_T(\w{5})_', s['granule_id'])
-                if t_match:
-                    tile_id = t_match.group(1)
-                    if tile_id not in seen_tiles:
-                        unique_scenes.append(s)
-                        seen_tiles.add(tile_id)
-                        
-                        if s.get('footprint'):
-                            if combined_poly is None:
-                                combined_poly = s['footprint']
-                            else:
-                                combined_poly = combined_poly.union(s['footprint'])
-
-            # Calculate Coverage
-            coverage_pct = 0.0
-            if combined_poly and aoi_polygon:
-                try:
-                    clean_poly = combined_poly.buffer(0)
-                    intersection = clean_poly.intersection(aoi_polygon)
-                    coverage_pct = (intersection.area / aoi_area) * 100.0
-                except Exception:
-                    pass
-            
-            tile_count = len(unique_scenes)
-            avg_cc = sum(s['cloud_cover'] for s in unique_scenes) / len(unique_scenes) if unique_scenes else 100
-            delta_days = abs((date_dt - rupture_dt).days)
-            
-            candidate = {
-                'date': date_str,
-                'scenes': unique_scenes,
-                'platform': platform,
-                'coverage': coverage_pct, 
-                'tile_count': tile_count,
-                'cc': avg_cc,             
-                'delta': delta_days       
-            }
-            
-            if date_dt < rupture_dt:
-                pre_candidates.append(candidate)
-            elif date_dt > rupture_dt:
-                post_candidates.append(candidate)
-
-        # --- HANDLE INCOMPLETE PAIRS ---
-        if not pre_candidates or not post_candidates:
-            print(f"  Orbit {orbit_id}: [PARTIAL] Incomplete pair.")
-            
-            pre_date_str = "MISSING"
-            post_date_str = "MISSING"
-            primary_ids = []
-            secondary_ids = []
-
-            if pre_candidates:
-                best_pre = min(pre_candidates, key=lambda x: x['cc'])
-                print(f"    - Found Pre-event: {best_pre['date']} (CC: {best_pre['cc']:.1f}%)")
-                pre_date_str = best_pre['date']
-                primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
-            else:
-                print(f"    - Missing PRE-event coverage.")
-
-            if post_candidates:
-                best_post = min(post_candidates, key=lambda x: x['cc'])
-                print(f"    - Found Post-event: {best_post['date']} (CC: {best_post['cc']:.1f}%)")
-                post_date_str = best_post['date']
-                secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
-            else:
-                print(f"    - Missing POST-event coverage.")
-            
-            # Generate the partial job and add to list
-            if job_list:
-                job = make_optical_job_json(
-                    title, orbit_id, pre_date_str, post_date_str, 
-                    primary_ids, secondary_ids, status="PARTIAL"
-                )
-                jobs.append(job)
-            continue
-
-        # --- STANDARD SELECTION ---
-        # Sort: Max Coverage > Low Cloud > Low Delta
-        pre_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
-        best_pre = pre_candidates[0]
+        # Check if this orbit even has a mixing issue
+        is_mixed = check_mixed_zones_in_group(dates_dict)
         
-        post_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
-        best_post = post_candidates[0]
+        # --- STRATEGY A: DOMINANT ZONE (Applied to ALL orbits) ---
+        dom_dates_dict = defaultdict(list)
+        for d, scenes in dates_dict.items():
+            zone_counts = defaultdict(int)
+            for s in scenes: zone_counts[get_utm_zone(s['granule_id'])] += 1
+            if zone_counts:
+                winner = max(zone_counts, key=zone_counts.get)
+                dom_dates_dict[d] = [s for s in scenes if get_utm_zone(s['granule_id']) == winner]
         
-        print(f"  Orbit {orbit_id}: Pre={best_pre['date']} ({best_pre['coverage']:.1f}% Cov), Post={best_post['date']} ({best_post['coverage']:.1f}% Cov)")
+        # Generate Dominant Jobs (Always added to production list)
+        j_dom, f_dom = process_candidate_group(orbit_id, dom_dates_dict, rupture_dt, aoi_polygon, title, aoi_area, "DOMINANT")
+        all_prod_jobs.extend(j_dom)
 
-        for stage, candidate in [("Pre-Event", best_pre), ("Post-Event", best_post)]:
-            for scene in candidate['scenes']:
-                if scene.get('footprint'):
-                    feature = {
-                        "type": "Feature",
-                        "geometry": mapping(scene['footprint']),
-                        "properties": {
-                            "earthquake": title,
-                            "role": stage,
-                            "date": candidate['date'],
-                            "orbit": orbit_id,
-                            "platform": candidate['platform'],
-                            "granule_id": scene['granule_id'],
-                            "cloud_cover": scene['cloud_cover'],
-                            "coverage_pct": round(candidate['coverage'], 1)
-                        }
-                    }
-                    scene_features.append(feature)
+        # If this was a Mixed case, add to our specific debug lists
+        if is_mixed:
+            mixed_dom_feats.extend(f_dom)
 
-        if job_list:
-            primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
-            secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
+            # --- STRATEGY B: SPLIT ZONES (Only needed for Mixed cases) ---
+            split_groups = defaultdict(lambda: defaultdict(list))
+            for d, scenes in dates_dict.items():
+                for s in scenes:
+                    z = get_utm_zone(s['granule_id'])
+                    key = f"{orbit_id}_Z{z}"
+                    split_groups[key][d].append(s)
             
-            # CALL THE HELPER FUNCTION HERE
-            job = make_optical_job_json(
-                title, orbit_id, best_pre['date'], best_post['date'], 
-                primary_ids, secondary_ids
-            )
-            jobs.append(job)
-            
-    return jobs, scene_features
+            for key, z_dates_dict in split_groups.items():
+                _, f_split = process_candidate_group(key, z_dates_dict, rupture_dt, aoi_polygon, title, aoi_area, "SPLIT")
+                mixed_split_feats.extend(f_split)
+
+    return all_prod_jobs, mixed_dom_feats, mixed_split_feats
 
 
 def generate_pairs(pairs, mode):
@@ -1711,7 +1747,10 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
         geojson.dump(mapping(aoi), f, indent=2)
 
     all_jobs = []
-    all_features = []
+    
+    # Specific buckets for Mixed Zone debug features
+    mixed_dom_features_out = []
+    mixed_split_features_out = []
 
     if mode == 'sar':
         path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
@@ -1731,6 +1770,9 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
             isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, 
                                                            title, pairing_mode, job_list, resolution)
             all_jobs.append(isce_jobs)
+        
+        # Return 5 values to match new signature, passing AOI as 5th
+        return all_jobs, [], [], [], aoi
 
     elif mode == 'optical':
         rupture_time = eq.get('time')
@@ -1741,23 +1783,22 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
         s2_scenes = search_copernicus_public(aoi, start_search, end_search)
         
-        s2_jobs, s2_features = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
+        # Run comparison strategies
+        # Returns: (Standard Jobs, Mixed-Dominant-Features, Mixed-Split-Features)
+        j_prod, f_mixed_dom, f_mixed_split = find_optical_pairs(s2_scenes, rupture_time, title, aoi)
         
-        if s2_jobs:
-            print(f"Generated {len(s2_jobs)} Sentinel-2 jobs.")
-            all_jobs.append(s2_jobs)
-            all_features.extend(s2_features) # Collect features
-        
-            if s2_features:
-                fc = {"type": "FeatureCollection", "features": s2_features}
-                scene_filename = f"{title}_selected_scenes.geojson"
-                with open(scene_filename, 'w') as f:
-                    json.dump(fc, f, indent=2)
-                print(f"Saved selected scene footprints to {scene_filename}")
+        if j_prod:
+            print(f"Generated {len(j_prod)} Sentinel-2 jobs (Dominant Strategy applied).")
+            all_jobs.append(j_prod)
+            
+            # Pass out the mixed debug features so main_historic can aggregate them
+            mixed_dom_features_out = f_mixed_dom
+            mixed_split_features_out = f_mixed_split
+
         else:
             print("No optical pairs found.")
 
-    return all_jobs, all_features
+    return all_jobs, [], mixed_dom_features_out, mixed_split_features_out, aoi
 
 
 def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
@@ -1991,13 +2032,36 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
             jobs_dict = []
             master_scene_features = []
             earthquake_infos = [] # List to hold earthquake metadata
+            
+            # Global accumulators for Mixed Zone Debugging
+            master_mixed_dom_features = []
+            master_mixed_split_features = []
+            master_mixed_aoi_features = [] # For AOIs of mixed events only
 
             for eq in eq_sig:
                 try:
-                    eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
+                    # Updated unpacking to handle the 5 return values from process_earthquake (including AOI)
+                    eq_jsons, eq_features, mixed_dom, mixed_split, event_aoi = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
 
                     if eq_features:
                         master_scene_features.extend(eq_features)
+                    
+                    # Logic: If this event generated any Mixed Zone debug info, we capture its AOI
+                    if mixed_dom or mixed_split:
+                        if mixed_dom: master_mixed_dom_features.extend(mixed_dom)
+                        if mixed_split: master_mixed_split_features.extend(mixed_split)
+                        
+                        # Add AOI feature for this mixed event
+                        aoi_feat = {
+                            "type": "Feature",
+                            "geometry": mapping(event_aoi),
+                            "properties": {
+                                "title": eq.get('title'),
+                                "id": eq.get('id'),
+                                "note": "Mixed UTM Zones Detected"
+                            }
+                        }
+                        master_mixed_aoi_features.append(aoi_feat)
                     
                     # If jobs were generated, capture earthquake metadata
                     if eq_jsons: 
@@ -2017,6 +2081,8 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
 
                 except Exception as e:
                     print(f"Error processing {eq['title']}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
 
                 # Produce the list of jobs needed for cloud processing
@@ -2025,8 +2091,9 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                         for j, json_data in enumerate(eq_json):
                             jobs_dict.append(json_data)
 
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+
             if jobs_dict:  # Write only once after all earthquakes are processed
-                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
                 
                 # Write Job List
                 with open(f'jobs_list_{current_time}.json', 'w') as f:
@@ -2037,12 +2104,34 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                     json.dump(earthquake_infos, f, indent=4, ensure_ascii=False)
 
             if master_scene_features:
-                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
                 feature_filename = f'all_selected_scenes_{mode}_{current_time}.geojson'
                 fc = {"type": "FeatureCollection", "features": master_scene_features}
                 with open(feature_filename, 'w') as f:
                     json.dump(fc, f, indent=2)
                 print(f"Saved master scene footprints to {feature_filename}")
+            
+            # --- WRITE MASTER MIXED ZONE FILES (Only contains relevant debug info) ---
+            if master_mixed_dom_features:
+                dom_filename = f"all_scenes_DOMINANT_{current_time}.geojson"
+                fc = {"type": "FeatureCollection", "features": master_mixed_dom_features}
+                with open(dom_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved Master Mixed-Zone DOMINANT footprints to {dom_filename}")
+
+            if master_mixed_split_features:
+                split_filename = f"all_scenes_SPLIT_{current_time}.geojson"
+                fc = {"type": "FeatureCollection", "features": master_mixed_split_features}
+                with open(split_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved Master Mixed-Zone SPLIT footprints to {split_filename}")
+                
+            if master_mixed_aoi_features:
+                aoi_filename = f"master_AOI_{current_time}.geojson"
+                fc = {"type": "FeatureCollection", "features": master_mixed_aoi_features}
+                with open(aoi_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved Master Mixed-Zone AOIs to {aoi_filename}")
+
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
