@@ -1,7 +1,7 @@
 
-Updated 10/14/2025
+Updated 02/10/2026
 
-The job lists used to generate the current coseis-sar database was generated on 9/16/2025, and therefore contains only earthquakes/jobs occuring up to and including 9/16/2025. The main job list (job_lists/job_lists_20250916/job_list_all_jobs_30m.json) contained 1086 jobs for 433 unique earthquakes.
+The job lists used to generate the current coseis-sar database was generated on 09/16/2025 and was conducted over the range from 10/01/2014 to 09/16/2025. It therefore contains only earthquakes/jobs occuring up to and including 9/16/2025. The main job list (job_lists/job_lists_20250916/job_list_all_jobs_30m.json) contained 1086 jobs for 433 unique earthquakes.
 
 After generating the main job, list it was determined that it contained duplicate jobs, due to the presense of foreshocks and aftershocks which were captured by the same coseismic SLC pair. The main job list was filtered to remove duplicate jobs, resulting in a mainshocks job list (job_lists/job_lists_20250916/job_list_all_jobs_30m_mainshocks.json), containing 924 jobs for 372 unique earthquakes.
 Inspection of the mainshocks job list determined that some of the jobs contained non-conforming SLCs (e.g., non-IW, non-VV) that would not be successsfully generated using the HyP3 framework. These jobs were inspected on a case-by-case basis, and were either (1) replaced with conforming SLCs or (2) removed from the mainshocks job list if no suitable SLCs were available. After these manual updates, the conforming job list (job_lists/job_lists_20250916/job_list_all_jobs_30m_mainshocks_conforming.json) contained 917 jobs for 371 unique earthquakes.
@@ -10,7 +10,7 @@ The job_list_mainshocks.json was decomposed into 1-,2-,3-,4-, and 5-frame jobs f
 Only 1-frame (N=374), 2-frame(N=486), and mismatched-frame (N=48) jobs were run on HyP3 with the 3-, 4-, 5-frame jobs run on gattaca2. 
 Two (2) jobs failed (part of `job_list_1frame.json`). The failures were due to SCLs straddling the International Dateline in Fiji. The two failed jobs were associated with the m_62_85_km_w_of_labasa_fiji earthquake (A066 and D146).
 
-Summary Statistics as of 9/16/2025:
+Summary Statistics as of 10/01/2014 - 9/16/2025:
 Total earthquakes: 433
 Total mainshock earthquakes: 372
 Total mainshock earthquakes with conforming SLCs for HyP3 processing: 371
