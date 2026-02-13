@@ -73,7 +73,9 @@ def load_tracker():
 
 
 def save_tracker(data):
-    """Saves the active job tracking file."""
+    """Saves the active job tracking file.
+    :param data: Dictionary containing the tracking information to be saved.
+    """
     with open(TRACKING_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
@@ -85,6 +87,9 @@ def add_to_tracker(eq, aoi, resolution=90):
     2. Finds pre-seismic SLCs for each track.
     3. Creates a partial job file (granules=Empty, secondary_granules=Filled).
     4. Adds entry to tracking file.
+    :param eq: Dictionary containing earthquake metadata.
+    :param aoi: Shapely Polygon representing the Area of Interest.
+    :param resolution: Desired resolution for processing (default is 90m).
     """
     tracker = load_tracker()
     event_id = eq.get('id')
@@ -110,9 +115,8 @@ def add_to_tracker(eq, aoi, resolution=90):
         # Unique key for this track
         track_key = f"{flight_direction}_{path_number}"
         
-        # 1. Find Pre-seismic SLCs (Historical search relative to event time)
-        # We look back 24 days to ensure we get the latest coverage
-        slcs = get_SLCs(flight_direction, path_number, frame_numbers, event_time, processing_mode='historic')
+        # Find Pre-seismic SLCs, looking back 24 days
+        slcs = get_SLCs(flight_direction, path_number, frame_numbers, event_time, mode='historic')
         
         # Filter for pre-seismic only (closest to event)
         rupture_dt = convert_time(event_time).replace(tzinfo=None)
@@ -138,9 +142,7 @@ def add_to_tracker(eq, aoi, resolution=90):
         if not pre_slcs:
             continue
 
-        # 2. Create Partial Job List
-        # We leave 'granules' (post-seismic) empty for now
-        # We fill 'secondary_granules' (pre-seismic)
+        # Create Partial Job List, filling pre-seismic and leaving post-seismic empty
         job_filename = f"job_{title}_{track_key}_partial.json"
         
         # Create the standard HYP3 structure
@@ -150,7 +152,7 @@ def add_to_tracker(eq, aoi, resolution=90):
         with open(job_filename, "w") as f:
             json.dump([job_json], f, indent=4) # List of 1 job
 
-        # 3. Add to tracks info
+        # Add to tracks info
         tracks_info[track_key] = {
             "flight_direction": flight_direction,
             "path_number": path_number,
@@ -190,11 +192,6 @@ def check_tracker_for_updates():
     if not tracker:
         return
 
-    # [SILENCED FOR CRON]
-    # print('=========================================')
-    # print("Checking active tracker for new post-seismic data...")
-    # print('=========================================')
-
     events_to_remove = []
     completed_jobs_summary = []
 
@@ -214,7 +211,7 @@ def check_tracker_for_updates():
             frames = track_info['frame_numbers']
             
             # Custom query for this track's post-event data
-            slcs = get_SLCs(flight_dir, path_num, frames, event_time, processing_mode='forward')
+            slcs = get_SLCs(flight_dir, path_num, frames, event_time, mode='forward')
             
             rupture_dt = convert_time(event_time).replace(tzinfo=None)
             post_slcs = []
@@ -258,7 +255,7 @@ def check_tracker_for_updates():
                         pair_folder_name
                     )
                     
-                    # --- EMAIL 1: PROCESSING STARTED ---
+                    # Construct and send email notifcation that processing has started
                     start_subject = f"PROCESSING STARTED: {title} ({track_key})"
                     start_body = (
                         f"New post-seismic data found for {title}.\n\n"
@@ -278,7 +275,7 @@ def check_tracker_for_updates():
                         print(f"    Processing failed for {pair_folder_name}: {e}")
                         processing_status = f"Failed: {str(e)}"
 
-                    # SAVE COMPLETED JOB JSON IN PROCESSING DIR
+                    # Save completed job information
                     completed_filename = os.path.join(processing_dir, f"job_{title}_{track_key}_COMPLETED.json")
                     with open(completed_filename, 'w') as f:
                         json.dump([job], f, indent=4)
@@ -300,7 +297,7 @@ def check_tracker_for_updates():
                 except Exception as e:
                     print(f"    Error processing partial file {partial_file}: {e}")
             else:
-                print(f"    No post-seismic data yet.")
+                # print(f"    No post-seismic data yet.")
                 pass
 
         # Remove completed tracks
@@ -318,8 +315,7 @@ def check_tracker_for_updates():
     
     save_tracker(tracker)
 
-    # --- EMAIL 2: PROCESSING COMPLETED ---
-    # Only send email if there are items in the summary
+    # Construct and send email notifcation that processing is complete.
     if completed_jobs_summary:
         has_failures = any(item['status'].startswith("Failed") for item in completed_jobs_summary)
         status_tag = "WITH FAILURES" if has_failures else "SUCCESS"
@@ -403,7 +399,7 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
             "starttime": start_date,
             "endtime": end_date,
             "minmagnitude": 5.0,
-            "maxdepth": 40.0
+            "maxdepth": 30.0
         }
 
         # Fetch data from the USGS Earthquake API
@@ -425,6 +421,8 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
 def get_ffm_geojson_url(event_id):
     """
     Retrieves the URL to the FFM.geojson for a given earthquake event ID.
+    :param event_id: The USGS event ID for the earthquake.
+    :return: URL to the FFM.geojson file, or None if not found.
     """
     detail_url = f"https://earthquake.usgs.gov/fdsnws/event/1/query"
     params = {
@@ -609,44 +607,134 @@ def withinCoastline(earthquake, coastline):
     return within_coastline_buffer
 
 
-def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
+def get_event_rake(event_id):
+    """
+    Fetches the rake angles for a specific event ID from USGS. Example : [-170.21, -34.16]
+    :param event_id: The USGS event ID for the earthquake.
+    :return: A list of rake angles from both nodal planes, or an empty list if not available.
+    """
+    detail_url = f"https://earthquake.usgs.gov/fdsnws/event/1/query"
+    params = {"eventid": event_id, "format": "geojson"}
+
+    try:
+        response = requests.get(detail_url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        # Access products
+        products = data.get("properties", {}).get("products", {})
+
+        # Look for moment-tensor (preferred) or focal-mechanism
+        mt_list = products.get("moment-tensor", []) or products.get("focal-mechanism", [])
+
+        if not mt_list:
+            return []
+
+        props = mt_list[0].get("properties", {})
+
+        # Extract rakes from BOTH nodal planes
+        rakes = []
+        
+        r1 = props.get("nodal-plane-1-rake")
+        if r1 is not None:
+            rakes.append(float(r1))
+            
+        r2 = props.get("nodal-plane-2-rake")
+        if r2 is not None:
+            rakes.append(float(r2))
+
+        return rakes
+
+    except Exception as e:
+        print(f"Warning: Could not fetch rake for {event_id}: {e}")
+        return []
+
+
+def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mode='historic'):
     """
     Check the significance of each earthquake based on its 
     (1) magnitude (>=6.0), (2) USGS alert level (['green','yellow','orange','red]),
-    (3) depth (<=30.0 km), and (4) distance from land (within 0.5 degrees, ~55 km of the coastline).
+    (3) depth (<=30.0 km), (4) distance from land (within 0.5 degrees, ~55 km of the coastline),
+    and (5) if sensor is 'optical', rake angle (must be strike-slip: ~0 or ~180 degrees).
+    
     :param earthquakes: list of dictionaries containing earthquake data
+    :param start_date: start date in the format 'YYYY-MM-DD'
+    :param end_date: end date in the format 'YYYY-MM-DD' (optional)
+    :param sensor: determines if rake filter will be applied ('sar' or 'optical')
+    :param mode: 'historic' or 'forward' - determines the alert criteria used for filtering.
     :return: List of dictionaries containing significant earthquakes
     """
     print('=========================================')
-    print("Checking for significant earthquakes...")
+    print(f"Checking for significant earthquakes (Sensor: {sensor.upper()})...")
     print('=========================================')
 
     significant_earthquakes = []
-    alert_list = ['green','yellow', 'orange', 'red']
+    alert_list = ['green', 'yellow', 'orange', 'red']
     coastline = get_coastline(coastline_api)
+    
+    # Rake tolerance (degrees)
+    RAKE_TOLERANCE = 45.0 
 
-    # Include alert criteria for historic data
-    if mode == 'historic':
-        for earthquake in earthquakes:
-            magnitude = earthquake.get('mag')
-            alert = earthquake.get('alert')
-            depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
+    for earthquake in earthquakes:
+        magnitude = earthquake.get('mag')
+        alert = earthquake.get('alert')
+        depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
+        
+        # Filters applicable to both sensors
+        is_candidate = False
+        
+        if all(var is not None for var in (magnitude, depth)):
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
-            if all(var is not None for var in (magnitude, alert, depth)):
-                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
-                    significant_earthquakes.append(earthquake)
+            
+            if mode == 'historic':
+                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+                    is_candidate = True
+            elif mode == 'forward':
+                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
+                    is_candidate = True
+        
+        if not is_candidate:
+            continue
 
-    # Base significance on magnitude, depth, and distance from land for forward-looking data
-    if mode =='forward':
-        for earthquake in earthquakes:
-            magnitude = earthquake.get('mag')
-            depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
-            within_Coastline_buffer = withinCoastline(earthquake, coastline)
-            if all(var is not None for var in (magnitude, depth)):
-                if (magnitude >= 6.0) and (depth <= 40.0) and within_Coastline_buffer:
-                    significant_earthquakes.append(earthquake)
+        # Fetch Rake
+        title = earthquake.get('title', 'Unknown Event')
+        print(f"  Fetching rake for candidate: {title}...")
+        
+        rakes = get_event_rake(earthquake.get('id'))
+        earthquake['rakes'] = rakes 
 
-    # Write significant earthquakes to a GeoJSON file
+        # Sensor-Specific Filtering
+        if sensor == 'optical':
+            if not rakes:
+                print(f"    -> Skipped (Optical mode requires rake data, none found)")
+                continue
+
+            # Check if ANY available rake satisfies the condition
+            is_strike_slip = False
+            accepted_rake_val = None
+
+            for r in rakes:
+                if (abs(r) <= RAKE_TOLERANCE) or (abs(r) >= (180.0 - RAKE_TOLERANCE)):
+                    is_strike_slip = True
+                    accepted_rake_val = r
+                    break
+            
+            if is_strike_slip:
+                 print(f"    -> Accepted (Rake {accepted_rake_val}° fits strike-slip criteria)")
+                 significant_earthquakes.append(earthquake)
+            else:
+                 print(f"    -> Skipped (Rakes {rakes} indicate dip-slip/oblique motion)")
+                 
+        else:
+            # SAR mode: Accept even if rake is missing or "bad"
+            if rakes:
+                print(f"    -> Accepted (SAR mode; Rakes found: {rakes})")
+            else:
+                print(f"    -> Accepted (SAR mode; No rake data found)")
+            
+            significant_earthquakes.append(earthquake)
+
+    # Output / Logging
     if len(significant_earthquakes) > 0:
         print('=========================================')
         print(f"Found {len(significant_earthquakes)} significant earthquakes.")
@@ -657,8 +745,10 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             print(f"Magnitude: {eq['mag']}")
             print(f"Depth: {eq['coordinates'][2]} km")
             print(f"Alert Level: {eq['alert']}")
+            if 'rakes' in eq:
+                print(f"Rakes: {eq['rakes']}")
             print('=========================================')
-        print('=========================================')
+        
         significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_date, end_date)
         return significant_earthquakes
     else:
@@ -824,6 +914,13 @@ def convert_time(time):
 
 
 def make_interactive_map(frame_dataframe, title, coords, url):
+    """
+    Generate an interactive map using Folium and save it as an HTML file.
+    :param frame_dataframe: GeoDataFrame containing the SLC frame data for visualization
+    :param title: Title of the map (used for the filename and popup)
+    :param coords: List containing the longitude and latitude of the earthquake's epicenter
+    :param url: URL to the earthquake event page (used in the popup)
+    """
         
     # Extract latitude and longitude from coords
     lon, lat = coords[0], coords[1]
@@ -959,26 +1056,26 @@ def get_path_and_frame_numbers(AOI, time):
     return {}, gpd.GeoDataFrame()
 
 
-def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode):
+def get_SLCs(flight_direction, path_number, frame_numbers, time, mode):
     """
     Query the ASF DAAC API for SLC data based on the given path and frame numbers.
     The data are organized by flight direction, path number, and frame numbers.
-    :param processing_mode: 'historic', 'forward'
     :param flight_direction: 'ASCENDING' or 'DESCENDING'
     :param path_number: Sentinel-1 path number
     :param frame_numbers: List of Sentinel-1 frame numbers
     :param time: Unix timestamp representing the earthquake's origin time
+    :param mode: 'historic', 'forward'
     :return: List of dictionaries containing SLC fileIDs and their respective dates
     """
     # Establish the date range for the query
     rupture_date = convert_time(time)
     
-    if processing_mode == 'historic':
+    if mode == 'historic':
         start_date = rupture_date - timedelta(days=90)  # 90 days before the earthquake
         start_date= start_date.replace(hour=0, minute=0, second=0)
         end_date = rupture_date + timedelta(days=30)    # 30 days after the earthquake
         end_date = end_date.replace(hour=23, minute=59, second=59)
-    elif processing_mode == 'forward':
+    elif mode == 'forward':
         # In forward mode for tracking, we want data acquired AFTER the earthquake
         start_date = rupture_date
         today = datetime.now(timezone.utc)
@@ -1058,8 +1155,10 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
 
 def search_copernicus_public(aoi_polygon, start_date, end_date):
     """
-    Searches CDSE Public OData.
-    Fetches 'Footprint' to calculate true coverage area.
+    Searches CDSE Public OData. Fetches 'Footprint' to calculate true coverage area.
+    :param aoi_polygon: Shapely Polygon object representing the Area of Interest
+    :param start_date: Start date in the format 'YYYY-MM-DD'
+    :param end_date: End date in the format 'YYYY-MM-DD'
     """
     # OData requires strict WKT: "POLYGON((...))" (no space)
     wkt_aoi = aoi_polygon.wkt.replace("POLYGON ((", "POLYGON((")
@@ -1108,23 +1207,19 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
                 name = prod.get('Name')
                 start = prod.get('ContentDate', {}).get('Start')
                 
-                # --- PARSE GEOMETRY ---
-                # Format is: geography'SRID=4326;POLYGON ((...))'
+                # Parse geometry
                 raw_footprint = prod.get('Footprint')
                 footprint = None
                 
                 if raw_footprint:
                     try:
-                        # Extract just the WKT part (POLYGON...)
-                        # Split by semicolon to remove SRID
-                        # Remove trailing quote if present
                         clean_wkt = raw_footprint.split(';')[-1].replace("'", "")
                         footprint = wkt.loads(clean_wkt)
                     except Exception as e:
-                        # print(f"Geometry parse error: {e}") # Optional debug
+                        print(f"Geometry parse error: {e}") # Optional debug
                         pass 
 
-                # --- EXTRACT CLOUD COVER ---
+                # Extract cloud cover
                 cloud_cover = 0.0
                 attrs = prod.get('Attributes', [])
                 for attr in attrs:
@@ -1132,7 +1227,7 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
                         cloud_cover = attr.get('Value', 0.0)
                         break
 
-                # --- DETERMINE PLATFORM ---
+                # Determine platform from name
                 platform = "sentinel-2"
                 if name.startswith("S2A"): platform = "sentinel-2a"
                 elif name.startswith("S2B"): platform = "sentinel-2b"
@@ -1144,7 +1239,7 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
                     "datetime": start,
                     "cloud_cover": cloud_cover,
                     "platform": platform,
-                    "footprint": footprint # Successfully parsed geometry
+                    "footprint": footprint
                 })
             
             next_link = data.get('@odata.nextLink')
@@ -1157,23 +1252,41 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
     return granules
 
 
-def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, secondary_ids, status="COMPLETE"):
+def get_utm_zone(granule_id):
+    """Extracts UTM zone from Sentinel-2 Granule ID (e.g., 'T46QHK' -> '46').
+    :param granule_id: The granule ID string from which to extract the UTM zone.
+    :return: The UTM zone as a string, or 'Unknown' if it cannot be extracted.
     """
-    Helper function to create a JSON object for an AUTORIFT job.
-    Matches the schema defined in ARIA_AUTORIFT.yml.
+    match = re.search(r'_T(\d{2})[A-Z]{3}_', granule_id)
+    return match.group(1) if match else "Unknown"
+
+
+def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, secondary_ids, status="COMPLETE", zone_suffix=None):
+    """
+    Helper function to create a JSON object for an AUTORIFT job. Matches the schema defined in ARIA_AUTORIFT.yml.
+    :param title: Title of the job (usually the earthquake event name)
+    :param orbit_id: The orbit number (e.g., "047")
+    :param pre_date: Date of the Pre-Event image (YYYY-MM-DD)
+    :param post_date: Date of the Post-Event image (YYYY-MM-DD)
+    :param reference_ids: List of granule IDs for the reference (Pre-Event) images
+    :param secondary_ids: List of granule IDs for the secondary (Post-Event) images
+    :param status: Status of the job ("COMPLETE", "PARTIAL", "FAILED") - used for internal tracking
+    :param zone_suffix: Optional suffix for the orbit key if using "Orbit_Zone" grouping (e.g., "Z46")
+    :return: A dictionary representing the job configuration for AUTORIFT.
     """
     # Create a descriptive job name
-    job_name = f"{title}-S2-R{orbit_id}-{pre_date}_{post_date}"
+    orbit_str = f"R{orbit_id}"
+    if zone_suffix:
+        orbit_str += f"-{zone_suffix}"
+        
+    job_name = f"{title}-S2-{orbit_str}-{pre_date}_{post_date}"
     
     job_json = {
         "name": job_name,
-        "job_type": "AUTORIFT", # Matches the root key in your YAML
+        "job_type": "AUTORIFT",
         "job_parameters": {
-            # processing parameters
             "reference": reference_ids,
             "secondary": secondary_ids,
-            
-            # Injected parameters for AutoRIFT configuration
             "chip_size": 24,
             "search_range": 64
         }
@@ -1186,188 +1299,238 @@ def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, s
     return job_json
 
 
-def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon, job_list=True):
+def process_candidate_group(orbit_key, dates_dict, rupture_dt, aoi_polygon, title, aoi_area, strategy_name, role=None):
     """
-    Generate Optical Pairs grouped by Relative Orbit.
-    Prioritizes: 1. True Coverage Area %, 2. Cloud Cover, 3. Time.
+    Generic logic to select best Pre/Post pair from a grouped dictionary of candidates. Used by both 'Dominant' and 'Split' strategies.
+    :param orbit_key: The key representing the group (e.g., "047" for Orbit-based, "047_Z46" for Orbit_Zone-based)
+    :param dates_dict: Dictionary where keys are date strings and values are lists of scene dictionaries for that date
+    :param rupture_dt: Datetime object representing the earthquake's origin time
+    :param aoi_polygon: Shapely Polygon representing the Area of Interest (used for coverage calculation)
+    :param title: Title of the earthquake event (used for job naming)
+    :param aoi_area: Area of the AOI polygon (used for coverage calculation)
+    :param strategy_name: Name of the strategy ("Dominant" or "Split") for logging purposes
+    :param role: Optional parameter to indicate if this group is 'dominant' or 'minority' in the context of mixed zones (used for logging and feature properties)
+    :return: A tuple containing a list of job JSON objects and a list of GeoJSON features for visualization.
+    """
+    pre_candidates = []
+    post_candidates = []
     
-    Updates:
-    - Uses make_optical_job_json for ARIA_AUTORIFT formatting.
-    - Merges S2A/S2B/S2C (no platform filtering).
-    - Creates 'partial' job entries if only one side (Pre/Post) is found.
+    # Evaluate candidates for every available date
+    for date_str, scenes in dates_dict.items():
+        if not scenes: continue
+        
+        date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        platform = scenes[0]['platform']
+
+        # Deduplicate tiles for this date/group
+        unique_scenes = []
+        seen_tiles = set()
+        scenes.sort(key=lambda x: x['cloud_cover'])
+        
+        combined_poly = None
+        for s in scenes:
+            # Create a unique key for the tile (UTM + Triplet, e.g., '46QHK')
+            t_match = re.search(r'_T(\w{5})_', s['granule_id'])
+            if t_match:
+                tile_id = t_match.group(1)
+                if tile_id not in seen_tiles:
+                    unique_scenes.append(s)
+                    seen_tiles.add(tile_id)
+                    if s.get('footprint'):
+                        if combined_poly is None: combined_poly = s['footprint']
+                        else: combined_poly = combined_poly.union(s['footprint'])
+
+        if not unique_scenes:
+            continue
+
+        # Calc coverage
+        coverage_pct = 0.0
+        if combined_poly and aoi_polygon:
+            try:
+                clean_poly = combined_poly.buffer(0)
+                intersection = clean_poly.intersection(aoi_polygon)
+                coverage_pct = (intersection.area / aoi_area) * 100.0
+            except: pass
+        
+        avg_cc = sum(s['cloud_cover'] for s in unique_scenes) / len(unique_scenes)
+        delta = abs((date_dt - rupture_dt).days)
+        
+        candidate = {
+            'date': date_str, 'scenes': unique_scenes, 'platform': platform,
+            'coverage': coverage_pct, 'tile_count': len(unique_scenes), 'cc': avg_cc, 'delta': delta
+        }
+        
+        if date_dt < rupture_dt: pre_candidates.append(candidate)
+        elif date_dt > rupture_dt: post_candidates.append(candidate)
+
+    jobs = []
+    features = []
+
+    # Select Best Pair
+    if not pre_candidates or not post_candidates:
+        return [], []
+
+    # Sort: Max Coverage > Low Cloud > Low Delta
+    pre_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
+    best_pre = pre_candidates[0]
+    
+    post_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
+    best_post = post_candidates[0]
+    
+    print(f"  [{strategy_name}] {orbit_key}: Pre={best_pre['date']} ({best_pre['coverage']:.1f}% Cov), Post={best_post['date']} ({best_post['coverage']:.1f}% Cov)")
+
+    # Generate Job
+    primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
+    secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
+    
+    # Handle naming differences based on strategy
+    zone_suffix = None
+    orbit_id = orbit_key
+    if "Z" in orbit_key:
+        parts = orbit_key.split('_')
+        orbit_id = parts[0]
+        zone_suffix = parts[1]
+
+    job = make_optical_job_json(title, orbit_id, best_pre['date'], best_post['date'], primary_ids, secondary_ids, zone_suffix=zone_suffix)
+    jobs.append(job)
+
+    # Generate GeoJSON Features for Visualization
+    for stage, candidate in [("Pre-Event", best_pre), ("Post-Event", best_post)]:
+        for scene in candidate['scenes']:
+            if scene.get('footprint'):
+                feat = {
+                    "type": "Feature",
+                    "geometry": mapping(scene['footprint']),
+                    "properties": {
+                        "job_name": job['name'],
+                        "strategy": strategy_name,
+                        "role": role,
+                        "timing": stage,
+                        "date": candidate['date'],
+                        "orbit": orbit_id,
+                        "zone": get_utm_zone(scene['granule_id']),
+                        "granule_id": scene['granule_id']
+                    }
+                }
+                features.append(feat)
+                
+    return jobs, features
+
+
+def check_mixed_zones_in_group(dates_dict):
+    """
+    Checks if any single date/acquisition within an orbit group contains  tiles from multiple UTM zones. 
+    This indicates a 'Mixed' case that requires Split/Dominant strategy comparison.
+    :param dates_dict: Dictionary where keys are date strings and values are lists of scene dictionaries for that date
+    :return: True if mixed zones are found within any date, False otherwise
+    """
+    for date, scenes in dates_dict.items():
+        zones = set(get_utm_zone(s['granule_id']) for s in scenes)
+        if len(zones) > 1:
+            return True
+    return False
+
+
+def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon):
+    """
+    Generates optical pairs using two strategies concurrently for comparison:
+    1. DOMINANT: Enforces one UTM zone per Orbit (drops minority tiles).
+    2. SPLIT: Creates separate jobs for every UTM zone found.
+    
+    Returns:
+    - standard_jobs (Dominant jobs for all orbits, for general processing)
+    - mixed_dom_features (Features for Dominant strategy, ONLY for mixed cases)
+    - mixed_split_features (Features for Split strategy, ONLY for mixed cases)
     """
     rupture_dt = convert_time(rupture_time)
     aoi_area = aoi_polygon.area
 
-    # Group by Orbit -> Date
+    # Group by Orbit -> Date -> List of Scenes
     orbit_groups = defaultdict(lambda: defaultdict(list))
-    
     for scene in optical_scenes:
-        granule_id = scene['granule_id']
-        match = re.search(r'_R(\d{3})_', granule_id)
+        match = re.search(r'_R(\d{3})_', scene['granule_id'])
         if match:
-            orbit_id = match.group(1)
-            orbit_groups[orbit_id][scene['date']].append(scene)
+            orbit_groups[match.group(1)][scene['date']].append(scene)
 
-    jobs = []
-    scene_features = [] 
+    # Standard production output (Dominant strategy applied to ALL)
+    all_prod_jobs = []
     
-    print(f"Found {len(orbit_groups)} unique satellite tracks.")
+    # Comparison/Debug output (ONLY for orbits that actually have mixed zones)
+    mixed_dom_feats = []
+    mixed_split_feats = []
+
+    print(f"Processing {len(orbit_groups)} tracks with DOMINANT strategy (and SPLIT where applicable)...")
 
     for orbit_id, dates_dict in orbit_groups.items():
-        pre_candidates = []
-        post_candidates = []
         
-        for date_str, scenes_on_date in dates_dict.items():
-            date_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            
-            # Combine scenes from same date (Mosaic logic)
-            scenes = scenes_on_date
-            platform = scenes[0]['platform'] if scenes else "sentinel-2"
-
-            unique_scenes = []
-            seen_tiles = set()
-            scenes.sort(key=lambda x: x['cloud_cover'])
-            
-            combined_poly = None
-            
-            for s in scenes:
-                t_match = re.search(r'_T(\w{5})_', s['granule_id'])
-                if t_match:
-                    tile_id = t_match.group(1)
-                    if tile_id not in seen_tiles:
-                        unique_scenes.append(s)
-                        seen_tiles.add(tile_id)
-                        
-                        if s.get('footprint'):
-                            if combined_poly is None:
-                                combined_poly = s['footprint']
-                            else:
-                                combined_poly = combined_poly.union(s['footprint'])
-
-            # Calculate Coverage
-            coverage_pct = 0.0
-            if combined_poly and aoi_polygon:
-                try:
-                    clean_poly = combined_poly.buffer(0)
-                    intersection = clean_poly.intersection(aoi_polygon)
-                    coverage_pct = (intersection.area / aoi_area) * 100.0
-                except Exception:
-                    pass
-            
-            tile_count = len(unique_scenes)
-            avg_cc = sum(s['cloud_cover'] for s in unique_scenes) / len(unique_scenes) if unique_scenes else 100
-            delta_days = abs((date_dt - rupture_dt).days)
-            
-            candidate = {
-                'date': date_str,
-                'scenes': unique_scenes,
-                'platform': platform,
-                'coverage': coverage_pct, 
-                'tile_count': tile_count,
-                'cc': avg_cc,             
-                'delta': delta_days       
-            }
-            
-            if date_dt < rupture_dt:
-                pre_candidates.append(candidate)
-            elif date_dt > rupture_dt:
-                post_candidates.append(candidate)
-
-        # --- HANDLE INCOMPLETE PAIRS ---
-        if not pre_candidates or not post_candidates:
-            print(f"  Orbit {orbit_id}: [PARTIAL] Incomplete pair.")
-            
-            pre_date_str = "MISSING"
-            post_date_str = "MISSING"
-            primary_ids = []
-            secondary_ids = []
-
-            if pre_candidates:
-                best_pre = min(pre_candidates, key=lambda x: x['cc'])
-                print(f"    - Found Pre-event: {best_pre['date']} (CC: {best_pre['cc']:.1f}%)")
-                pre_date_str = best_pre['date']
-                primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
-            else:
-                print(f"    - Missing PRE-event coverage.")
-
-            if post_candidates:
-                best_post = min(post_candidates, key=lambda x: x['cc'])
-                print(f"    - Found Post-event: {best_post['date']} (CC: {best_post['cc']:.1f}%)")
-                post_date_str = best_post['date']
-                secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
-            else:
-                print(f"    - Missing POST-event coverage.")
-            
-            # Generate the partial job and add to list
-            if job_list:
-                job = make_optical_job_json(
-                    title, orbit_id, pre_date_str, post_date_str, 
-                    primary_ids, secondary_ids, status="PARTIAL"
-                )
-                jobs.append(job)
-            continue
-
-        # --- STANDARD SELECTION ---
-        # Sort: Max Coverage > Low Cloud > Low Delta
-        pre_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
-        best_pre = pre_candidates[0]
+        # Check if this orbit even has a mixing issue
+        is_mixed = check_mixed_zones_in_group(dates_dict)
         
-        post_candidates.sort(key=lambda x: (-x['coverage'], x['cc'], x['delta']))
-        best_post = post_candidates[0]
+        # --- STRATEGY A: DOMINANT ZONE (Applied to ALL orbits) ---
+        # Note: Strategy A filters to keep only the dominant data per date.
+        dom_dates_dict = defaultdict(list)
+        for d, scenes in dates_dict.items():
+            zone_counts = defaultdict(int)
+            for s in scenes: zone_counts[get_utm_zone(s['granule_id'])] += 1
+            if zone_counts:
+                winner = max(zone_counts, key=zone_counts.get)
+                dom_dates_dict[d] = [s for s in scenes if get_utm_zone(s['granule_id']) == winner]
         
-        print(f"  Orbit {orbit_id}: Pre={best_pre['date']} ({best_pre['coverage']:.1f}% Cov), Post={best_post['date']} ({best_post['coverage']:.1f}% Cov)")
+        # Generate Dominant Jobs (Always added to production list)
+        j_dom, f_dom = process_candidate_group(orbit_id, dom_dates_dict, rupture_dt, aoi_polygon, title, aoi_area, "DOMINANT", role="dominant")
+        all_prod_jobs.extend(j_dom)
 
-        for stage, candidate in [("Pre-Event", best_pre), ("Post-Event", best_post)]:
-            for scene in candidate['scenes']:
-                if scene.get('footprint'):
-                    feature = {
-                        "type": "Feature",
-                        "geometry": mapping(scene['footprint']),
-                        "properties": {
-                            "earthquake": title,
-                            "role": stage,
-                            "date": candidate['date'],
-                            "orbit": orbit_id,
-                            "platform": candidate['platform'],
-                            "granule_id": scene['granule_id'],
-                            "cloud_cover": scene['cloud_cover'],
-                            "coverage_pct": round(candidate['coverage'], 1)
-                        }
-                    }
-                    scene_features.append(feature)
+        # If this was a Mixed case, add to our specific debug lists
+        if is_mixed:
+            mixed_dom_feats.extend(f_dom)
 
-        if job_list:
-            primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
-            secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
+            # --- STRATEGY B: SPLIT ZONES (Only needed for Mixed cases) ---
+            # Determine the Global Dominant Zone (for the whole orbit, not just per date)
+            # This allows us to label the split results as 'dominant' or 'minority'
+            all_orbit_scenes = [s for scenes in dates_dict.values() for s in scenes]
+            global_zone_counts = defaultdict(int)
+            for s in all_orbit_scenes:
+                global_zone_counts[get_utm_zone(s['granule_id'])] += 1
             
-            # CALL THE HELPER FUNCTION HERE
-            job = make_optical_job_json(
-                title, orbit_id, best_pre['date'], best_post['date'], 
-                primary_ids, secondary_ids
-            )
-            jobs.append(job)
+            global_winner = None
+            if global_zone_counts:
+                global_winner = max(global_zone_counts, key=global_zone_counts.get)
+
+            split_groups = defaultdict(lambda: defaultdict(list))
+            for d, scenes in dates_dict.items():
+                for s in scenes:
+                    z = get_utm_zone(s['granule_id'])
+                    key = f"{orbit_id}_Z{z}"
+                    split_groups[key][d].append(s)
             
-    return jobs, scene_features
+            for key, z_dates_dict in split_groups.items():
+                # Extract zone from key to determine role
+                z_str = key.split('_Z')[-1]
+                role = 'dominant' if z_str == global_winner else 'minority'
+
+                _, f_split = process_candidate_group(key, z_dates_dict, rupture_dt, aoi_polygon, title, aoi_area, "SPLIT", role=role)
+                mixed_split_feats.extend(f_split)
+
+    return all_prod_jobs, mixed_dom_feats, mixed_split_feats
 
 
-def generate_pairs(pairs, mode):
+def generate_pairs(pairs, pairing):
     """
-    Generate pairs of SLCs based on the selected pairing mode.
+    Generate pairs of SLCs based on the selected pairing scheme.
     :param pairs: List of SLC pairs sorted by date
-    :param: mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'conseismic' for pairs bounding the rupture date only
-    :return: List of SLC pairs based on the mode
+    :param: pairing: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'conseismic' for pairs bounding the rupture date only
+    :return: List of SLC pairs based on the pairing scheme
     """
-    if mode == 'sequential':
+    if pairing == 'sequential':
         return [(pairs[i], pairs[i + 1]) for i in range(len(pairs) - 1)]
-    elif mode == 'all':
+    elif pairing == 'all':
         all_pairs = list(combinations(pairs, 2))
         return all_pairs
-    elif mode == 'coseismic':
+    elif pairing == 'coseismic':
         return []
 
 
-def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing_mode='sequential', job_list = False, resolution=90):
+def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing='coseismic', job_list = False, resolution=90):
     """
     Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, 
     and determine whether each pair is pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
@@ -1376,7 +1539,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     :param flight_direction: 'ASCENDING' or 'DESCENDING'
     :param path_number: Sentinel-1 path number
     :param title: USGS title of the earthquake event, used for file organization
-    :param pairing_mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'coseismic' for pairs bounding the rupture date only
+    :param pairing: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'coseismic' for pairs bounding the rupture date only
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
     :param resolution: Output resolution for the topsApp processing, default is 90m
     :return: List of JSON objects containing the parameters for each pair of SLCs
@@ -1417,14 +1580,14 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             co_seismic = [(initial_pairs[i], initial_pairs[i + 1])]
             break
     
-    # Pair based on the selected pairing_mode
-    if pairing_mode == 'coseismic':
+    # Pair based on the selected pairing
+    if pairing == 'coseismic':
         paired_results = {'co-seismic': co_seismic}
     else:
         paired_results = {
-            'pre_seismic': generate_pairs(pre_seismic, pairing_mode),
+            'pre_seismic': generate_pairs(pre_seismic, pairing),
             'co_seismic': co_seismic,
-            'post_seismic': generate_pairs(post_seismic, pairing_mode)
+            'post_seismic': generate_pairs(post_seismic, pairing)
         }
     
     # Create JSON objects for each pair
@@ -1672,15 +1835,15 @@ def send_email(subject, body, attachment=None, recipients=None):
     return
 
 
-def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar'):
+def process_earthquake(eq, aoi, pairing, job_list, resolution=90, sensor='sar'):
     """
     Process earthquake event and generate the necessary SLC pairs for InSAR processing.
     :param eq: dictionary containing earthquake data
     :param aoi: Area of Interest (AOI) as a GeoJSON file
-    :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
+    :param pairing: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
     :param resolution: Output resolution for the topsApp processing, default is 90m
-    :param mode: 'sar' for SAR processing, 'optical' for optical processing
+    :param sensor: 'sar' for SAR processing, 'optical' for optical processing
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
     title = eq.get('title', '')
@@ -1711,9 +1874,12 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
         geojson.dump(mapping(aoi), f, indent=2)
 
     all_jobs = []
-    all_features = []
+    
+    # Specific buckets for Mixed Zone debug features
+    mixed_dom_features_out = []
+    mixed_split_features_out = []
 
-    if mode == 'sar':
+    if sensor == 'sar':
         path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
         
         # Frame visualization logic (SAR specific)
@@ -1727,12 +1893,15 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
         for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
             frame_numbers = list(set(fn[0] for fn in frame_numbers))
-            SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
+            SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), mode='historic')
             isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, 
-                                                           title, pairing_mode, job_list, resolution)
+                                                           title, pairing, job_list, resolution)
             all_jobs.append(isce_jobs)
+        
+        # Return 5 values to match new signature, passing AOI as 5th
+        return all_jobs, [], [], [], aoi
 
-    elif mode == 'optical':
+    elif sensor == 'optical':
         rupture_time = eq.get('time')
         rupture_dt = convert_time(rupture_time)
         
@@ -1741,23 +1910,22 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
         s2_scenes = search_copernicus_public(aoi, start_search, end_search)
         
-        s2_jobs, s2_features = find_optical_pairs(s2_scenes, rupture_time, title, aoi, job_list)
+        # Run comparison strategies
+        # Returns: (Standard Jobs, Mixed-Dominant-Features, Mixed-Split-Features)
+        j_prod, f_mixed_dom, f_mixed_split = find_optical_pairs(s2_scenes, rupture_time, title, aoi)
         
-        if s2_jobs:
-            print(f"Generated {len(s2_jobs)} Sentinel-2 jobs.")
-            all_jobs.append(s2_jobs)
-            all_features.extend(s2_features) # Collect features
-        
-            if s2_features:
-                fc = {"type": "FeatureCollection", "features": s2_features}
-                scene_filename = f"{title}_selected_scenes.geojson"
-                with open(scene_filename, 'w') as f:
-                    json.dump(fc, f, indent=2)
-                print(f"Saved selected scene footprints to {scene_filename}")
+        if j_prod:
+            print(f"Generated {len(j_prod)} Sentinel-2 jobs (Dominant Strategy applied).")
+            all_jobs.append(j_prod)
+            
+            # Pass out the mixed debug features so main_historic can aggregate them
+            mixed_dom_features_out = f_mixed_dom
+            mixed_split_features_out = f_mixed_split
+
         else:
             print("No optical pairs found.")
 
-    return all_jobs, all_features
+    return all_jobs, [], mixed_dom_features_out, mixed_split_features_out, aoi
 
 
 def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
@@ -1783,7 +1951,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     from datetime import date, datetime
 
     min_lon, min_lat, max_lon, max_lat = AOI.bounds
-    bbox = [min_lat, max_lat, min_lon, max_lon]
+    bbox = [str(min_lat), str(max_lat), str(min_lon), str(max_lon)]
 
     print("=========================================")
     print(f"Querying next pass for {satellite} over AOI...")
@@ -1793,7 +1961,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     args = SimpleNamespace(bbox=bbox, sat=satellite, event_date=date.today(), look_back=14, cloudiness=False)
 
     try:
-        result = next_pass.find_next_overpass(args)
+        result = next_pass.find_next_overpass(args, timestamp_dir)
     except Exception as e:
         # This catches the TopologyException/GEOSException
         print(f"WARNING: 'next_pass' failed due to geometry error (likely antimeridian issue): {e}")
@@ -1820,11 +1988,10 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
             return None
 
 
-def main_forward(pairing_mode=None, resolution = 90):
+def main_forward(resolution = 90):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
-    :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
     :param resolution: Output resolution for the topsApp processing, default is 90m
     """
     
@@ -1954,7 +2121,7 @@ def main_forward(pairing_mode=None, resolution = 90):
             os.remove(lock_file)
 
 
-def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, job_list = False, resolution=90, mode='sar'):
+def main_historic(start_date, end_date=None, aoi=None, pairing=None, job_list=False, resolution=90, sensor='sar'):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -1963,21 +2130,21 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
     :param start_date: The query start date in YYYY-MM-DD format
     :param end_date: The query end date in YYYY-MM-DD format (Optional)
     :param aoi: The path to a JSON file representing the area of interest (AOI) (Optional)
-    :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing.
+    :param pairing: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing.
     :param job_list: If True, create a list of jobs in HYP3 format for cloud processing.
     :param resolution: Output resolution for the topsApp processing, default is 90m
-    :param mode: 'sar' for SAR processing, 'optical' for optical processing
+    :param sensor: 'sar' for SAR processing, 'optical' for optical processing
     """
     if start_date and not end_date:
         print('=========================================')
-        print(f"Running historic processing in single-date mode for date: {start_date}")
+        print(f"Running historic processing for single date: {start_date}")
         print('=========================================')
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for a single date
         geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, str(start_date))
 
     elif start_date and end_date:
         print('=========================================')
-        print(f"Running historic processing in date range mode for dates: {start_date} to {end_date}")
+        print(f"Running historic processing for date range: {start_date} to {end_date}")
         print('=========================================')
         # Fetch GeoJSON data from the USGS Earthquake Hazard Portal for the date range provided
         geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, str(start_date), str(end_date))
@@ -1985,19 +2152,42 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
     if geojson_data:
         # Parse GeoJSON and create variables for each feature's properties
         earthquakes = parse_geojson(geojson_data)
-        eq_sig = check_significance(earthquakes, start_date, end_date, mode='historic')
+        eq_sig = check_significance(earthquakes, start_date, end_date, sensor=sensor, mode='historic')
 
         if eq_sig is not None:
             jobs_dict = []
             master_scene_features = []
             earthquake_infos = [] # List to hold earthquake metadata
+            
+            # Global accumulators for Mixed Zone Debugging
+            master_mixed_dom_features = []
+            master_mixed_split_features = []
+            master_mixed_aoi_features = [] # For AOIs of mixed events only
 
             for eq in eq_sig:
                 try:
-                    eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode)
+                    # Updated unpacking to handle the 5 return values from process_earthquake (including AOI)
+                    eq_jsons, eq_features, mixed_dom, mixed_split, event_aoi = process_earthquake(eq, aoi, pairing, job_list, resolution, sensor)
 
                     if eq_features:
                         master_scene_features.extend(eq_features)
+                    
+                    # Logic: If this event generated any Mixed Zone debug info, we capture its AOI
+                    if mixed_dom or mixed_split:
+                        if mixed_dom: master_mixed_dom_features.extend(mixed_dom)
+                        if mixed_split: master_mixed_split_features.extend(mixed_split)
+                        
+                        # Add AOI feature for this mixed event
+                        aoi_feat = {
+                            "type": "Feature",
+                            "geometry": mapping(event_aoi),
+                            "properties": {
+                                "title": eq.get('title'),
+                                "id": eq.get('id'),
+                                "note": "Mixed UTM Zones Detected"
+                            }
+                        }
+                        master_mixed_aoi_features.append(aoi_feat)
                     
                     # If jobs were generated, capture earthquake metadata
                     if eq_jsons: 
@@ -2011,12 +2201,15 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                                 "depth_km": eq['coordinates'][2],
                                 "usgs_event_url": eq.get('url', '')
                             },
-                            "time": event_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                            "time": event_dt.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                            "rakes": eq.get('rakes', [])
                         }
                         earthquake_infos.append(eq_info)
 
                 except Exception as e:
                     print(f"Error processing {eq['title']}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
 
                 # Produce the list of jobs needed for cloud processing
@@ -2025,8 +2218,9 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                         for j, json_data in enumerate(eq_json):
                             jobs_dict.append(json_data)
 
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+
             if jobs_dict:  # Write only once after all earthquakes are processed
-                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
                 
                 # Write Job List
                 with open(f'jobs_list_{current_time}.json', 'w') as f:
@@ -2037,12 +2231,34 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
                     json.dump(earthquake_infos, f, indent=4, ensure_ascii=False)
 
             if master_scene_features:
-                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
-                feature_filename = f'all_selected_scenes_{mode}_{current_time}.geojson'
+                feature_filename = f'all_selected_scenes_{sensor}_{current_time}.geojson'
                 fc = {"type": "FeatureCollection", "features": master_scene_features}
                 with open(feature_filename, 'w') as f:
                     json.dump(fc, f, indent=2)
                 print(f"Saved master scene footprints to {feature_filename}")
+            
+            # --- WRITE MASTER MIXED ZONE FILES (Only contains relevant debug info) ---
+            if master_mixed_dom_features:
+                dom_filename = f"all_scenes_DOMINANT_{current_time}.geojson"
+                fc = {"type": "FeatureCollection", "features": master_mixed_dom_features}
+                with open(dom_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved Master Mixed-Zone DOMINANT footprints to {dom_filename}")
+
+            if master_mixed_split_features:
+                split_filename = f"all_scenes_SPLIT_{current_time}.geojson"
+                fc = {"type": "FeatureCollection", "features": master_mixed_split_features}
+                with open(split_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved Master Mixed-Zone SPLIT footprints to {split_filename}")
+                
+            if master_mixed_aoi_features:
+                aoi_filename = f"master_AOI_{current_time}.geojson"
+                fc = {"type": "FeatureCollection", "features": master_mixed_aoi_features}
+                with open(aoi_filename, 'w') as f:
+                    json.dump(fc, f, indent=2)
+                print(f"Saved Master Mixed-Zone AOIs to {aoi_filename}")
+
         else:
             print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
 
@@ -2050,7 +2266,7 @@ def main_historic(start_date, end_date = None, aoi = None, pairing_mode = None, 
 if __name__ == "__main__":
     """
     Run the main function based on the input arguments provided, in either 'historic' or 'forward' processing mode.
-    Historic processing can be done for a single date or range of dates, with the option to specify the SLC pairing mode.
+    Historic processing can be done for a single date or range of dates, with the option to specify the SLC pairing scheme.
     Forward processing is used to generate co-seismic displacement products for new earthquakes.
     Example usage for historic processing: 
       python coseis_sar.py --historic --dates 2021-08-14 --pairing all
@@ -2068,10 +2284,10 @@ if __name__ == "__main__":
     parser.add_argument("--forward", action="store_true", help="Run forward processing.")
     parser.add_argument("--dates", nargs="+", help="Provide one or two dates in YYYY-MM-DD format for historic processing.")
     parser.add_argument("--aoi", help="Specify a path to a json file representing the area of interest (AOI).")
-    parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for historic processing.")
+    parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing scheme. Required for historic processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
     parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
-    parser.add_argument("--mode", choices=["sar", "optical"], default="sar", help="Processing mode: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
+    parser.add_argument("--sensor", choices=["sar", "optical"], default="sar", help="Sensor: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
 
     args = parser.parse_args()
 
@@ -2101,16 +2317,11 @@ if __name__ == "__main__":
             parser.print_help()
             exit(1)
 
-        main_historic(start_date, end_date, aoi=aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, mode=args.mode)
+        main_historic(start_date, end_date, aoi=aoi, pairing=args.pairing, job_list=args.job_list, resolution=args.resolution, sensor=args.sensor)
 
     elif args.forward:
         if args.dates:
             print("Error: --dates cannot be used with --forward mode.")
-            parser.print_help()
-            exit(1)
-
-        if not args.pairing:
-            print("Error: --pairing is required when using --forward mode. Options: 'all', 'sequential', 'coseismic'.")
             parser.print_help()
             exit(1)
 
@@ -2119,7 +2330,7 @@ if __name__ == "__main__":
             parser.print_help()
             exit(1)
 
-        main_forward(args.pairing)
+        main_forward()
 
     else:
         print("Error: Please specify either --historic or --forward to run the processing workflow.")
