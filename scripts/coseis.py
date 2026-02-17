@@ -616,6 +616,7 @@ def get_event_rake(event_id):
     detail_url = f"https://earthquake.usgs.gov/fdsnws/event/1/query"
     params = {"eventid": event_id, "format": "geojson"}
 
+    print(f'Fetching rake for event_id: {event_id}')
     try:
         response = requests.get(detail_url, params=params)
         response.raise_for_status()
@@ -624,26 +625,31 @@ def get_event_rake(event_id):
         # Access products
         products = data.get("properties", {}).get("products", {})
 
-        # Look for moment-tensor (preferred) or focal-mechanism
-        mt_list = products.get("moment-tensor", []) or products.get("focal-mechanism", [])
+        candidates = products.get("moment-tensor", []) + products.get("focal-mechanism", [])
 
-        if not mt_list:
+        if not candidates:
+            print(f"  No moment-tensor or focal-mechanism products found for {event_id}.")
             return []
 
-        props = mt_list[0].get("properties", {})
-
-        # Extract rakes from BOTH nodal planes
-        rakes = []
-        
-        r1 = props.get("nodal-plane-1-rake")
-        if r1 is not None:
-            rakes.append(float(r1))
+        # Iterate through ALL candidates until we find one with rake data
+        for product in candidates:
+            props = product.get("properties", {})
             
-        r2 = props.get("nodal-plane-2-rake")
-        if r2 is not None:
-            rakes.append(float(r2))
+            # Check if this product has the nodal plane info
+            r1 = props.get("nodal-plane-1-rake")
+            r2 = props.get("nodal-plane-2-rake")
 
-        return rakes
+            # If both exist, we found a valid product
+            if r1 is not None and r2 is not None:
+                try:
+                    rakes = [float(r1), float(r2)]
+                    print(f"  Found rakes in product {product.get('code')}: {rakes}") 
+                    return rakes
+                except ValueError:
+                    continue
+
+        print(f"  Warning: products found, but no 'nodal-plane-X-rake' properties present for {event_id}.")
+        return []
 
     except Exception as e:
         print(f"Warning: Could not fetch rake for {event_id}: {e}")
