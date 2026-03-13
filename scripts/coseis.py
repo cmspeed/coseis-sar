@@ -81,10 +81,8 @@ def save_tracker(data):
 def add_to_tracker(eq, aoi, resolution=90):
     """
     Initializes tracking for a new earthquake.
-    1. Identifies intersecting tracks.
-    2. Finds pre-seismic SLCs for each track.
-    3. Creates a partial job file (granules=Empty, secondary_granules=Filled).
-    4. Adds entry to tracking file.
+    Identifies intersecting tracks, finds pre-seismic SLCs for each track, 
+    creates a partial job file (granules=Empty, secondary_granules=Filled), and adds entry to tracking file.
     """
     tracker = load_tracker()
     event_id = eq.get('id')
@@ -110,7 +108,7 @@ def add_to_tracker(eq, aoi, resolution=90):
         # Unique key for this track
         track_key = f"{flight_direction}_{path_number}"
         
-        # 1. Find Pre-seismic SLCs (Historical search relative to event time)
+        # Find Pre-seismic SLCs (Historical search relative to event time)
         # We look back 24 days to ensure we get the latest coverage
         slcs = get_SLCs(flight_direction, path_number, frame_numbers, event_time, processing_mode='historic')
         
@@ -138,7 +136,7 @@ def add_to_tracker(eq, aoi, resolution=90):
         if not pre_slcs:
             continue
 
-        # 2. Create Partial Job List
+        # Create Partial Job List
         # We leave 'granules' (post-seismic) empty for now
         # We fill 'secondary_granules' (pre-seismic)
         job_filename = f"job_{title}_{track_key}_partial.json"
@@ -150,7 +148,7 @@ def add_to_tracker(eq, aoi, resolution=90):
         with open(job_filename, "w") as f:
             json.dump([job_json], f, indent=4) # List of 1 job
 
-        # 3. Add to tracks info
+        # Add to tracks info
         tracks_info[track_key] = {
             "flight_direction": flight_direction,
             "path_number": path_number,
@@ -179,12 +177,8 @@ def check_tracker_for_updates():
     Iterates through the tracking file.
     For every track 'AWAITING_POST_SEISMIC', queries ASF for new data.
     If found:
-      1. Completes the job file.
-      2. Sends 'Processing Started' email.
-      3. Runs topsApp processing automatically.
-      4. Sends 'Processing Completed' email.
-      5. Removes track from tracker.
-      6. If event has no more tracks, removes event.
+      Completes the job file, sends 'Processing Started' email, runs topsApp processing automatically,
+      sends 'Processing Completed' email, removes track from tracker, if event has no more tracks, removes event.
     """
     tracker = load_tracker()
     if not tracker:
@@ -1971,7 +1965,7 @@ def main_forward(pairing_mode=None, resolution = 90):
                             
                             <a href="{message_dict['url']}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
 
-                            <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Intersections</h3>
+                            <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Acquisitions</h3>
                             <p style="font-size: 14px; color: #555; margin-bottom: 15px;">Next acquisition times and relative orbits for frames intersecting the earthquake AOI:</p>
                             
                             {html_slc_table}
