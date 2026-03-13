@@ -6,6 +6,8 @@ import asf_search as asf
 from dateutil import parser as dateparser
 from dateutil.parser import isoparse
 from pathlib import Path
+from pystac_client import Client
+from shapely.geometry import shape, mapping
 import requests
 import json
 import folium
@@ -1159,104 +1161,72 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, mode):
                 return None
 
 
-def search_copernicus_public(aoi_polygon, start_date, end_date):
+def search_element84_stac(aoi_polygon, start_date, end_date):
     """
-    Searches CDSE Public OData. Fetches 'Footprint' to calculate true coverage area.
-    :param aoi_polygon: Shapely Polygon object representing the Area of Interest
-    :param start_date: Start date in the format 'YYYY-MM-DD'
-    :param end_date: End date in the format 'YYYY-MM-DD'
+    Searches Element84 Earth Search STAC API v1 for Sentinel-2 L2A COGs using pystac_client.
     """
-    # OData requires strict WKT: "POLYGON((...))" (no space)
-    wkt_aoi = aoi_polygon.wkt.replace("POLYGON ((", "POLYGON((")
+    print("Searching Element84 Earth Search for Sentinel-2 L2A...")
     
-    base_url = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
+    # Connect to the API endpoint
+    api_url = "https://earth-search.aws.element84.com/v1"
+    client = Client.open(api_url)
     
-    # Filter: Sentinel-2 L1C, Intersects AOI, Date Range, Cloud Cover < 20.0
-    filter_query = (
-        f"Collection/Name eq 'SENTINEL-2' and "
-        f"contains(Name,'MSIL1C') and "
-        f"OData.CSC.Intersects(area=geography'SRID=4326;{wkt_aoi}') and "
-        f"ContentDate/Start ge {start_date} and "
-        f"ContentDate/Start le {end_date} and "
-        f"Attributes/OData.CSC.DoubleAttribute/any(att:att/Name eq 'cloudCover' and att/Value le {OPTICAL_CLOUD_THRESHOLD})"
-    )
+    # Define parameters
+    collection_sentinel_2_l2a = "sentinel-2-c1-l2a" 
+    intersects_geom = mapping(aoi_polygon)
     
-    # Removing $select ensures we get the 'Footprint' field
-    params = {
-        "$filter": filter_query,
-        "$orderby": "ContentDate/Start asc",
-        "$top": 1000
-    }
-    
-    print(f"Searching Copernicus (Public OData) for Sentinel-2 L1C...")
-    
-    granules = []
-    next_link = base_url
-    session = requests.Session()
-    
-    while next_link:
-        try:
-            if next_link == base_url:
-                response = session.get(next_link, params=params)
-            else:
-                response = session.get(next_link)
+    try:
+        # Perform the search using the client
+        search = client.search(
+            collections=[collection_sentinel_2_l2a],
+            intersects=intersects_geom,
+            datetime=f"{start_date}/{end_date}",
+            query={"eo:cloud_cover": {"lte": OPTICAL_CLOUD_THRESHOLD}},
+            limit=100
+        )
+        
+        # Retrieve the metadata items
+        items = search.item_collection()
+        print(f"  Found {len(items)} Sentinel-2 products.")
+        
+        granules = []
+        
+        # Each item contains information about the scene geometry, acquisition time, and properties
+        for item in items:
+            props = item.properties
             
-            if response.status_code != 200:
-                 print(f"Error URL: {response.url}")
-                 print(f"Response: {response.text}")
-                 response.raise_for_status()
-
-            data = response.json()
-            products = data.get('value', [])
+            platform = props.get('platform', 'sentinel-2')
+            cloud_cover = props.get('eo:cloud_cover', 0.0)
             
-            for prod in products:
-                name = prod.get('Name')
-                start = prod.get('ContentDate', {}).get('Start')
-                
-                # Parse geometry
-                raw_footprint = prod.get('Footprint')
-                footprint = None
-                
-                if raw_footprint:
-                    try:
-                        clean_wkt = raw_footprint.split(';')[-1].replace("'", "")
-                        footprint = wkt.loads(clean_wkt)
-                    except Exception as e:
-                        print(f"Geometry parse error: {e}") # Optional debug
-                        pass 
-
-                # Extract cloud cover
-                cloud_cover = 0.0
-                attrs = prod.get('Attributes', [])
-                for attr in attrs:
-                    if attr.get('Name') == 'cloudCover':
-                        cloud_cover = attr.get('Value', 0.0)
-                        break
-
-                # Determine platform from name
-                platform = "sentinel-2"
-                if name.startswith("S2A"): platform = "sentinel-2a"
-                elif name.startswith("S2B"): platform = "sentinel-2b"
-                elif name.startswith("S2C"): platform = "sentinel-2c"
-
-                granules.append({
-                    "granule_id": name,
-                    "date": start.split("T")[0],
-                    "datetime": start,
-                    "cloud_cover": cloud_cover,
-                    "platform": platform,
-                    "footprint": footprint
-                })
+            # Extract Tile ID from grid:code (e.g., 'MGRS-35SNA' -> '35SNA')
+            grid_code = props.get('grid:code', '')
+            tile_id = grid_code.replace('MGRS-', '') if grid_code else ''
             
-            next_link = data.get('@odata.nextLink')
+            # Extract UTM Zone directly from mgrs:utm_zone
+            utm_zone = str(props.get('mgrs:utm_zone', 'Unknown'))
             
-        except Exception as e:
-            print(f"Error searching Public OData: {e}")
-            break
+            # Extract Orbit ID from s2:product_uri (e.g., '..._R107_...')
+            product_uri = props.get('s2:product_uri', '')
+            orbit_match = re.search(r'_R(\d{3})_', product_uri)
+            orbit_id = orbit_match.group(1) if orbit_match else "000"
+            
+            granules.append({
+                "granule_id": item.id,
+                "date": props.get('datetime', '').split('T')[0],
+                "datetime": props.get('datetime'),
+                "cloud_cover": cloud_cover,
+                "platform": platform,
+                "footprint": shape(item.geometry),
+                "orbit_id": orbit_id,
+                "tile_id": tile_id,
+                "utm_zone": utm_zone
+            })
+            
+        return granules
 
-    print(f"  Found {len(granules)} Sentinel-2 products.")
-    return granules
-
+    except Exception as e:
+        print(f"  !! Error searching Element84 STAC with pystac_client: {e}")
+        return []
 
 def get_utm_zone(granule_id):
     """Extracts UTM zone from Sentinel-2 Granule ID (e.g., 'T46QHK' -> '46').
@@ -1336,15 +1306,16 @@ def process_candidate_group(orbit_key, dates_dict, rupture_dt, aoi_polygon, titl
         combined_poly = None
         for s in scenes:
             # Create a unique key for the tile (UTM + Triplet, e.g., '46QHK')
-            t_match = re.search(r'_T(\w{5})_', s['granule_id'])
-            if t_match:
-                tile_id = t_match.group(1)
-                if tile_id not in seen_tiles:
-                    unique_scenes.append(s)
-                    seen_tiles.add(tile_id)
-                    if s.get('footprint'):
-                        if combined_poly is None: combined_poly = s['footprint']
-                        else: combined_poly = combined_poly.union(s['footprint'])
+            tile_id = s.get('tile_id')
+            # Check if tile_id exists and hasn't been processed yet
+            if tile_id and tile_id not in seen_tiles:
+                unique_scenes.append(s)
+                seen_tiles.add(tile_id)
+                if s.get('footprint'):
+                    if combined_poly is None: 
+                        combined_poly = s['footprint']
+                    else: 
+                        combined_poly = combined_poly.union(s['footprint'])
 
         if not unique_scenes:
             continue
@@ -1454,9 +1425,8 @@ def find_optical_pairs(optical_scenes, rupture_time, title, aoi_polygon):
     # Group by Orbit -> Date -> List of Scenes
     orbit_groups = defaultdict(lambda: defaultdict(list))
     for scene in optical_scenes:
-        match = re.search(r'_R(\d{3})_', scene['granule_id'])
-        if match:
-            orbit_groups[match.group(1)][scene['date']].append(scene)
+        if scene.get('orbit_id'):
+            orbit_groups[scene['orbit_id']][scene['date']].append(scene)
 
     # Standard production output (Dominant strategy applied to ALL)
     all_prod_jobs = []
@@ -1914,7 +1884,7 @@ def process_earthquake(eq, aoi, pairing, job_list, resolution=90, sensor='sar'):
         start_search = (rupture_dt - timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
         end_search = (rupture_dt + timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        s2_scenes = search_copernicus_public(aoi, start_search, end_search)
+        s2_scenes = search_element84_stac(aoi, start_search, end_search)
         
         # Run comparison strategies
         # Returns: (Standard Jobs, Mixed-Dominant-Features, Mixed-Split-Features)
