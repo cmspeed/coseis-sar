@@ -1648,6 +1648,34 @@ def to_snake_case(input_string):
     return snake_case_string
 
 
+def ascii_table_to_html(ascii_table):
+    """Converts a raw ASCII table string into a styled HTML table."""
+    if not ascii_table or "+" not in ascii_table:
+        return f"<pre style='background:#2b2b2b; color:#ccc; padding:10px;'>{ascii_table}</pre>"
+    
+    lines = ascii_table.strip().split('\n')
+    html = '<table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; margin-bottom: 20px;">'
+    
+    is_header = True
+    for line in lines:
+        if line.strip().startswith('+'):
+            continue  # Skip the border lines
+        if line.strip().startswith('|'):
+            # Extract cell content, ignoring the first and last empty splits from the outer '|'
+            cells = [cell.strip() for cell in line.split('|')[1:-1]]
+            html += "<tr>"
+            for cell in cells:
+                if is_header:
+                    html += f'<th style="border-bottom: 2px solid #0055a4; padding: 10px 8px; background-color: #f0f4f8; color: #003366;">{cell}</th>'
+                else:
+                    html += f'<td style="border-bottom: 1px solid #e0e0e0; padding: 8px; color: #444;">{cell}</td>'
+            html += "</tr>"
+            is_header = False
+            
+    html += "</table>"
+    return html
+
+
 def send_email(subject, body, attachment=None, recipients=None):
     """
     Send an email with the earthquake information to a specified list of recipients.
@@ -1783,7 +1811,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     from datetime import date, datetime
 
     min_lon, min_lat, max_lon, max_lat = AOI.bounds
-    bbox = [min_lat, max_lat, min_lon, max_lon]
+    bbox = [str(min_lat), str(max_lat), str(min_lon), str(max_lon)]
 
     print("=========================================")
     print(f"Querying next pass for {satellite} over AOI...")
@@ -1792,13 +1820,15 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     
     args = SimpleNamespace(bbox=bbox, sat=satellite, event_date=date.today(), look_back=14, cloudiness=False)
 
+    import traceback # Put this at the top of the file, or right here
+
     try:
-        result = next_pass.find_next_overpass(args)
+        result = next_pass.find_next_overpass(args, timestamp_dir)
     except Exception as e:
-        # This catches the TopologyException/GEOSException
-        print(f"WARNING: 'next_pass' failed due to geometry error (likely antimeridian issue): {e}")
-        print("Skipping next pass calculation to preserve workflow.")
-        return "Next pass information unavailable due to complex geometry (antimeridian)."
+        print("\n=== NEXT_PASS ERROR TRACEBACK ===")
+        traceback.print_exc()
+        print("=================================\n")
+        return f"Next pass information unavailable. Error: {e}"
     
     result_s1 = result["sentinel-1"] 
     result_s2 = result["sentinel-2"]
@@ -1915,22 +1945,57 @@ def main_forward(pairing_mode=None, resolution = 90):
                         "url": eq.get('url', '')
                     }
 
+                    # Convert the raw text table to an HTML table
+                    html_slc_table = ascii_table_to_html(next_pass_info)
+
+                    # Construct and send the email
+                    raw_html_body = f"""
+                    <div style="font-family: Arial, sans-serif; color: #333; max-width: 850px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                        <div style="background-color: #003366; color: white; padding: 20px;">
+                            <h2 style="margin: 0; font-size: 22px;">{message_dict['title']}</h2>
+                            <p style="margin: 5px 0 0; font-size: 14px; color: #b3d4fc;">{message_dict['time']} UTC</p>
+                        </div>
+                        
+                        <div style="padding: 20px;">
+                            <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Event Details</h3>
+                            <table style="width: 100%; text-align: left; margin-bottom: 25px; border-collapse: collapse;">
+                                <tr>
+                                    <th style="width: 150px; padding: 4px 0;">Epicenter (Lat, Lon):</th>
+                                    <td style="padding: 4px 0;">{message_dict['coordinates'][1]}, {message_dict['coordinates'][0]}</td>
+                                </tr>
+                                <tr>
+                                    <th style="padding: 4px 0;">Depth:</th>
+                                    <td style="padding: 4px 0;">{message_dict['depth']} km</td>
+                                </tr>
+                            </table>
+                            
+                            <a href="{message_dict['url']}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
+
+                            <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Intersections</h3>
+                            <p style="font-size: 14px; color: #555; margin-bottom: 15px;">Next acquisition times and relative orbits for frames intersecting the earthquake AOI:</p>
+                            
+                            {html_slc_table}
+
+                            <div style="background-color: #e9f5ff; border-left: 4px solid #0055a4; padding: 12px; margin-top: 25px; border-radius: 0 4px 4px 0;">
+                                <p style="margin: 0; font-size: 14px; color: #003366;">
+                                    <strong>Interactive Map:</strong> Please download and open the attached HTML file in your web browser to view intersecting Sentinel-1 orbits.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #e0e0e0;">
+                            This is an automated message. Please do not reply.<br>
+                            For product-specific inquiries, contact Dr. Cole Speed (<a href="mailto:cole.speed@jpl.nasa.gov" style="color: #0055a4;">cole.speed@jpl.nasa.gov</a>) or Dr. Grace Bato (<a href="mailto:bato@jpl.nasa.gov" style="color: #0055a4;">bato@jpl.nasa.gov</a>).
+                        </div>
+                    </div>
+                    """
+
+                    # Strip the newlines to prevent yagmail from adding unwanted vertical space
+                    clean_html_body = raw_html_body.replace('\n', '')
+
                     send_email(
-                        subject=f"{message_dict['title']}",
-                        body=(
-                            f"{message_dict['title']} at {message_dict['time']} UTC\n"
-                            f"------------------------------------------------------------------------------------------------------------------------\n"
-                            f"Epicenter coordinates (lat, lon): ({message_dict['coordinates'][1]}, {message_dict['coordinates'][0]})\n"
-                            f"Depth: {message_dict['depth']} km\n"
-                            f"For more details, visit the USGS Earthquake Hazard Portal page for this event: {message_dict['url']}\n"
-                            f"------------------------------------------------------------------------------------------------------------------------\n"
-                            f"Next acquisition times and relative orbits for Sentinel-1 frames intersecting the earthquake AOI:\n"
-                            f"{next_pass_info}\n"
-                            f"------------------------------------------------------------------------------------------------------------------------\n"
-                            f"View an interactive map of intersecting Sentinel-1 orbits by downloading the attachment and launching it your web browser.\n"
-                            f"------------------------------------------------------------------------------------------------------------------------\n"
-                            f"This is an automated message. Please do not reply. For product-specific inquiries contact Dr. Cole Speed (<a href=\"mailto:cole.speed@jpl.nasa.gov\">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href=\"mailto:bato@jpl.nasa.gov\">bato@jpl.nasa.gov</a>)."
-                        ),
+                        subject=f"New Event: {message_dict['title']}",
+                        body=clean_html_body,
                         attachment=attachment_file,
                         recipients=PRIMARY_RECIPIENTS
                     )
