@@ -172,22 +172,19 @@ def add_to_tracker(eq, aoi, resolution=90):
         print(f"No valid tracks initialized for {title}.")
 
 
-def check_tracker_for_updates():
+def check_tracker_for_updates(do_processing=False, send_email_flag=False):
     """
     Iterates through the tracking file.
     For every track 'AWAITING_POST_SEISMIC', queries ASF for new data.
     If found:
-      Completes the job file, sends 'Processing Started' email, runs topsApp processing automatically,
-      sends 'Processing Completed' email, removes track from tracker, if event has no more tracks, removes event.
+      Completes the job file, sends 'Processing Started' email (if enabled), 
+      runs topsApp processing automatically (if enabled),
+      sends 'Processing Completed' email (if enabled), 
+      removes track from tracker, if event has no more tracks, removes event.
     """
     tracker = load_tracker()
     if not tracker:
         return
-
-    # [SILENCED FOR CRON]
-    # print('=========================================')
-    # print("Checking active tracker for new post-seismic data...")
-    # print('=========================================')
 
     events_to_remove = []
     completed_jobs_summary = []
@@ -253,24 +250,29 @@ def check_tracker_for_updates():
                     )
                     
                     # --- EMAIL 1: PROCESSING STARTED ---
-                    start_subject = f"PROCESSING STARTED: {title} ({track_key})"
-                    start_body = (
-                        f"New post-seismic data found for {title}.\n\n"
-                        f"Track: {track_key}\n"
-                        f"Pair: {pre_seismic_date} (Pre) - {post_seismic_date} (Post)\n"
-                        f"Output Directory: {processing_dir}\n\n"
-                        f"Automated processing is starting now..."
-                    )
-                    send_email(start_subject, start_body, recipients=SECONDARY_RECIPIENTS)
+                    if send_email_flag:
+                        start_subject = f"PROCESSING STARTED: {title} ({track_key})"
+                        start_body = (
+                            f"New post-seismic data found for {title}.\n\n"
+                            f"Track: {track_key}\n"
+                            f"Pair: {pre_seismic_date} (Pre) - {post_seismic_date} (Post)\n"
+                            f"Output Directory: {processing_dir}\n\n"
+                            f"Automated processing is starting now..."
+                        )
+                        send_email(start_subject, start_body, recipients=SECONDARY_RECIPIENTS)
                     
-                    # Run the processing
-                    print(f"    Starting automatic processing for {pair_folder_name}")
-                    try:
-                        run_dockerized_topsApp(job, processing_dir)
-                        processing_status = "Success"
-                    except Exception as e:
-                        print(f"    Processing failed for {pair_folder_name}: {e}")
-                        processing_status = f"Failed: {str(e)}"
+                    # --- Run the processing ---
+                    if do_processing:
+                        print(f"    Starting automatic processing for {pair_folder_name}")
+                        try:
+                            run_dockerized_topsApp(job, processing_dir)
+                            processing_status = "Success"
+                        except Exception as e:
+                            print(f"    Processing failed for {pair_folder_name}: {e}")
+                            processing_status = f"Failed: {str(e)}"
+                    else:
+                        print(f"    --do_processing not set. Skipping local topsApp execution for {pair_folder_name}.")
+                        processing_status = "Skipped (Cloud/Email-only mode)"
 
                     # SAVE COMPLETED JOB JSON IN PROCESSING DIR
                     completed_filename = os.path.join(processing_dir, f"job_{title}_{track_key}_COMPLETED.json")
@@ -313,8 +315,7 @@ def check_tracker_for_updates():
     save_tracker(tracker)
 
     # --- EMAIL 2: PROCESSING COMPLETED ---
-    # Only send email if there are items in the summary
-    if completed_jobs_summary:
+    if completed_jobs_summary and send_email_flag:
         has_failures = any(item['status'].startswith("Failed") for item in completed_jobs_summary)
         status_tag = "WITH FAILURES" if has_failures else "SUCCESS"
         
@@ -1844,12 +1845,14 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
             return None
 
 
-def main_forward(pairing_mode=None, resolution = 90):
+def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
     :param resolution: Output resolution for the topsApp processing, default is 90m
+    :param do_processing: If True, runs the dockerized topsApp processing workflow after generating the JSONs. Default is False.
+    :param send_email_flag: If True, sends an email alert after processing. Default is False.
     """
     
     # A lock file to prevent overlapping runs
@@ -1987,16 +1990,20 @@ def main_forward(pairing_mode=None, resolution = 90):
                     # Strip the newlines to prevent yagmail from adding unwanted vertical space
                     clean_html_body = raw_html_body.replace('\n', '')
 
-                    send_email(
-                        subject=f"New Event: {message_dict['title']}",
-                        body=clean_html_body,
-                        attachment=attachment_file,
-                        recipients=PRIMARY_RECIPIENTS
-                    )
-
-                    print('=========================================')
-                    print('Alert emailed to recipients.')
-                    print('=========================================')
+                    if send_email_flag:
+                        send_email(
+                            subject=f"New Event: {message_dict['title']}",
+                            body=clean_html_body,
+                            attachment=attachment_file,
+                            recipients=PRIMARY_RECIPIENTS
+                        )
+                        print('=========================================')
+                        print('Alert emailed to recipients.')
+                        print('=========================================')
+                    else:
+                        print('=========================================')
+                        print('Email sending is disabled (--send_email not provided).')
+                        print('=========================================')
 
                     # START TRACKING FOR THIS EVENT
                     # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
@@ -2006,7 +2013,7 @@ def main_forward(pairing_mode=None, resolution = 90):
                 print(f"No new significant earthquakes found as of {current_time}.")
 
         # Check ASF DAAC for available SLCs for pending earthquakes
-        check_tracker_for_updates()
+        check_tracker_for_updates(do_processing, send_email_flag)
         
     finally:
         if os.path.exists(lock_file):
@@ -2131,15 +2138,18 @@ if __name__ == "__main__":
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
     parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
     parser.add_argument("--mode", choices=["sar", "optical"], default="sar", help="Processing mode: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
+    parser.add_argument("--do_processing", action="store_true", help="Execute local topsApp processing.")
+    parser.add_argument("--send_email", action="store_true", help="Send email notifications.")
 
     args = parser.parse_args()
 
-    if args.historic and args.forward:
-        print("Error: You cannot specify both --historic and --forward.")
-        parser.print_help()
-        exit(1)
-
     if args.historic:
+        # Prevent forward-only flags in historic mode
+        if args.send_email or args.do_processing:
+            print("Error: --send_email and --do_processing are only supported in --forward mode.")
+            parser.print_help()
+            exit(1)
+            
         if not args.dates:
             print("Error: --dates is required when using --historic mode.")
             parser.print_help()
@@ -2163,6 +2173,12 @@ if __name__ == "__main__":
         main_historic(start_date, end_date, aoi=aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, mode=args.mode)
 
     elif args.forward:
+        # Prevent historic-only flags in forward mode
+        if args.job_list:
+            print("Error: --job_list is only supported in --historic mode.")
+            parser.print_help()
+            exit(1)
+            
         if args.dates:
             print("Error: --dates cannot be used with --forward mode.")
             parser.print_help()
@@ -2177,10 +2193,9 @@ if __name__ == "__main__":
             print("Error: --aoi cannot be used with --forward mode.")
             parser.print_help()
             exit(1)
+            
+        # Optional: Warn if running in tracking-only mode
+        if not args.do_processing and not args.send_email:
+            print("Warning: Running --forward without --do_processing or --send_email. The script will only update tracking files.")
 
-        main_forward(args.pairing)
-
-    else:
-        print("Error: Please specify either --historic or --forward to run the processing workflow.")
-        parser.print_help()
-        exit(1)
+        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email)
