@@ -1,0 +1,80 @@
+{
+    "us6000sg0y": {
+        "title": "m_63_85_km_w_of_vallenar_chile",
+        "time": 1773409158599,
+        "aoi": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -72.1269,
+                        -29.184
+                    ],
+                    [
+                        -71.1269,
+                        -29.184
+                    ],
+                    [
+                        -71.1269,
+                        -28.184
+                    ],
+                    [
+                        -72.1269,
+                        -28.184
+                    ],
+                    [
+                        -72.1269,
+                        -29.184
+                    ]
+                ]
+            ]
+        },
+        "tracks": {
+            "DESCENDING_156": {
+                "flight_direction": "DESCENDING",
+                "path_number": 156,
+                "frame_numbers": [
+                    688,
+                    691,
+                    686
+                ],
+                "partial_job_file": "job_m_63_85_km_w_of_vallenar_chile_DESCENDING_156_partial.json",
+                "reference_date": "2026-03-11",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "DESCENDING_54": {
+                "flight_direction": "DESCENDING",
+                "path_number": 54,
+                "frame_numbers": [
+                    681,
+                    687
+                ],
+                "partial_job_file": "job_m_63_85_km_w_of_vallenar_chile_DESCENDING_54_partial.json",
+                "reference_date": "2026-03-10",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "ASCENDING_120": {
+                "flight_direction": "ASCENDING",
+                "path_number": 120,
+                "frame_numbers": [
+                    1082,
+                    1084,
+                    1087
+                ],
+                "partial_job_file": "job_m_63_85_km_w_of_vallenar_chile_ASCENDING_120_partial.json",
+                "reference_date": "2026-03-08",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "ASCENDING_18": {
+                "flight_direction": "ASCENDING",
+                "path_number": 18,
+                "frame_numbers": [
+                    1083
+                ],
+                "partial_job_file": "job_m_63_85_km_w_of_vallenar_chile_ASCENDING_18_partial.json",
+                "reference_date": "2026-03-07",
+                "status": "AWAITING_POST_SEISMIC"
+            }
+        }
+    }
+}

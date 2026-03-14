@@ -1,0 +1,55 @@
+name: COSEIS Forward Email Notifications
+
+on:
+  schedule:
+    # Runs every 50 minutes
+    - cron: '*/50 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run-coseis-notifications:
+    runs-on: ubuntu-latest
+    
+    # Prevents hung processes from burning your action minutes
+    timeout-minutes: 15 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Required so the bot can push state changes back to the repo
+          token: ${{ secrets.GITHUB_TOKEN }} 
+
+      - name: Setup Conda Environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: coseis-sar
+          environment-file: environment.yml 
+          auto-activate-base: false
+
+      - name: Run COSEIS Forward Script (Email Only)
+        env:
+          # Pulls the secure variables you saved in GitHub Secrets
+          COSEIS_PRIMARY_RECIPIENTS: ${{ secrets.COSEIS_PRIMARY_RECIPIENTS }}
+          COSEIS_SECONDARY_RECIPIENTS: ${{ secrets.COSEIS_SECONDARY_RECIPIENTS }}
+          GMAIL_APP_PSWD: ${{ secrets.GMAIL_APP_PSWD }}
+        run: |
+          # Navigate to the scripts directory where coseis.py lives
+          cd scripts
+          
+          # Execute the Python script strictly for email dispatch and tracking
+          python coseis.py --forward --pairing coseismic --send_email
+
+      - name: Save Tracking State
+        run: |
+          # Configure Git as the GitHub Actions bot
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # ONLY stage the JSON file inside the scripts directory
+          git add scripts/active_job_tracking.json || true
+          
+          # Commit only if the JSON was modified (e.g., new earthquake or finished job)
+          # The [skip ci] prevents this push from accidentally triggering other workflows
+          git commit -m "Update COSEIS tracking state [skip ci]" || echo "No changes to commit"
+          git push
