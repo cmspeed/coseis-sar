@@ -56,11 +56,6 @@ def get_recipients_from_env(var_name):
 PRIMARY_RECIPIENTS = get_recipients_from_env('COSEIS_PRIMARY_RECIPIENTS')
 SECONDARY_RECIPIENTS = get_recipients_from_env('COSEIS_SECONDARY_RECIPIENTS')
 
-# Warning if variables are missing
-if not PRIMARY_RECIPIENTS:
-    logging.warning("No PRIMARY_RECIPIENTS found. Set 'COSEIS_PRIMARY_RECIPIENTS' environment variable.")
-
-
 def load_tracker():
     """Loads the active job tracking file."""
     if not os.path.exists(TRACKING_FILE):
@@ -1681,9 +1676,20 @@ def send_email(subject, body, attachment=None, recipients=None):
     """
     if recipients is None:
         recipients = PRIMARY_RECIPIENTS
-    
-    GMAIL_USER = 'aria.hazards.jpl@gmail.com'
-    GMAIL_PSWD = os.environ['GMAIL_APP_PSWD']
+
+    if not recipients:
+        print("WARNING: Cannot send email. No recipients configured in environment variables.")
+        return
+
+    # Fetch credentials from environment variables
+    GMAIL_USER = os.environ.get('GMAIL_USER')
+    GMAIL_PSWD = os.environ.get('GMAIL_APP_PSWD')
+
+    # Check for missing sender credentials
+    if not GMAIL_USER or not GMAIL_PSWD:
+        print("WARNING: Cannot send email. GMAIL_USER or GMAIL_APP_PSWD environment variables are missing.")
+        return
+
     yag = yagmail.SMTP(GMAIL_USER, GMAIL_PSWD)
 
     yag.send(

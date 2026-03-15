@@ -33,6 +33,7 @@ jobs:
         env:
           COSEIS_PRIMARY_RECIPIENTS: ${{ secrets.COSEIS_PRIMARY_RECIPIENTS }}
           COSEIS_SECONDARY_RECIPIENTS: ${{ secrets.COSEIS_SECONDARY_RECIPIENTS }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PSWD: ${{ secrets.GMAIL_APP_PSWD }}
         run: |
           # Navigate to the scripts directory
