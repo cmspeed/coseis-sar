@@ -633,7 +633,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, depth)):
-                if (magnitude >= 6.0) and (depth <= 40.0) and within_Coastline_buffer:
+                if (magnitude >= 5.5) and (depth <= 15.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
@@ -1881,7 +1881,7 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
                 json.dump({}, f)
 
         # Check for New Earthquakes
-        geojson_data = check_for_new_data(USGS_api_hourly)
+        geojson_data = check_for_new_data(USGS_api_daily)
 
         start_date = datetime.now().strftime('%Y-%m-%d')
         current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
