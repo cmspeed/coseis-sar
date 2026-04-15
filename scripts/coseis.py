@@ -170,13 +170,13 @@ def add_to_tracker(eq, aoi, resolution=90):
 
 def check_tracker_for_updates(do_processing=False, send_email_flag=False):
     """
-    Iterates through the tracking file.
-    For every track 'AWAITING_POST_SEISMIC', queries ASF for new data.
-    If found:
-      Completes the job file, sends 'Processing Started' email (if enabled), 
-      runs topsApp processing automatically (if enabled),
-      sends 'Processing Completed' email (if enabled), 
-      removes track from tracker, if event has no more tracks, removes event.
+    Iterates through the tracking file using a unified state machine.
+    - Local Machine (do_processing=True): Looks for 'AWAITING_POST_SEISMIC', runs topsApp, updates state to 'READY_FOR_EMAIL'.
+    - GitHub Action (send_email_flag=True): Looks for 'READY_FOR_EMAIL', sends email, removes event.
+
+    Args:
+        do_processing (bool): If True, this machine will perform local processing for tracks awaiting post-seismic data.
+        send_email_flag (bool): If True, this machine will send emails for tracks that are ready for email.
     """
     tracker = load_tracker()
     if not tracker:
@@ -193,107 +193,88 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
         tracks_to_remove = []
 
         for track_key, track_info in tracks.items():
-            if track_info['status'] != "AWAITING_POST_SEISMIC":
-                continue
-
-            flight_dir = track_info['flight_direction']
-            path_num = track_info['path_number']
-            frames = track_info['frame_numbers']
             
-            # Custom query for this track's post-event data
-            slcs = get_SLCs(flight_dir, path_num, frames, event_time, processing_mode='forward')
-            
-            rupture_dt = convert_time(event_time).replace(tzinfo=None)
-            post_slcs = []
-            secondary_date = None # This will be the Post-seismic date
+            # Local Processing
+            if track_info['status'] == "AWAITING_POST_SEISMIC":
+                if not do_processing:
+                    continue 
 
-            if slcs:
-                slcs.sort(key=lambda x: x['date'])
-                # Filter for dates AFTER rupture
-                post_dates = sorted(list(set(s['date'] for s in slcs if datetime.strptime(s['date'], "%Y-%m-%d") > rupture_dt)))
+                flight_dir = track_info['flight_direction']
+                path_num = track_info['path_number']
+                frames = track_info['frame_numbers']
                 
-                if post_dates:
-                    secondary_date = post_dates[0] # The first date after earthquake
-                    post_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == secondary_date]
-            
-            if post_slcs:
-                # Rename these for absolute clarity before using them
-                pre_seismic_date = track_info['reference_date']
-                post_seismic_date = secondary_date
+                slcs = get_SLCs(flight_dir, path_num, frames, event_time, processing_mode='forward')
                 
-                # LOAD PARTIAL JOB
-                partial_file = track_info['partial_job_file']
-                try:
-                    with open(partial_file, 'r') as f:
-                        job_list = json.load(f)
-                        job = job_list[0]
+                rupture_dt = convert_time(event_time).replace(tzinfo=None)
+                post_slcs = []
+                secondary_date = None
+
+                if slcs:
+                    slcs.sort(key=lambda x: x['date'])
+                    post_dates = sorted(list(set(s['date'] for s in slcs if datetime.strptime(s['date'], "%Y-%m-%d") > rupture_dt)))
                     
-                    # Fill 'granules' with Post-seismic (Newer/Reference)
-                    job['job_parameters']['granules'] = post_slcs
-
-                    # Define Folder Names
-                    older_date_str = pre_seismic_date.replace("-", "")
-                    newer_date_str = post_seismic_date.replace("-", "")
-
-                    pair_folder_name = f"{flight_dir}{int(path_num):03d}_{older_date_str}_{newer_date_str}"
-
-                    processing_dir = os.path.join(
-                        root_dir, 
-                        title, 
-                        f"{flight_dir}{int(path_num):03d}",
-                        "coseismic",
-                        pair_folder_name
-                    )
+                    if post_dates:
+                        secondary_date = post_dates[0]
+                        post_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == secondary_date]
+                
+                if post_slcs:
+                    pre_seismic_date = track_info['reference_date']
+                    post_seismic_date = secondary_date
                     
-                    # --- EMAIL 1: PROCESSING STARTED ---
-                    if send_email_flag:
-                        start_subject = f"PROCESSING STARTED: {title} ({track_key})"
-                        start_body = (
-                            f"New post-seismic data found for {title}.\n\n"
-                            f"Track: {track_key}\n"
-                            f"Pair: {pre_seismic_date} (Pre) - {post_seismic_date} (Post)\n"
-                            f"Output Directory: {processing_dir}\n\n"
-                            f"Automated processing is starting now..."
+                    partial_file = track_info['partial_job_file']
+                    try:
+                        with open(partial_file, 'r') as f:
+                            job_list = json.load(f)
+                            job = job_list[0]
+                        
+                        job['job_parameters']['granules'] = post_slcs
+
+                        older_date_str = pre_seismic_date.replace("-", "")
+                        newer_date_str = post_seismic_date.replace("-", "")
+                        pair_folder_name = f"{flight_dir}{int(path_num):03d}_{older_date_str}_{newer_date_str}"
+                        processing_dir = os.path.join(
+                            root_dir, title, f"{flight_dir}{int(path_num):03d}", "coseismic", pair_folder_name
                         )
-                        send_email(start_subject, start_body, recipients=SECONDARY_RECIPIENTS)
-                    
-                    # --- Run the processing ---
-                    if do_processing:
+                        
                         print(f"    Starting automatic processing for {pair_folder_name}")
                         try:
                             run_dockerized_topsApp(job, processing_dir)
-                            processing_status = "Success"
+                            track_info['processing_status'] = "Success"
                         except Exception as e:
                             print(f"    Processing failed for {pair_folder_name}: {e}")
-                            processing_status = f"Failed: {str(e)}"
-                    else:
-                        print(f"    --do_processing not set. Skipping local topsApp execution for {pair_folder_name}.")
-                        processing_status = "Skipped (Cloud/Email-only mode)"
+                            track_info['processing_status'] = f"Failed: {str(e)}"
 
-                    # SAVE COMPLETED JOB JSON IN PROCESSING DIR
-                    completed_filename = os.path.join(processing_dir, f"job_{title}_{track_key}_COMPLETED.json")
-                    with open(completed_filename, 'w') as f:
-                        json.dump([job], f, indent=4)
-                    
-                    completed_jobs_summary.append({
-                        "title": title,
-                        "track": track_key,
-                        "dates": f"{pre_seismic_date} (Pre) - {post_seismic_date} (Post)",
-                        "status": processing_status,
-                        "location": processing_dir
-                    })
-                    
-                    tracks_to_remove.append(track_key)
-                    
-                    # Clean up partial file
-                    if os.path.exists(partial_file):
-                        os.remove(partial_file)
+                        completed_filename = os.path.join(processing_dir, f"job_{title}_{track_key}_COMPLETED.json")
+                        with open(completed_filename, 'w') as f:
+                            json.dump([job], f, indent=4)
+                        
+                        # Notify GitHub Actions that the job is done and ready for email
+                        track_info['status'] = "READY_FOR_EMAIL"
+                        track_info['dates'] = f"{pre_seismic_date} (Pre) - {post_seismic_date} (Post)"
+                        track_info['location'] = processing_dir
+                        
+                        if os.path.exists(partial_file):
+                            os.remove(partial_file)
 
-                except Exception as e:
-                    print(f"    Error processing partial file {partial_file}: {e}")
-            else:
-                print(f"    No post-seismic data yet.")
-                pass
+                    except Exception as e:
+                        print(f"    Error processing partial file {partial_file}: {e}")
+                else:
+                    print(f"    No post-seismic data yet.")
+                    
+            # Email with Github Actions
+            elif track_info['status'] == "READY_FOR_EMAIL":
+                if not send_email_flag:
+                    continue 
+                    
+                completed_jobs_summary.append({
+                    "title": title,
+                    "track": track_key,
+                    "dates": track_info.get('dates', 'Unknown'),
+                    "status": track_info.get('processing_status', 'Unknown'),
+                    "location": track_info.get('location', 'Unknown')
+                })
+                # Mark track for removal from the JSON now that it's complete
+                tracks_to_remove.append(track_key)
 
         # Remove completed tracks
         for tk in tracks_to_remove:
@@ -310,11 +291,10 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
     
     save_tracker(tracker)
 
-    # --- EMAIL 2: PROCESSING COMPLETED ---
+    # Send "PROCESSING COMPLETED" email
     if completed_jobs_summary and send_email_flag:
         has_failures = any(item['status'].startswith("Failed") for item in completed_jobs_summary)
         status_tag = "WITH FAILURES" if has_failures else "SUCCESS"
-        
         subject = f"PROCESSING COMPLETED ({status_tag}): {len(completed_jobs_summary)} Jobs Processed"
         
         body = "The following automated processing jobs have finished:\n\n"
@@ -327,7 +307,6 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
             body += "--------------------------------------\n"
         
         body += "\nThis is an automated message."
-        
         print("Sending completion email to secondary recipients...")
         send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
 
