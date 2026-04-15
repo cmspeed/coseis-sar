@@ -1887,23 +1887,8 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
                 json.dump({}, f)
 
         # Check for New Earthquakes
-        # geojson_data = check_for_new_data(USGS_api_daily)
+        geojson_data = check_for_new_data(USGS_api_daily)
 
-        # Calculate a 2-day (48-hour) window
-        two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%S')
-        
-        # Define parameters for a custom search
-        params = {
-            "format": "geojson",
-            "starttime": two_days_ago,
-            "minmagnitude": 5.5  # Matches your forward-mode significance
-        }
-
-        print(f"Checking for earthquakes since {two_days_ago}...")
-        response = requests.get(USGS_api_alltime, params=params)
-        response.raise_for_status()
-        geojson_data = response.json()
-        
         start_date = datetime.now().strftime('%Y-%m-%d')
         current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
 
