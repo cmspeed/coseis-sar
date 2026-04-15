@@ -51,13 +51,15 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
           # Stage the JSON file, the new partial jobs, and the maps directory
-          git add scripts/active_job_tracking.json scripts/*_partial.json docs/maps/*.html || true
+          git add scripts/active_job_tracking.json || true
+          git add scripts/*_partial.json || true
+          git add docs/maps/*.html || true          
           
           # Check if the file actually changed before trying to commit and push
           if ! git diff --cached --quiet; then
             git commit -m "Update COSEIS tracking state and add new maps [skip ci]"
             git pull --rebase origin main
-            git push
+            git push origin main
           else
             echo "No changes to commit. Skipping."
           fi
