@@ -64,22 +64,6 @@
                 "partial_job_file": "job_m_57_20_km_ese_of_silver_springs_nevada_ASCENDING_64_partial.json",
                 "reference_date": "2026-04-10",
                 "status": "AWAITING_POST_SEISMIC"
-            },
-            "ASCENDING_137": {
-                "flight_direction": "ASCENDING",
-                "path_number": 137,
-                "frame_numbers": [
-                    120,
-                    128,
-                    123,
-                    125
-                ],
-                "partial_job_file": "job_m_57_20_km_ese_of_silver_springs_nevada_ASCENDING_137_partial.json",
-                "reference_date": "2026-04-09",
-                "status": "READY_FOR_EMAIL",
-                "processing_status": "Success",
-                "dates": "2026-04-09 (Pre) - 2026-04-15 (Post)",
-                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_57_20_km_ese_of_silver_springs_nevada/ASCENDING137/coseismic/ASCENDING137_20260409_20260415"
             }
         }
     }
