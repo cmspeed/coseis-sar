@@ -303,16 +303,43 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
         status_tag = "WITH FAILURES" if has_failures else "SUCCESS"
         subject = f"PROCESSING COMPLETED ({status_tag}): {len(completed_jobs_summary)} Jobs Processed"
         
-        body = "The following automated processing jobs have finished:\n\n"
-        for item in completed_jobs_summary:
-            body += f"Event: {item['title']}\n"
-            body += f"Track: {item['track']}\n"
-            body += f"Dates: {item['dates']}\n"
-            body += f"Status: {item['status']}\n"
-            body += f"Location: {item['location']}\n"
-            body += "--------------------------------------\n"
+        # Start HTML body with inline CSS for universal email client support
+        body = """
+        <html>
+            <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-top: 0;">Automated Processing Update</h2>
+                <p>The following SAR processing jobs have concluded:</p>
+        """
         
-        body += "\nThis is an automated message."
+        # Generate a styled card for each completed job
+        for item in completed_jobs_summary:
+            status_color = "#e74c3c" if item['status'].startswith("Failed") else "#27ae60"
+            
+            body += f"""
+                <div style="background-color: #f8f9fa; padding: 15px; margin-bottom: 15px; border-left: 5px solid {status_color}; border-radius: 4px;">
+                <p style="margin: 0 0 5px;"><strong>Event:</strong> {item['title']}</p>
+                <p style="margin: 0 0 5px;"><strong>Track:</strong> {item['track']}</p>
+                <p style="margin: 0 0 5px;"><strong>Dates:</strong> {item['dates']}</p>
+                <p style="margin: 0 0 5px;"><strong>Status:</strong> <span style="color: {status_color}; font-weight: bold;">{item['status']}</span></p>
+                <p style="margin: 0;"><strong>Location:</strong> <br>
+                    <code style="background: #e9ecef; padding: 4px; display: block; margin-top: 5px; word-wrap: break-word; font-size: 12px; color: #c0392b;">
+                    {item['location']}
+                    </code>
+                </p>
+                </div>
+            """
+
+        # Close the HTML body
+        body += """
+                <p style="font-size: 12px; color: #95a5a6; border-top: 1px solid #e0e0e0; padding-top: 15px; margin-top: 20px; text-align: center;">
+                This is an automated message from the COSEIS pipeline.
+                </p>
+            </div>
+            </body>
+        </html>
+        """
+        
         print("Sending completion email to secondary recipients...")
         send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
 
