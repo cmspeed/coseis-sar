@@ -273,8 +273,14 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
                     "status": track_info.get('processing_status', 'Unknown'),
                     "location": track_info.get('location', 'Unknown')
                 })
-                # Mark track for removal from the JSON now that it's complete
-                tracks_to_remove.append(track_key)
+                
+                # Determine whether to delete or quarantine based on success/failure
+                if track_info.get('processing_status', '').startswith("Failed"):
+                    print(f"    Job {track_key} failed. Moving to FAILED_NEEDS_ATTENTION state.")
+                    track_info['status'] = "FAILED_NEEDS_ATTENTION"
+                else:
+                    # Mark successful track for removal
+                    tracks_to_remove.append(track_key)
 
         # Remove completed tracks
         for tk in tracks_to_remove:
