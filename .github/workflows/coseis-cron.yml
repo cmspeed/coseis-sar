@@ -50,8 +50,8 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          # Stage the JSON file and the  GitHub pages maps directory
-          git add scripts/active_job_tracking.json docs/maps/*.html || true
+          # Stage the JSON file, the new partial jobs, and the maps directory
+          git add scripts/active_job_tracking.json scripts/*_partial.json docs/maps/*.html || true
           
           # Check if the file actually changed before trying to commit and push
           if ! git diff --cached --quiet; then
