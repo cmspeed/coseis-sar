@@ -55,6 +55,7 @@ def get_recipients_from_env(var_name):
 # Load recipients from environment variables
 PRIMARY_RECIPIENTS = get_recipients_from_env('COSEIS_PRIMARY_RECIPIENTS')
 SECONDARY_RECIPIENTS = get_recipients_from_env('COSEIS_SECONDARY_RECIPIENTS')
+TERTIARY_RECIPIENTS = get_recipients_from_env('COSEIS_TERTIARY_RECIPIENTS')
 
 def load_tracker():
     """Loads the active job tracking file."""
@@ -1802,49 +1803,57 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     try:
         from utils import plot_maps
     except ImportError as e:
-        print(f"Could not import plot_maps from {next_pass_dir}/utils: {e}")
-        return None
+        print(f"Could not import plot_maps: {e}")
+        return None, None, None, None
     
-    from datetime import date, datetime
+    from datetime import date
 
     min_lon, min_lat, max_lon, max_lat = AOI.bounds
     bbox = [str(min_lat), str(max_lat), str(min_lon), str(max_lon)]
 
     print("=========================================")
-    print(f"Querying next pass for {satellite} over AOI...")
-    print(f"BBOX: {min_lat}, {max_lat}, {min_lon}, {max_lon}")
+    print(f"Querying next-pass for all satellites over AOI...")
     print("=========================================")
     
-    args = SimpleNamespace(bbox=bbox, sat=satellite, event_date=date.today(), look_back=14, cloudiness=False)
-
-    import traceback # Put this at the top of the file, or right here
+    args = SimpleNamespace(bbox=bbox, sat="all", event_date=date.today(), look_back=14, cloudiness=False)
 
     try:
         result = next_pass.find_next_overpass(args, timestamp_dir)
     except Exception as e:
-        print("\n=== NEXT_PASS ERROR TRACEBACK ===")
-        traceback.print_exc()
-        print("=================================\n")
-        return f"Next pass information unavailable. Error: {e}"
+        print(f"Next pass error: {e}")
+        return None, None, None, None
     
-    result_s1 = result["sentinel-1"] 
-    result_s2 = result["sentinel-2"]
-    result_l = result["landsat"]
+    result_s1 = result.get("sentinel-1") 
+    result_nisar = result.get("nisar")
     
+    s1_info = result_s1.get("next_collect_info", "No S1 info available.") if result_s1 else "No S1 info."
+    nisar_info = result_nisar.get("next_collect_info", "No NISAR info available.") if result_nisar else "No NISAR info."
+    
+    default_map_file = timestamp_dir / "satellite_overpasses_map.html"
+    
+    # Generate S1-Only Map
+    s1_map_path = timestamp_dir / "S1_overpass_map.html"
     try:
-        plot_maps.make_overpasses_map(result_s1, result_s2, result_l, args.bbox, timestamp_dir)
+        # Pass None for NISAR
+        plot_maps.make_overpasses_map(result_s1, None, None, None, args.bbox, timestamp_dir)
+        if default_map_file.exists():
+            os.rename(default_map_file, s1_map_path)
     except Exception as e:
-        print(f"WARNING: Could not generate overpass map: {e}")
+        print(f"Could not generate S1-only map: {e}")
+        s1_map_path = None
 
-    # loop over results and display only missions that were requested
-    for _, mission_result in result.items():
-        if mission_result:
-            s1_next_collect_info = mission_result.get("next_collect_info",
-                                     "No collection info available.")
-            return s1_next_collect_info
-        else:
-            print("No next pass data available.")
-            return None
+    # Generate S1 + NISAR Map
+    nisar_map_path = timestamp_dir / "S1_NISAR_overpass_map.html"
+    try:
+        # Pass result_nisar into your plot_maps signature
+        plot_maps.make_overpasses_map(result_s1, None, None, result_nisar, args.bbox, timestamp_dir)
+        if default_map_file.exists():
+            os.rename(default_map_file, nisar_map_path)
+    except Exception as e:
+        print(f"Could not generate S1+NISAR map: {e}")
+        nisar_map_path = None
+
+    return s1_info, nisar_info, s1_map_path, nisar_map_path
 
 
 def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False):
@@ -1856,7 +1865,8 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
     :param do_processing: If True, runs the dockerized topsApp processing workflow after generating the JSONs. Default is False.
     :param send_email_flag: If True, sends an email alert after processing. Default is False.
     """
-    
+    import shutil
+
     # A lock file to prevent overlapping runs
     lock_file = "/tmp/coseis_processing.lock"
 
@@ -1933,20 +1943,29 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
                     timestamp_dir.mkdir(parents=True, exist_ok=True)
 
                     # Run next_pass to get the next S1 overpasses
-                    next_pass_info = get_next_pass(aoi, timestamp_dir, satellite="sentinel-1")
+                    s1_info, nisar_info, s1_map, nisar_map = get_next_pass(aoi, timestamp_dir)
                     
-                    # Rename sentinel-1 overpass and opera granule maps
-                    original_filename = timestamp_dir / "satellite_overpasses_map.html"
-                    s1_map_filename = timestamp_dir / f"{title_snake}_Sentinel-1_Next_Overpasses.html"
+                    # Setup Github pages directory
+                    docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
+                    docs_maps_dir.mkdir(parents=True, exist_ok=True)
+                    GITHUB_PAGES_BASE_URL = "https://cmspeed.github.io/coseis-sar"
+                    
+                    # Create a unique ID for the filenames so they aren't overwritten
+                    unique_id = eq.get('id', datetime.now().strftime('%Y%m%d%H%M%S'))
 
-                    attachment_file = None
+                    # Route S1 Map
+                    s1_map_url = ""
+                    if s1_map and os.path.exists(s1_map):
+                        new_s1_name = f"{title_snake}_{unique_id}_S1_overpass_map.html"
+                        shutil.copy(s1_map, docs_maps_dir / new_s1_name)
+                        s1_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_s1_name}"
 
-                    if os.path.exists(original_filename):
-                        os.rename(original_filename, s1_map_filename)
-                        print(f"Renamed to {s1_map_filename}")
-                        attachment_file = str(s1_map_filename)
-                    else:
-                        print(f"Expected file {original_filename} not found.")
+                    # Route NISAR Map
+                    nisar_map_url = ""
+                    if nisar_map and os.path.exists(nisar_map):
+                        new_nisar_name = f"{title_snake}_{unique_id}_S1_NISAR_overpass_map.html"
+                        shutil.copy(nisar_map, docs_maps_dir / new_nisar_name)
+                        nisar_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_nisar_name}"
 
                     # Construct and send the initial email alert
                     message_dict = {
@@ -1960,16 +1979,16 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
                     }
 
                     # Convert the raw text table to an HTML table
-                    html_slc_table = ascii_table_to_html(next_pass_info)
+                    html_s1_table = ascii_table_to_html(s1_info)
+                    html_nisar_table = ascii_table_to_html(nisar_info)
 
                     # Construct and send the email
-                    raw_html_body = f"""
+                    header_html = f"""
                     <div style="font-family: Arial, sans-serif; color: #333; max-width: 850px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
                         <div style="background-color: #003366; color: white; padding: 20px;">
                             <h2 style="margin: 0; font-size: 22px;">{message_dict['title']}</h2>
                             <p style="margin: 5px 0 0; font-size: 14px; color: #b3d4fc;">{message_dict['time']} UTC</p>
                         </div>
-                        
                         <div style="padding: 20px;">
                             <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Event Details</h3>
                             <table style="width: 100%; text-align: left; margin-bottom: 25px; border-collapse: collapse;">
@@ -1982,41 +2001,57 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
                                     <td style="padding: 4px 0;">{message_dict['depth']} km</td>
                                 </tr>
                             </table>
-                            
                             <a href="{message_dict['url']}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
-
+                    """
+                    
+                    s1_section = f"""
                             <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Acquisitions</h3>
-                            <p style="font-size: 14px; color: #555; margin-bottom: 15px;">Next acquisition times and relative orbits for frames intersecting the earthquake AOI:</p>
-                            
-                            {html_slc_table}
+                            {html_s1_table}
+                    """
+                    
+                    nisar_section = f"""
+                            <h3 style="margin: 25px 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">NISAR Acquisitions</h3>
+                            {html_nisar_table}
+                    """
 
-                            <div style="background-color: #e9f5ff; border-left: 4px solid #0055a4; padding: 12px; margin-top: 25px; border-radius: 0 4px 4px 0;">
-                                <p style="margin: 0; font-size: 14px; color: #003366;">
-                                    <strong>Interactive Map:</strong> Please download and open the attached HTML file in your web browser to view intersecting Sentinel-1 orbits.
-                                </p>
-                            </div>
+                    footer_html = """
                         </div>
-                        
                         <div style="background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #e0e0e0;">
                             This is an automated message. Please do not reply.<br>
-                            For product-specific inquiries, contact Dr. Cole Speed (<a href="mailto:cole.speed@jpl.nasa.gov" style="color: #0055a4;">cole.speed@jpl.nasa.gov</a>) or Dr. Grace Bato (<a href="mailto:bato@jpl.nasa.gov" style="color: #0055a4;">bato@jpl.nasa.gov</a>).
+                            For product-specific inquiries, contact Dr. Cole Speed (<a href="mailto:cole.speed@jpl.nasa.gov">cole.speed@jpl.nasa.gov</a>).
                         </div>
                     </div>
                     """
 
-                    # Strip the newlines to prevent yagmail from adding unwanted vertical space
-                    clean_html_body = raw_html_body.replace('\n', '')
+                    # Helper function to generate the clickable button to route to HTML map
+                    def get_button_html(url):
+                        if not url: return ""
+                        return f"""
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="{url}" style="background-color: #003366; color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-family: Arial, sans-serif; font-size: 18px;">
+                                Click here for interactive overpass map
+                            </a>
+                        </div>
+                        """
 
                     if send_email_flag:
-                        send_email(
-                            subject=f"New Event: {message_dict['title']}",
-                            body=clean_html_body,
-                            attachment=attachment_file,
-                            recipients=PRIMARY_RECIPIENTS
-                        )
-                        print('=========================================')
-                        print('Alert emailed to recipients.')
-                        print('=========================================')
+                        subject_text = f"New Event: {message_dict['title']}"
+                        
+                        # Send S1-only to PRIMARY_RECIPIENTS
+                        if PRIMARY_RECIPIENTS:
+                            primary_body = (header_html + s1_section + get_button_html(s1_map_url) + footer_html).replace('\n', '')
+                            send_email(subject=subject_text, body=primary_body, recipients=PRIMARY_RECIPIENTS)
+                            print('=========================================')
+                            print('S1-only email sent.')
+                            print('=========================================')
+
+                        # Send S1 + NISAR to TERTIARY_RECIPIENTS
+                        if TERTIARY_RECIPIENTS:
+                            tertiary_body = (header_html + s1_section + nisar_section + get_button_html(nisar_map_url) + footer_html).replace('\n', '')
+                            send_email(subject=subject_text, body=tertiary_body, recipients=TERTIARY_RECIPIENTS)
+                            print('=========================================')
+                            print('S1+NISAR email sent.')
+                            print('=========================================')
                     else:
                         print('=========================================')
                         print('Email sending is disabled (--send_email not provided).')
