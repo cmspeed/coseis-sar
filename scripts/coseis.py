@@ -636,7 +636,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, alert, depth)):
-                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
+                if (magnitude >= 5.5) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Base significance on magnitude, depth, and distance from land for forward-looking data
@@ -1027,7 +1027,7 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
                 frame = feature['properties']['frameNumber']
 
                 try:
-                    date = isoparse(start_time).date().isoformat()
+                    date = isoparse(start_time).strftime("%Y-%m-%dT%H:%M:%SZ")
                 except Exception:
                     print(f"Warning: Unexpected date format in startTime: {start_time}")
                     date = None
@@ -1387,7 +1387,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     # Get the rupture date in the format YYYY-MM-DD
     rupture_date = convert_time(time)
     rupture_date = rupture_date.strftime('%Y-%m-%d')
-    rupture_date_dt = datetime.strptime(rupture_date, '%Y-%m-%d')
+    rupture_date_dt = convert_time(time).replace(tzinfo=None)
     
     # Reformatting for dictionary keys for later use    
     flight_direction = 'A' if flight_direction == 'ASCENDING' else 'D'
@@ -1396,7 +1396,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     # Pair SLCs by date 
     slc_by_date = {}
     for slc in SLCs:
-        date_obj = datetime.strptime(slc['date'], "%Y-%m-%d")
+        date_obj = datetime.strptime(slc['date'], "%Y-%m-%dT%H:%M:%SZ")
         key = date_obj
         if key not in slc_by_date:
             slc_by_date[key] = []
