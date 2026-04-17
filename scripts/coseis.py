@@ -211,7 +211,7 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
 
                 if slcs:
                     slcs.sort(key=lambda x: x['date'])
-                    post_dates = sorted(list(set(s['date'] for s in slcs if datetime.strptime(s['date'], "%Y-%m-%d") > rupture_dt)))
+                    post_dates = sorted(list(set(s['date'] for s in slcs if datetime.strptime(s['date'], "%Y-%m-%dT%H:%M:%SZ") > rupture_dt)))
                     
                     if post_dates:
                         secondary_date = post_dates[0]
@@ -229,8 +229,8 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
                         
                         job['job_parameters']['granules'] = post_slcs
 
-                        older_date_str = pre_seismic_date.replace("-", "")
-                        newer_date_str = post_seismic_date.replace("-", "")
+                        older_date_str = pre_seismic_date.split('T')[0].replace("-", "")
+                        newer_date_str = post_seismic_date.split('T')[0].replace("-", "")
                         pair_folder_name = f"{flight_dir}{int(path_num):03d}_{older_date_str}_{newer_date_str}"
                         processing_dir = os.path.join(
                             root_dir, title, f"{flight_dir}{int(path_num):03d}", "coseismic", pair_folder_name
