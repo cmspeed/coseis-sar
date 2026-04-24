@@ -117,7 +117,7 @@ def add_to_tracker(eq, aoi, resolution=90):
             # Find the SLCs immediately preceding the rupture
             # We want the single latest acquisition date before rupture
             dates = sorted(list(set(s['date'] for s in slcs)))
-            pre_dates = [d for d in dates if datetime.strptime(d, "%Y-%m-%d") < rupture_dt]
+            pre_dates = [d for d in dates if datetime.strptime(d[:10], "%Y-%m-%d") < rupture_dt]
             
             if pre_dates:
                 reference_date = pre_dates[-1] # The last date before the earthquake
@@ -211,8 +211,7 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
 
                 if slcs:
                     slcs.sort(key=lambda x: x['date'])
-                    post_dates = sorted(list(set(s['date'] for s in slcs if datetime.strptime(s['date'], "%Y-%m-%dT%H:%M:%SZ") > rupture_dt)))
-                    
+                    post_dates = sorted(list(set(s['date'] for s in slcs if datetime.strptime(s['date'][:10], "%Y-%m-%d") > rupture_dt)))                    
                     if post_dates:
                         secondary_date = post_dates[0]
                         post_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == secondary_date]
@@ -1396,7 +1395,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     # Pair SLCs by date 
     slc_by_date = {}
     for slc in SLCs:
-        date_obj = datetime.strptime(slc['date'], "%Y-%m-%dT%H:%M:%SZ")
+        date_obj = datetime.strptime(slc['date'][:10], "%Y-%m-%d")
         key = date_obj
         if key not in slc_by_date:
             slc_by_date[key] = []
