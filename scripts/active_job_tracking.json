@@ -42,5 +42,92 @@
                 "status": "AWAITING_POST_SEISMIC"
             }
         }
+    },
+    "us6000sshc": {
+        "title": "m_58_11_km_se_of_ierapetra_greece",
+        "time": 1777000733476,
+        "aoi": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        25.3274,
+                        34.4345
+                    ],
+                    [
+                        26.3274,
+                        34.4345
+                    ],
+                    [
+                        26.3274,
+                        35.4345
+                    ],
+                    [
+                        25.3274,
+                        35.4345
+                    ],
+                    [
+                        25.3274,
+                        34.4345
+                    ]
+                ]
+            ]
+        },
+        "tracks": {
+            "DESCENDING_36": {
+                "flight_direction": "DESCENDING",
+                "path_number": 36,
+                "frame_numbers": [
+                    472,
+                    474,
+                    476,
+                    477,
+                    479
+                ],
+                "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_DESCENDING_36_partial.json",
+                "reference_date": "2026-04-20T04:16:18Z",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "DESCENDING_109": {
+                "flight_direction": "DESCENDING",
+                "path_number": 109,
+                "frame_numbers": [
+                    473,
+                    476,
+                    478,
+                    471
+                ],
+                "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_DESCENDING_109_partial.json",
+                "reference_date": "2026-04-19T04:23:39Z",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "ASCENDING_29": {
+                "flight_direction": "ASCENDING",
+                "path_number": 29,
+                "frame_numbers": [
+                    105,
+                    108,
+                    110,
+                    113
+                ],
+                "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_ASCENDING_29_partial.json",
+                "reference_date": "2026-04-19T16:14:48Z",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "ASCENDING_102": {
+                "flight_direction": "ASCENDING",
+                "path_number": 102,
+                "frame_numbers": [
+                    105,
+                    108,
+                    109,
+                    110,
+                    113
+                ],
+                "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_ASCENDING_102_partial.json",
+                "reference_date": "2026-04-18T16:21:46Z",
+                "status": "AWAITING_POST_SEISMIC"
+            }
+        }
     }
 }
