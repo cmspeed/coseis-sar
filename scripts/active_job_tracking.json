@@ -115,7 +115,10 @@
                 ],
                 "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_ASCENDING_29_partial.json",
                 "reference_date": "2026-04-19T16:14:48Z",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1C_IW_SLC__1SDV_20260425T161313_20260425T161340_007375_00EF61_C1A9', '--secondary-scenes', 'S1A_IW_SLC__1SDV_20260419T161448_20260419T161515_064151_0812EB_80DD', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
+                "dates": "2026-04-19T16:14:48Z (Pre) - 2026-04-25T16:13:13Z (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_11_km_se_of_ierapetra_greece/ASCENDING029/coseismic/ASCENDING029_20260419_20260425"
             },
             "ASCENDING_102": {
                 "flight_direction": "ASCENDING",
