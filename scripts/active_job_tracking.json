@@ -86,7 +86,10 @@
                 ],
                 "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_DESCENDING_36_partial.json",
                 "reference_date": "2026-04-20T04:16:18Z",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-04-20T04:16:18Z (Pre) - 2026-04-26T04:15:18Z (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_11_km_se_of_ierapetra_greece/DESCENDING036/coseismic/DESCENDING036_20260420_20260426"
             },
             "DESCENDING_109": {
                 "flight_direction": "DESCENDING",
