@@ -1,0 +1,20 @@
+[
+    {
+        "name": "m_59_168_km_se_of_khovd_mongolia-DESCENDING48",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20260414T235711_20260414T235738_007219_00EA12_93CD"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]

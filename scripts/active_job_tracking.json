@@ -129,5 +129,71 @@
                 "status": "AWAITING_POST_SEISMIC"
             }
         }
+    },
+    "us6000ssxt": {
+        "title": "m_59_168_km_se_of_khovd_mongolia",
+        "time": 1777177404102,
+        "aoi": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        92.4681,
+                        46.2887
+                    ],
+                    [
+                        93.4681,
+                        46.2887
+                    ],
+                    [
+                        93.4681,
+                        47.2887
+                    ],
+                    [
+                        92.4681,
+                        47.2887
+                    ],
+                    [
+                        92.4681,
+                        46.2887
+                    ]
+                ]
+            ]
+        },
+        "tracks": {
+            "DESCENDING_150": {
+                "flight_direction": "DESCENDING",
+                "path_number": 150,
+                "frame_numbers": [
+                    440,
+                    435
+                ],
+                "partial_job_file": "job_m_59_168_km_se_of_khovd_mongolia_DESCENDING_150_partial.json",
+                "reference_date": "2026-04-21T23:48:57Z",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "DESCENDING_121": {
+                "flight_direction": "DESCENDING",
+                "path_number": 121,
+                "frame_numbers": [
+                    434,
+                    439
+                ],
+                "partial_job_file": "job_m_59_168_km_se_of_khovd_mongolia_DESCENDING_121_partial.json",
+                "reference_date": "2026-04-20T00:05:19Z",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "DESCENDING_48": {
+                "flight_direction": "DESCENDING",
+                "path_number": 48,
+                "frame_numbers": [
+                    440,
+                    435
+                ],
+                "partial_job_file": "job_m_59_168_km_se_of_khovd_mongolia_DESCENDING_48_partial.json",
+                "reference_date": "2026-04-14T23:57:11Z",
+                "status": "AWAITING_POST_SEISMIC"
+            }
+        }
     }
 }
