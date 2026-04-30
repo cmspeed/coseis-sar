@@ -40,11 +40,8 @@
                     471
                 ],
                 "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_DESCENDING_109_partial.json",
-                "reference_date": "2026-04-19T04:23:39Z",
-                "status": "FAILED_NEEDS_ATTENTION",
-                "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1A_IW_SLC__1SDV_20260425T042402_20260425T042429_064231_0815E2_1347', '--secondary-scenes', 'S1C_IW_SLC__1SDV_20260419T042339_20260419T042406_007280_00EC24_94CF', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
-                "dates": "2026-04-19T04:23:39Z (Pre) - 2026-04-25T04:24:02Z (Post)",
-                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_11_km_se_of_ierapetra_greece/DESCENDING109/coseismic/DESCENDING109_20260419_20260425"
+                "reference_date": "2026-04-19",
+                "status": "AWAITING_POST_SEISMIC"
             },
             "ASCENDING_29": {
                 "flight_direction": "ASCENDING",
@@ -56,11 +53,8 @@
                     113
                 ],
                 "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_ASCENDING_29_partial.json",
-                "reference_date": "2026-04-19T16:14:48Z",
-                "status": "FAILED_NEEDS_ATTENTION",
-                "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1C_IW_SLC__1SDV_20260425T161313_20260425T161340_007375_00EF61_C1A9', '--secondary-scenes', 'S1A_IW_SLC__1SDV_20260419T161448_20260419T161515_064151_0812EB_80DD', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
-                "dates": "2026-04-19T16:14:48Z (Pre) - 2026-04-25T16:13:13Z (Post)",
-                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_11_km_se_of_ierapetra_greece/ASCENDING029/coseismic/ASCENDING029_20260419_20260425"
+                "reference_date": "2026-04-19",
+                "status": "AWAITING_POST_SEISMIC"
             },
             "ASCENDING_102": {
                 "flight_direction": "ASCENDING",
@@ -73,7 +67,7 @@
                     113
                 ],
                 "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_ASCENDING_102_partial.json",
-                "reference_date": "2026-04-18T16:21:46Z",
+                "reference_date": "2026-04-18",
                 "status": "AWAITING_POST_SEISMIC"
             }
         }
@@ -117,7 +111,7 @@
                     435
                 ],
                 "partial_job_file": "job_m_59_168_km_se_of_khovd_mongolia_DESCENDING_150_partial.json",
-                "reference_date": "2026-04-21T23:48:57Z",
+                "reference_date": "2026-04-21",
                 "status": "AWAITING_POST_SEISMIC"
             },
             "DESCENDING_121": {
@@ -128,7 +122,7 @@
                     439
                 ],
                 "partial_job_file": "job_m_59_168_km_se_of_khovd_mongolia_DESCENDING_121_partial.json",
-                "reference_date": "2026-04-20T00:05:19Z",
+                "reference_date": "2026-04-20",
                 "status": "AWAITING_POST_SEISMIC"
             },
             "DESCENDING_48": {
@@ -139,7 +133,7 @@
                     435
                 ],
                 "partial_job_file": "job_m_59_168_km_se_of_khovd_mongolia_DESCENDING_48_partial.json",
-                "reference_date": "2026-04-14T23:57:11Z",
+                "reference_date": "2026-04-14",
                 "status": "AWAITING_POST_SEISMIC"
             }
         }
