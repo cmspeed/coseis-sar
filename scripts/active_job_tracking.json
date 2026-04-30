@@ -39,7 +39,10 @@
                 ],
                 "partial_job_file": "job_m_57_20_km_ese_of_silver_springs_nevada_DESCENDING_42_partial.json",
                 "reference_date": "2026-04-14",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-04-14 (Pre) - 2026-04-20T14:07:25Z (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_57_20_km_ese_of_silver_springs_nevada/DESCENDING042/coseismic/DESCENDING042_20260414_20260420"
             }
         }
     },
