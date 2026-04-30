@@ -2092,19 +2092,29 @@ def wait_for_gee_tasks(tasks):
             print(f"  Task {task.id} FAILED: {status.get('error_message')}")
 
 
-def download_from_gcs(bucket_name, source_blob_name, destination_file_name):
+def download_from_gcs(bucket_name, prefix, local_dir):
     """Downloads a blob from the GCS bucket to user's local machine.
     :param bucket_name: Name of the GCS bucket
-    :param source_blob_name: Name of the blob in the GCS bucket (including path)
-    :param destination_file_name: Local path where the file should be downloaded
+    :param prefix: Prefix of the blob in the GCS bucket (including path) to identify the file(s) to download
+    :param local_dir: Local directory where the file(s) should be downloaded
     """
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(source_blob_name)
+    blobs = bucket.list_blobs(prefix=prefix)
 
-    os.makedirs(os.path.dirname(destination_file_name), exist_ok=True)
-    blob.download_to_filename(destination_file_name)
-    print(f"  Successfully downloaded to: {destination_file_name}")
+    os.makedirs(local_dir, exist_ok=True)
+    downloaded_files = []
+
+    for blob in blobs:
+        # Extract the actual filename GEE generated (including any shard suffixes)
+        filename = os.path.basename(blob.name)
+        dest_path = os.path.join(local_dir, filename)
+        
+        blob.download_to_filename(dest_path)
+        print(f"  Successfully downloaded shard: {dest_path}")
+        downloaded_files.append(dest_path)
+        
+    return downloaded_files
 
 
 def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar', optical_backend='copernicus'):
@@ -2220,34 +2230,24 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
             # Wait for them to finish in Google Cloud Storage
             wait_for_gee_tasks([task_pre, task_post])
 
-            # Download the composites from GCS to local directory
-            print("Downloading composites from Google Cloud Storage bucket...")
+            # Download the files using a Prefix Search
+            print("\nDownloading composites from Google Cloud Storage...")
             local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
             
-            pre_filename = f"{task_pre.config['description']}.tif"
-            post_filename = f"{task_post.config['description']}.tif"
+            # Use the base description as the prefix (dropping the .tif extension)
+            pre_prefix = f"COSEIS_Composites/{title}/{task_pre.config['description']}"
+            post_prefix = f"COSEIS_Composites/{title}/{task_post.config['description']}"
             
-            pre_local_path = os.path.join(local_dir, pre_filename)
-            post_local_path = os.path.join(local_dir, post_filename)
-            
-            download_from_gcs(
-                gcs_bucket, 
-                f"COSEIS_Composites/{title}/{pre_filename}", 
-                pre_local_path
-            )
-            download_from_gcs(
-                gcs_bucket, 
-                f"COSEIS_Composites/{title}/{post_filename}", 
-                post_local_path
-            )
+            pre_local_paths = download_from_gcs(gcs_bucket, pre_prefix, local_dir)
+            post_local_paths = download_from_gcs(gcs_bucket, post_prefix, local_dir)
 
-            # Create the local manifest for AutoRIFT
+            # Create the Local Manifest for AutoRIFT
             manifest_path = os.path.join(local_dir, f"{title}_autorift_manifest.json")
             manifest_payload = {
                 "event_title": title,
                 "backend": "Google Earth Engine",
-                "pre_composite_path": pre_local_path,
-                "post_composite_path": post_local_path,
+                "pre_composite_paths": pre_local_paths,
+                "post_composite_paths": post_local_paths,
                 "status": "DOWNLOADED_READY_FOR_AUTORIFT"
             }
             
