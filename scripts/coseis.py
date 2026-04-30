@@ -5,6 +5,7 @@ import argparse
 import asf_search as asf
 from dateutil import parser as dateparser
 from dateutil.parser import isoparse
+import ee
 from pathlib import Path
 from pystac_client import Client
 import requests
@@ -23,6 +24,9 @@ from collections import defaultdict
 from itertools import combinations
 import logging
 import yagmail
+import time
+from datetime import timedelta
+from google.cloud import storage
 from time import sleep
 from types import SimpleNamespace
 from urllib.parse import urlparse
@@ -1228,6 +1232,7 @@ def search_element84_stac(aoi_polygon, start_date, end_date):
         print(f"  !! Error searching Element84 STAC with pystac_client: {e}")
         return []
 
+
 def get_utm_zone(granule_id):
     """Extracts UTM zone from Sentinel-2 Granule ID (e.g., 'T46QHK' -> '46').
     :param granule_id: The granule ID string from which to extract the UTM zone.
@@ -2016,6 +2021,92 @@ def send_email(subject, body, recipients=None):
     return
 
 
+def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket):
+    """
+    Generates a cloud-free median composite in GEE and exports to Google Cloud Storage.
+    :param aoi_polygon: Shapely Polygon representing the Area of Interest
+    :param start_date: Start date for the image collection filter (YYYY-MM-DD)
+    :param end_date: End date for the image collection filter (YYYY-MM-DD)
+    :param title: Title of the earthquake event (used for file naming)
+    :param stage: 'pre-event' or 'post-event' to indicate the timing of the composite
+    :param gcs_bucket: Name of the Google Cloud Storage bucket to export the composite
+    :return: The GEE export task object
+    """
+    # Convert Shapely polygon to GEE Geometry
+    bounds = aoi_polygon.bounds # (minx, miny, maxx, maxy)
+    ee_roi = ee.Geometry.Rectangle([bounds[0], bounds[1], bounds[2], bounds[3]])
+
+    # Query the S2 Harmonized Collection
+    s2_col = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED') \
+        .filterBounds(ee_roi) \
+        .filterDate(start_date, end_date)
+
+    # Apply Cloud Score+ Masking
+    cs_plus = ee.ImageCollection('GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED')
+    s2_linked = s2_col.linkCollection(cs_plus, ['cs_cdf'])
+
+    def mask_clouds(img):
+        # cs_cdf is the clear-sky probability (0 to 1). We keep pixels > 0.65
+        mask = img.select('cs_cdf').gte(0.65)
+        return img.updateMask(mask)
+
+    s2_masked = s2_linked.map(mask_clouds)
+
+    # Generate the composite using Band 8 (NIR)
+    composite = s2_masked.select('B8').median().clip(ee_roi)
+
+    # Create Export Task
+    file_name = f"{title}_S2_B8_{stage}_{start_date}_to_{end_date}"
+    
+    task = ee.batch.Export.image.toCloudStorage(
+        image=composite,
+        description=file_name,
+        bucket=gcs_bucket,
+        fileNamePrefix=f"COSEIS_Composites/{title}/{file_name}",
+        region=ee_roi,
+        scale=10, 
+        crs='EPSG:4326',
+        maxPixels=1e13
+    )
+    
+    task.start()
+    print(f"  Started GCS Export Task: {file_name}")
+    return task
+
+
+def wait_for_gee_tasks(tasks):
+    """
+    Polls GEE until all provided tasks are either COMPLETED or FAILED.
+    :param tasks: List of GEE export task objects to monitor
+    """
+    print("Waiting for Google Earth Engine exports to complete...")
+    for task in tasks:
+        while task.active():
+            print(f"  Task {task.id} is {task.status()['state']}... waiting 30 seconds.")
+            time.sleep(30)
+        
+        status = task.status()
+        if status['state'] == 'COMPLETED':
+            print(f"  Task {task.id} COMPLETED.")
+        else:
+            print(f"  Task {task.id} FAILED: {status.get('error_message')}")
+
+
+def download_from_gcs(bucket_name, source_blob_name, destination_file_name):
+    """Downloads a blob from the GCS bucket to user's local machine.
+    :param bucket_name: Name of the GCS bucket
+    :param source_blob_name: Name of the blob in the GCS bucket (including path)
+    :param destination_file_name: Local path where the file should be downloaded
+    """
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(source_blob_name)
+
+    os.makedirs(os.path.dirname(destination_file_name), exist_ok=True)
+    blob.download_to_filename(destination_file_name)
+    print(f"  Successfully downloaded to: {destination_file_name}")
+
+
 def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar', optical_backend='copernicus'):
     """
     Process earthquake event and generate the necessary SLC pairs for InSAR processing.
@@ -2096,8 +2187,77 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
             s2_features = f_dom + f_split
             
         elif optical_backend == 'gee':
-            print("Routing to Google Earth Engine backend (Under Construction)...")
-            s2_jobs, s2_features = [], []
+            print("Routing to Google Earth Engine backend...")
+            
+            # Fetch the bucket name from the environment
+            gcs_bucket = os.getenv('COSEIS_GCS_BUCKET')
+            if not gcs_bucket:
+                print("Error: COSEIS_GCS_BUCKET environment variable is not set.")
+                print("Please set it to your Google Cloud Storage bucket name (e.g., export COSEIS_GCS_BUCKET='my-gee-bucket').")
+                return [], []
+
+            try:
+                ee.Initialize()
+            except Exception as e:
+                print("Earth Engine not authenticated. Run 'earthengine authenticate --auth_mode=notebook' in your terminal.")
+                raise e
+
+            # Define 30-day temporal windows
+            rupture_dt = convert_time(rupture_time).replace(tzinfo=None)
+            pre_start = (rupture_dt - timedelta(days=30)).strftime('%Y-%m-%d')
+            pre_end = rupture_dt.strftime('%Y-%m-%d')
+            
+            post_start = rupture_dt.strftime('%Y-%m-%d')
+            post_end = (rupture_dt + timedelta(days=30)).strftime('%Y-%m-%d')
+
+            # Start GEE Tasks
+            print(f"Generating Pre-Event Composite ({pre_start} to {pre_end})...")
+            task_pre = export_gee_composite(aoi, pre_start, pre_end, title, "PRE", gcs_bucket)
+            
+            print(f"Generating Post-Event Composite ({post_start} to {post_end})...")
+            task_post = export_gee_composite(aoi, post_start, post_end, title, "POST", gcs_bucket)
+
+            # Wait for them to finish in Google Cloud Storage
+            wait_for_gee_tasks([task_pre, task_post])
+
+            # Download the composites from GCS to local directory
+            print("Downloading composites from Google Cloud Storage bucket...")
+            local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
+            
+            pre_filename = f"{task_pre.config['description']}.tif"
+            post_filename = f"{task_post.config['description']}.tif"
+            
+            pre_local_path = os.path.join(local_dir, pre_filename)
+            post_local_path = os.path.join(local_dir, post_filename)
+            
+            download_from_gcs(
+                gcs_bucket, 
+                f"COSEIS_Composites/{title}/{pre_filename}", 
+                pre_local_path
+            )
+            download_from_gcs(
+                gcs_bucket, 
+                f"COSEIS_Composites/{title}/{post_filename}", 
+                post_local_path
+            )
+
+            # Create the local manifest for AutoRIFT
+            manifest_path = os.path.join(local_dir, f"{title}_autorift_manifest.json")
+            manifest_payload = {
+                "event_title": title,
+                "backend": "Google Earth Engine",
+                "pre_composite_path": pre_local_path,
+                "post_composite_path": post_local_path,
+                "status": "DOWNLOADED_READY_FOR_AUTORIFT"
+            }
+            
+            with open(manifest_path, 'w') as f:
+                json.dump(manifest_payload, f, indent=4)
+                
+            print(f"\nManifest written to: {manifest_path}")
+
+            # Return empty lists since we bypass the traditional HYP3 job queue
+            return [], []
         
         if s2_jobs:
             print(f"Generated {len(s2_jobs)} Sentinel-2 jobs using {optical_backend}.")
