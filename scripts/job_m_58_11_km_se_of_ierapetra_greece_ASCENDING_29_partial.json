@@ -5,7 +5,8 @@
         "job_parameters": {
             "granules": [],
             "secondary_granules": [
-                "S1A_IW_SLC__1SDV_20260419T161448_20260419T161515_064151_0812EB_80DD"
+                "S1A_IW_SLC__1SDV_20260419T161448_20260419T161515_064151_0812EB_80DD",
+                "S1A_IW_SLC__1SDV_20260419T161423_20260419T161450_064151_0812EB_FA98"
             ],
             "frame_id": -1,
             "estimate_ionosphere_delay": true,
