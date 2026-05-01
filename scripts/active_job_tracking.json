@@ -41,7 +41,10 @@
                 ],
                 "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_DESCENDING_109_partial.json",
                 "reference_date": "2026-04-19",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-04-19 (Pre) - 2026-04-25 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_11_km_se_of_ierapetra_greece/DESCENDING109/coseismic/DESCENDING109_20260419_20260425"
             },
             "ASCENDING_29": {
                 "flight_direction": "ASCENDING",
@@ -54,7 +57,10 @@
                 ],
                 "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_ASCENDING_29_partial.json",
                 "reference_date": "2026-04-19",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-04-19 (Pre) - 2026-04-25 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_11_km_se_of_ierapetra_greece/ASCENDING029/coseismic/ASCENDING029_20260419_20260425"
             },
             "ASCENDING_102": {
                 "flight_direction": "ASCENDING",
@@ -68,7 +74,10 @@
                 ],
                 "partial_job_file": "job_m_58_11_km_se_of_ierapetra_greece_ASCENDING_102_partial.json",
                 "reference_date": "2026-04-18",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-04-18 (Pre) - 2026-04-30 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_11_km_se_of_ierapetra_greece/ASCENDING102/coseismic/ASCENDING102_20260418_20260430"
             }
         }
     },
