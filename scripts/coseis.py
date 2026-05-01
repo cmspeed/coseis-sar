@@ -2199,6 +2199,13 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
         elif optical_backend == 'gee':
             print("Routing to Google Earth Engine backend...")
             
+            # Check if composite already exists. If so, skip GEE processing and return empty lists to avoid reduntant processing.
+            local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
+            manifest_path = os.path.join(local_dir, f"{title}_autorift_manifest.json")
+            if os.path.exists(manifest_path):
+                print(f"  Data already downloaded for {title}. Skipping GEE computation.")
+                return [], []
+            
             # Fetch the bucket name from the environment
             gcs_bucket = os.getenv('COSEIS_GCS_BUCKET')
             if not gcs_bucket:
