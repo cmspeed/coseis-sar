@@ -50,7 +50,10 @@
                 ],
                 "partial_job_file": "job_m_59_168_km_se_of_khovd_mongolia_DESCENDING_121_partial.json",
                 "reference_date": "2026-04-20",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-04-20 (Pre) - 2026-05-02 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_59_168_km_se_of_khovd_mongolia/DESCENDING121/coseismic/DESCENDING121_20260420_20260502"
             },
             "DESCENDING_48": {
                 "flight_direction": "DESCENDING",
