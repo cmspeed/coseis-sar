@@ -2052,8 +2052,8 @@ def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bu
 
     s2_masked = s2_linked.map(mask_clouds)
 
-    # Generate the composite using Band 8 (NIR)
-    composite = s2_masked.select('B8').median().clip(ee_roi)
+    # Generate the composite using Band 8 (NIR), force to Uint16 for export (median creates float64)
+    composite = s2_masked.select('B8').median().clip(ee_roi).toUint16()
 
     # Create Export Task
     file_name = f"{title}_S2_B8_{stage}_{start_date}_to_{end_date}"
@@ -2066,7 +2066,8 @@ def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bu
         region=ee_roi,
         scale=10, 
         crs='EPSG:4326',
-        maxPixels=1e13
+        maxPixels=1e13,
+        formatOptions={'cloudOptimized': True}
     )
     
     task.start()
@@ -2106,15 +2107,52 @@ def download_from_gcs(bucket_name, prefix, local_dir):
     downloaded_files = []
 
     for blob in blobs:
-        # Extract the actual filename GEE generated (including any shard suffixes)
+        # Extract the actual filename GEE generated (including any chip suffixes)
         filename = os.path.basename(blob.name)
         dest_path = os.path.join(local_dir, filename)
         
         blob.download_to_filename(dest_path)
-        print(f"  Successfully downloaded shard: {dest_path}")
+        print(f"  Successfully downloaded chip: {dest_path}")
         downloaded_files.append(dest_path)
         
     return downloaded_files
+
+
+def merge_and_compress_chips(chip_paths, output_path):
+    """Uses GDAL to merge GEE image chips into a single compressed GeoTIFF.
+    :param chip_paths: List of file paths to the individual image chips downloaded from GCS
+    :param output_path: Desired file path for the final merged and compressed GeoTIFF
+    """
+    print(f"  Stitching and compressing {len(chip_paths)} file(s)...")
+    
+    # Create temporary output name to prevent GDAL from overwriting input
+    tmp_output = output_path + ".tmp.tif"
+    
+    # gdalwarp merges the chips and applies DEFLATE compression
+    cmd = [
+        "gdalwarp",
+        "-co", "COMPRESS=DEFLATE",
+        "-co", "PREDICTOR=2",
+        "-co", "TILED=YES",
+        "-co", "NUM_THREADS=ALL_CPUS",
+        *chip_paths,
+        tmp_output
+    ]
+    
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    # Delete the individual chips
+    for chip in chip_paths:
+        try:
+            os.remove(chip)
+        except OSError:
+            pass
+            
+    # Rename the clean, temporary file to your final desired filename
+    os.rename(tmp_output, output_path)
+        
+    print(f"  Successfully created unified composite: {output_path}")
+    return output_path
 
 
 def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar', optical_backend='copernicus'):
@@ -2248,13 +2286,22 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
             pre_local_paths = download_from_gcs(gcs_bucket, pre_prefix, local_dir)
             post_local_paths = download_from_gcs(gcs_bucket, post_prefix, local_dir)
 
-            # Create the Local Manifest for AutoRIFT
+            print("\nStitching and Compressing Composites...")
+            
+            # Use the original GEE task names to keep the exact date ranges!
+            final_pre_path = os.path.join(local_dir, f"{task_pre.config['description']}.tif")
+            final_post_path = os.path.join(local_dir, f"{task_post.config['description']}.tif")
+            
+            merge_and_compress_chips(pre_local_paths, final_pre_path)
+            merge_and_compress_chips(post_local_paths, final_post_path)
+
+            # Create the local manifest for AutoRIFT
             manifest_path = os.path.join(local_dir, f"{title}_autorift_manifest.json")
             manifest_payload = {
                 "event_title": title,
                 "backend": "Google Earth Engine",
-                "pre_composite_paths": pre_local_paths,
-                "post_composite_paths": post_local_paths,
+                "pre_composite_path": final_pre_path,   
+                "post_composite_path": final_post_path, 
                 "status": "DOWNLOADED_READY_FOR_AUTORIFT"
             }
             
