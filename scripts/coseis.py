@@ -14,6 +14,7 @@ import folium
 import geojson
 import geopandas as gpd
 import csv
+import math
 from shapely import wkt
 from shapely.geometry import mapping, shape, box, Point, Polygon, LineString, MultiLineString, MultiPolygon
 from shapely.ops import unary_union
@@ -2021,7 +2022,7 @@ def send_email(subject, body, recipients=None):
     return
 
 
-def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket):
+def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, crs_epsg='EPSG:4326'):
     """
     Generates a cloud-free median composite in GEE and exports to Google Cloud Storage.
     :param aoi_polygon: Shapely Polygon representing the Area of Interest
@@ -2030,6 +2031,7 @@ def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bu
     :param title: Title of the earthquake event (used for file naming)
     :param stage: 'pre-event' or 'post-event' to indicate the timing of the composite
     :param gcs_bucket: Name of the Google Cloud Storage bucket to export the composite
+    :param crs_epsg: EPSG code for the coordinate reference system to use in the export (default is 'EPSG:4326')
     :return: The GEE export task object
     """
     # Convert Shapely polygon to GEE Geometry
@@ -2065,13 +2067,13 @@ def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bu
         fileNamePrefix=f"COSEIS_Composites/{title}/{file_name}",
         region=ee_roi,
         scale=10, 
-        crs='EPSG:4326',
+        crs=crs_epsg,
         maxPixels=1e13,
         formatOptions={'cloudOptimized': True}
     )
     
     task.start()
-    print(f"  Started GCS Export Task: {file_name}")
+    print(f"  Started GCS Export Task: {file_name} (CRS: {crs_epsg})")
     return task
 
 
@@ -2265,12 +2267,20 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
             post_start = rupture_dt.strftime('%Y-%m-%d')
             post_end = (rupture_dt + timedelta(days=30)).strftime('%Y-%m-%d')
 
+            # Dynamically compute EPSG for outputs
+            lon, lat = coords[0], coords[1]
+            utm_zone = math.floor((lon + 180) / 6) + 1
+            epsg_base = 32600 if lat >= 0 else 32700
+            target_crs = f"EPSG:{epsg_base + utm_zone}"
+            
+            print(f"\nDynamically calculated target CRS: {target_crs}")
+
             # Start GEE Tasks
             print(f"Generating Pre-Event Composite ({pre_start} to {pre_end})...")
-            task_pre = export_gee_composite(aoi, pre_start, pre_end, title, "PRE", gcs_bucket)
+            task_pre = export_gee_composite(aoi, pre_start, pre_end, title, "PRE", gcs_bucket, crs_epsg=target_crs)
             
             print(f"Generating Post-Event Composite ({post_start} to {post_end})...")
-            task_post = export_gee_composite(aoi, post_start, post_end, title, "POST", gcs_bucket)
+            task_post = export_gee_composite(aoi, post_start, post_end, title, "POST", gcs_bucket, crs_epsg=target_crs)
 
             # Wait for them to finish in Google Cloud Storage
             wait_for_gee_tasks([task_pre, task_post])
