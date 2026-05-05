@@ -112,14 +112,14 @@ def add_to_tracker(eq, aoi, resolution=90):
         rupture_dt = convert_time(event_time).replace(tzinfo=None)
         pre_slcs = []
         if slcs:
-            # Sort by the 10-character calendar date (YYYY-MM-DD)
-            dates = sorted(list(set(s['date'][:10] for s in slcs)))
-            pre_dates = [d for d in dates if datetime.strptime(d, "%Y-%m-%d") < rupture_dt]
+            # Filter by full datetime first, then group by calendar date
+            valid_pre_scenes = [s for s in slcs if datetime.strptime(s['date'], "%Y-%m-%dT%H:%M:%SZ") < rupture_dt]
             
-            if pre_dates:
-                reference_date = pre_dates[-1] # The last date before the earthquake
+            if valid_pre_scenes:
+                dates = sorted(list(set(s['date'][:10] for s in valid_pre_scenes)))
+                reference_date = dates[-1] # The latest calendar day before earthquake
                 # Grab ALL slices that share this calendar date
-                pre_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'][:10] == reference_date]
+                pre_slcs = [s['fileID'].removesuffix("-SLC") for s in valid_pre_scenes if s['date'][:10] == reference_date]
             else:
                 print(f"No pre-seismic data found for {track_key}. Skipping track.")
                 continue
@@ -209,12 +209,14 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
 
                 if slcs:
                     slcs.sort(key=lambda x: x['date'])
-                    # Group by calendar date
-                    post_dates = sorted(list(set(s['date'][:10] for s in slcs if datetime.strptime(s['date'][:10], "%Y-%m-%d") > rupture_dt)))                    
-                    if post_dates:
+                    # Filter by full datetime first, then group by calendar date
+                    valid_post_scenes = [s for s in slcs if datetime.strptime(s['date'], "%Y-%m-%dT%H:%M:%SZ") > rupture_dt]                    
+                    
+                    if valid_post_scenes:
+                        post_dates = sorted(list(set(s['date'][:10] for s in valid_post_scenes)))
                         secondary_date = post_dates[0] # The first date after the earthquake
                         # Grab ALL slices that share this calendar date
-                        post_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'][:10] == secondary_date]
+                        post_slcs = [s['fileID'].removesuffix("-SLC") for s in valid_post_scenes if s['date'][:10] == secondary_date]
                 
                 if post_slcs:
                     pre_seismic_date = track_info['reference_date']
