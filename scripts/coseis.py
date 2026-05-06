@@ -1869,7 +1869,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     return s1_info, nisar_info, s1_map_path, nisar_map_path
 
 
-def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, mode='sar', optical_backend='copernicus', process_only=False):
+def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, mode='sar', process_only=False):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
@@ -1878,7 +1878,6 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
     :param do_processing: If True, runs the dockerized topsApp processing workflow after generating the JSONs. Default is False.
     :param send_email_flag: If True, sends an email alert after processing. Default is False.
     :param mode: 'sar' for SAR processing, 'optical' for optical processing
-    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if mode is 'optical')
     :param process_only: If True, only runs the processing workflow without generating new JSONs or sending emails. Default is False.
     """
     import shutil
@@ -2268,4 +2267,4 @@ if __name__ == "__main__":
         if not args.do_processing and not args.send_email:
             print("Warning: Running --forward without --do_processing or --send_email. The script will only update tracking files.")
 
-        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, mode=args.mode, optical_backend=args.optical_backend, process_only=args.process_only)
+        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, mode=args.mode, process_only=args.process_only)
