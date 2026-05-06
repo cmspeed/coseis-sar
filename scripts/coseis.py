@@ -2410,6 +2410,63 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     return s1_info, nisar_info, s1_map_path, nisar_map_path
 
 
+def parse_custom_eq_list(file_path):
+    """
+    Parses a custom JSON list of earthquakes and converts them into the standard 
+    dictionary format expected by the coseis.py processing pipeline.
+    :param file_path: Path to the custom earthquake list JSON file
+    :return: List of earthquake dictionaries with standardized keys
+    """
+    print('=========================================')
+    print(f"Loading custom earthquake list from: {file_path}")
+    print('=========================================')
+    
+    with open(file_path, 'r') as f:
+        raw_data = json.load(f)
+        
+    earthquakes = []
+    for item in raw_data:
+        title = item.get('title', 'Unknown_Event')
+        
+        # Safely extract epicenter data
+        epi = item.get('epicenter', {})
+        lon = epi.get('longitude')
+        lat = epi.get('latitude')
+        depth = epi.get('depth_km')
+        
+        if lon is None or lat is None:
+            print(f"Skipping '{title}' - Missing coordinates.")
+            continue
+            
+        # Extract USGS Event ID from URL if present
+        url = epi.get('usgs_event_url', '')
+        eq_id = url.split('/')[-1] if url else f"custom_{int(time.time())}"
+        
+        # Convert time string to Unix timestamp in milliseconds
+        time_str = item.get('time')
+        try:
+            # Handle "YYYY-MM-DD HH:MM:SS UTC"
+            clean_time = time_str.replace(' UTC', '')
+            dt = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            time_ms = int(dt.timestamp() * 1000)
+        except Exception as e:
+            print(f"Skipping '{title}' - Time parsing error: {e}")
+            continue
+            
+        # Construct the standardized dictionary
+        eq = {
+            'title': title,
+            'coordinates': [lon, lat, depth],
+            'time': time_ms,
+            'id': eq_id,
+            'url': url
+        }
+        earthquakes.append(eq)
+        print(f"Loaded: {title} ({eq_id})")
+        
+    return earthquakes
+
+
 def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, mode='sar', optical_backend='copernicus'):
     """
     Runs the main query and processing workflow in forward processing mode.
@@ -2626,7 +2683,7 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
             os.remove(lock_file)
 
 
-def main_historic(start_date, end_date=None, aoi=None, pairing_mode=None, job_list=False, resolution=90, mode='sar', optical_backend='copernicus'):
+def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, pairing_mode=None, job_list=False, resolution=90, mode='sar', optical_backend='copernicus'):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -2634,6 +2691,7 @@ def main_historic(start_date, end_date=None, aoi=None, pairing_mode=None, job_li
     A single date or date range can be provided for processing.
     :param start_date: The query start date in YYYY-MM-DD format
     :param end_date: The query end date in YYYY-MM-DD format (Optional)
+    :param eq_list_path: The path to a custom JSON file containing a list of earthquakes to process (Optional)
     :param aoi: The path to a JSON file representing the area of interest (AOI) (Optional)
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing.
     :param job_list: If True, create a list of jobs in HYP3 format for cloud processing.
@@ -2641,75 +2699,91 @@ def main_historic(start_date, end_date=None, aoi=None, pairing_mode=None, job_li
     :param mode: 'sar' for SAR processing, 'optical' for optical processing
     :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if mode is 'optical')
     """
-    if start_date and not end_date:
-        print('=========================================')
-        print(f"Running historic processing in single-date mode for date: {start_date}")
-        print('=========================================')
-        geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, str(start_date))
+    # Generate the list of earthquakes
+    geojson_data = None
+    
+    # If a custom earthquake list is provided, use that instead of querying the USGS API, else use the provided dates to query the USGS API for earthquakes in that time range
+    if eq_list_path:
+        eq_sig = parse_custom_eq_list(eq_list_path)
+        if not eq_sig:
+            print("No valid earthquakes found in the provided list.")
+            return
+    else:    
+        if start_date and not end_date:
+            print('=========================================')
+            print(f"Running historic processing in single-date mode for date: {start_date}")
+            print('=========================================')
+            geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, str(start_date))
 
-    elif start_date and end_date:
-        print('=========================================')
-        print(f"Running historic processing in date range mode for dates: {start_date} to {end_date}")
-        print('=========================================')
-        geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, str(start_date), str(end_date))
+        elif start_date and end_date:
+            print('=========================================')
+            print(f"Running historic processing in date range mode for dates: {start_date} to {end_date}")
+            print('=========================================')
+            geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, str(start_date), str(end_date))
 
-    if geojson_data:
-        earthquakes = parse_geojson(geojson_data)
-        eq_sig = check_significance(earthquakes, start_date, end_date, mode='historic')
-
-        if eq_sig is not None:
-            jobs_dict = []
-            master_scene_features = []
-            earthquake_infos = [] 
-
-            for eq in eq_sig:
-                try:
-                    eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode, optical_backend)
-
-                    if eq_features:
-                        master_scene_features.extend(eq_features)
-                    
-                    if eq_jsons: 
-                        event_dt = convert_time(eq['time'])
-                        eq_info = {
-                            "title": eq.get('title'),
-                            "epicenter": {
-                                "latitude": eq['coordinates'][1],
-                                "longitude": eq['coordinates'][0],
-                                "depth_km": eq['coordinates'][2],
-                                "usgs_event_url": eq.get('url', '')
-                            },
-                            "time": event_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-                        }
-                        earthquake_infos.append(eq_info)
-
-                except Exception as e:
-                    print(f"Error processing {eq['title']}: {e}")
-                    continue
-
-                if eq_jsons:
-                    for i, eq_json in enumerate(eq_jsons):
-                        for j, json_data in enumerate(eq_json):
-                            jobs_dict.append(json_data)
-
-            if jobs_dict:
-                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
-                
-                with open(f'jobs_list_{current_time}.json', 'w') as f:
-                    json.dump(jobs_dict, f, indent=4)
-                
-                with open(f'earthquake_info_{current_time}.json', 'w', encoding='utf-8') as f:
-                    json.dump(earthquake_infos, f, indent=4, ensure_ascii=False)
-
-            if master_scene_features:
-                current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
-                feature_filename = f'all_selected_scenes_{mode}_{optical_backend}_{current_time}.geojson'
-                fc = {"type": "FeatureCollection", "features": master_scene_features}
-                with open(feature_filename, 'w') as f:
-                    json.dump(fc, f, indent=2)
-                print(f"Saved master scene footprints to {feature_filename}")
+        if geojson_data:
+            earthquakes = parse_geojson(geojson_data)
+            eq_sig = check_significance(earthquakes, start_date, end_date, mode='historic')
         else:
-            print(f"No significant earthquakes found betweeen {start_date} and {end_date}.")
+            eq_sig = None
+            
+    # Process the list of earthquakes
+    if eq_sig is not None:
+        jobs_dict = []
+        master_scene_features = []
+        earthquake_infos = [] 
+
+        for eq in eq_sig:
+            try:
+                eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode, optical_backend)
+
+                if eq_features:
+                    master_scene_features.extend(eq_features)
+                
+                if eq_jsons: 
+                    event_dt = convert_time(eq['time'])
+                    eq_info = {
+                        "title": eq.get('title'),
+                        "epicenter": {
+                            "latitude": eq['coordinates'][1],
+                            "longitude": eq['coordinates'][0],
+                            "depth_km": eq['coordinates'][2],
+                            "usgs_event_url": eq.get('url', '')
+                        },
+                        "time": event_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                    }
+                    earthquake_infos.append(eq_info)
+
+            except Exception as e:
+                print(f"Error processing {eq['title']}: {e}")
+                continue
+
+            if eq_jsons:
+                for i, eq_json in enumerate(eq_jsons):
+                    for j, json_data in enumerate(eq_json):
+                        jobs_dict.append(json_data)
+
+        if jobs_dict:
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
+            
+            with open(f'jobs_list_{current_time}.json', 'w') as f:
+                json.dump(jobs_dict, f, indent=4)
+            
+            with open(f'earthquake_info_{current_time}.json', 'w', encoding='utf-8') as f:
+                json.dump(earthquake_infos, f, indent=4, ensure_ascii=False)
+
+        if master_scene_features:
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+            feature_filename = f'all_selected_scenes_{mode}_{optical_backend}_{current_time}.geojson'
+            fc = {"type": "FeatureCollection", "features": master_scene_features}
+            with open(feature_filename, 'w') as f:
+                json.dump(fc, f, indent=2)
+            print(f"Saved master scene footprints to {feature_filename}")
+    else:
+        if eq_list_path:
+            print("No significant earthquakes found in the provided list.")
+        else:
+            print(f"No significant earthquakes found between {start_date} and {end_date}.")
 
 
 if __name__ == "__main__":
@@ -2726,14 +2800,18 @@ if __name__ == "__main__":
       python coseis.py --forward
     """
     parser = argparse.ArgumentParser(
-        description="Run historic or forward processing based on input arguments."
+        description="Run historic, forward, or custom-list processing based on input arguments."
     )
 
-    parser.add_argument("--historic", action="store_true", help="Run historic processing.")
-    parser.add_argument("--forward", action="store_true", help="Run forward processing.")
+    # Use a mutually exclusive group so users must pick only processing mode
+    run_group = parser.add_mutually_exclusive_group(required=True)
+    run_group.add_argument("--historic", action="store_true", help="Run historic processing.")
+    run_group.add_argument("--forward", action="store_true", help="Run forward processing.")
+    run_group.add_argument("--eq_list", type=str, help="Path to a custom JSON list of earthquakes to process.")
+
     parser.add_argument("--dates", nargs="+", help="Provide one or two dates in YYYY-MM-DD format for historic processing.")
     parser.add_argument("--aoi", help="Specify a path to a json file representing the area of interest (AOI).")
-    parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for historic processing.")
+    parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for SAR processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
     parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
     parser.add_argument("--mode", choices=["sar", "optical"], default="sar", help="Processing mode: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
@@ -2743,38 +2821,52 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Global constraint check
     if args.mode == 'sar' and '--optical_backend' in sys.argv:
         print("Error: --optical_backend can only be used when --mode is 'optical'.")
         parser.print_help()
         exit(1)
+        
+    if args.mode == 'sar' and not args.pairing:
+        print("Error: --pairing is required when using --mode sar. Options: 'all', 'sequential', 'coseismic'.")
+        parser.print_help()
+        exit(1)
 
+    # Mode routing
     if args.historic:
         if args.send_email or args.do_processing:
             print("Error: --send_email and --do_processing are only supported in --forward mode.")
-            parser.print_help()
             exit(1)
-            
         if not args.dates:
             print("Error: --dates is required when using --historic mode.")
-            parser.print_help()
             exit(1)
-
         if len(args.dates) > 2:
             print("Error: --dates should have at most two values (start_date [end_date]).")
-            parser.print_help()
             exit(1)
 
         start_date = args.dates[0]
         end_date = args.dates[1] if len(args.dates) == 2 else None
+        main_historic(start_date=start_date, end_date=end_date, aoi=args.aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, mode=args.mode, optical_backend=args.optical_backend)
 
-        aoi = args.aoi if args.aoi else None
-
-        if not args.pairing:
-            print("Error: --pairing is required when using --historic mode. Options: 'all', 'sequential', 'coseismic'.")
-            parser.print_help()
+    elif args.eq_list:
+        if args.send_email or args.do_processing:
+            print("Error: --send_email and --do_processing are only supported in --forward mode.")
             exit(1)
+        if args.dates:
+            print("Error: --dates cannot be used with --eq_list. The dates are defined in the file.")
+            exit(1)
+            
+        main_historic(eq_list_path=args.eq_list, aoi=args.aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, mode=args.mode, optical_backend=args.optical_backend)
 
-        main_historic(start_date, end_date, aoi=aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, mode=args.mode, optical_backend=args.optical_backend)
+    elif args.forward:
+        if args.job_list or args.dates or args.aoi:
+            print("Error: --job_list, --dates, and --aoi cannot be used with --forward mode.")
+            exit(1)
+            
+        if not args.do_processing and not args.send_email:
+            print("Warning: Running --forward without --do_processing or --send_email. The script will only update tracking files.")
+
+        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, mode=args.mode, optical_backend=args.optical_backend)
 
     elif args.forward:
         if args.job_list:
