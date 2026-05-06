@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_55_25_km_ene_of_baganga_philippines-DESCENDING163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20260504T212326_20260504T212401_007509_00F3F2_51E7",
+                "S1C_IW_SLC__1SDV_20260504T212302_20260504T212328_007509_00F3F2_4DD9"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
