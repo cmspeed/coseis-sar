@@ -26,9 +26,6 @@ fi
 # Sync with Github
 git checkout main
 
-# Discard any unsaved local modifications from previous failed runs so the pull doesn't abort
-git restore .
-
 # Pull the latest active_job_tracking.json that the GitHub Action just updated
 git pull --rebase origin main 
 
