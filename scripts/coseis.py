@@ -1869,7 +1869,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     return s1_info, nisar_info, s1_map_path, nisar_map_path
 
 
-def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False):
+def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, mode='sar', optical_backend='copernicus', process_only=False):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
@@ -1877,6 +1877,9 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
     :param resolution: Output resolution for the topsApp processing, default is 90m
     :param do_processing: If True, runs the dockerized topsApp processing workflow after generating the JSONs. Default is False.
     :param send_email_flag: If True, sends an email alert after processing. Default is False.
+    :param mode: 'sar' for SAR processing, 'optical' for optical processing
+    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if mode is 'optical')
+    :param process_only: If True, only runs the processing workflow without generating new JSONs or sending emails. Default is False.
     """
     import shutil
 
@@ -1899,182 +1902,185 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
             with open(TRACKING_FILE, 'w') as f:
                 json.dump({}, f)
 
-        # Check for New Earthquakes over 48-hour window to ensre no events are missed due to API delays
-        two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%S')
-        
-        # Define parameters for a custom search on the USGS 'alltime' endpoint
-        params = {
-            "format": "geojson",
-            "starttime": two_days_ago,
-            "minmagnitude": 5.5
-        }
-        print(f"Checking for earthquakes since {two_days_ago}...")
+        if not process_only:
+            # Check for New Earthquakes over 48-hour window to ensre no events are missed due to API delays
+            two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%S')
+            
+            # Define parameters for a custom search on the USGS 'alltime' endpoint
+            params = {
+                "format": "geojson",
+                "starttime": two_days_ago,
+                "minmagnitude": 5.5
+            }
+            print(f"Checking for earthquakes since {two_days_ago}...")
 
-        # Use the query endpoint instead of the static summary feeds
-        response = requests.get(USGS_api_alltime, params=params)
-        response.raise_for_status()
-        geojson_data = response.json()
+            # Use the query endpoint instead of the static summary feeds
+            response = requests.get(USGS_api_alltime, params=params)
+            response.raise_for_status()
+            geojson_data = response.json()
 
-        start_date = datetime.now().strftime('%Y-%m-%d')
-        current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
+            start_date = datetime.now().strftime('%Y-%m-%d')
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
 
-        if geojson_data:
-            # Parse GeoJSON and create variables for each feature's properties
-            earthquakes = parse_geojson(geojson_data)
-            eq_sig = check_significance(earthquakes, start_date, end_date=None, mode = 'forward')
+            if geojson_data:
+                # Parse GeoJSON and create variables for each feature's properties
+                earthquakes = parse_geojson(geojson_data)
+                eq_sig = check_significance(earthquakes, start_date, end_date=None, mode = 'forward')
 
-            if eq_sig is not None:
-                for eq in eq_sig:
-                    # Check for duplicate entry in the pending queue
-                    tracker = load_tracker()
-                    if eq.get('id') in tracker:
-                        print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
-                        continue
+                if eq_sig is not None:
+                    for eq in eq_sig:
+                        # Check for duplicate entry in the pending queue
+                        tracker = load_tracker()
+                        if eq.get('id') in tracker:
+                            print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
+                            continue
 
-                    title = eq.get('title', '')
-                    title_snake = to_snake_case(title)
-                    print(f"title: {title_snake}")
-                    coords = eq.get('coordinates', [])
-                    
-                    # Initial AOI creation (a 1-degree box)
-                    aoi = make_aoi(coords)
+                        title = eq.get('title', '')
+                        title_snake = to_snake_case(title)
+                        print(f"title: {title_snake}")
+                        coords = eq.get('coordinates', [])
+                        
+                        # Initial AOI creation (a 1-degree box)
+                        aoi = make_aoi(coords)
 
-                    # Write AOI to a geojson file
-                    with open(f'{title}_AOI.geojson', 'w') as f:
-                        geojson.dump(aoi, f, indent=2)
+                        # Write AOI to a geojson file
+                        with open(f'{title}_AOI.geojson', 'w') as f:
+                            geojson.dump(aoi, f, indent=2)
 
-                    # Get path/frame numbers for the initial AOI
-                    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
-                    
-                    # Create a timestamp string
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        # Get path/frame numbers for the initial AOI
+                        path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+                        
+                        # Create a timestamp string
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-                    # Create the output directory
-                    timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
-                    timestamp_dir.mkdir(parents=True, exist_ok=True)
+                        # Create the output directory
+                        timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
+                        timestamp_dir.mkdir(parents=True, exist_ok=True)
 
-                    # Run next_pass to get the next S1 overpasses
-                    s1_info, nisar_info, s1_map, nisar_map = get_next_pass(aoi, timestamp_dir)
-                    
-                    # Setup Github pages directory
-                    docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
-                    docs_maps_dir.mkdir(parents=True, exist_ok=True)
-                    GITHUB_PAGES_BASE_URL = "https://cmspeed.github.io/coseis-sar"
-                    
-                    # Create a unique ID for the filenames so they aren't overwritten
-                    unique_id = eq.get('id', datetime.now().strftime('%Y%m%d%H%M%S'))
+                        # Run next_pass to get the next S1 overpasses
+                        s1_info, nisar_info, s1_map, nisar_map = get_next_pass(aoi, timestamp_dir)
+                        
+                        # Setup Github pages directory
+                        docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
+                        docs_maps_dir.mkdir(parents=True, exist_ok=True)
+                        GITHUB_PAGES_BASE_URL = "https://cmspeed.github.io/coseis-sar"
+                        
+                        # Create a unique ID for the filenames so they aren't overwritten
+                        unique_id = eq.get('id', datetime.now().strftime('%Y%m%d%H%M%S'))
 
-                    # Route S1 Map
-                    s1_map_url = ""
-                    if s1_map and os.path.exists(s1_map):
-                        new_s1_name = f"{title_snake}_{unique_id}_S1_overpass_map.html"
-                        shutil.copy(s1_map, docs_maps_dir / new_s1_name)
-                        s1_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_s1_name}"
+                        # Route S1 Map
+                        s1_map_url = ""
+                        if s1_map and os.path.exists(s1_map):
+                            new_s1_name = f"{title_snake}_{unique_id}_S1_overpass_map.html"
+                            shutil.copy(s1_map, docs_maps_dir / new_s1_name)
+                            s1_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_s1_name}"
 
-                    # Route NISAR Map
-                    nisar_map_url = ""
-                    if nisar_map and os.path.exists(nisar_map):
-                        new_nisar_name = f"{title_snake}_{unique_id}_S1_NISAR_overpass_map.html"
-                        shutil.copy(nisar_map, docs_maps_dir / new_nisar_name)
-                        nisar_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_nisar_name}"
+                        # Route NISAR Map
+                        nisar_map_url = ""
+                        if nisar_map and os.path.exists(nisar_map):
+                            new_nisar_name = f"{title_snake}_{unique_id}_S1_NISAR_overpass_map.html"
+                            shutil.copy(nisar_map, docs_maps_dir / new_nisar_name)
+                            nisar_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_nisar_name}"
 
-                    # Construct and send the initial email alert
-                    message_dict = {
-                        "title": eq.get('title', ''),
-                        "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
-                        "coordinates": [round(coord, 3) for coord in eq.get('coordinates', [])],
-                        "magnitude": eq.get('mag', ''),
-                        "depth": round(eq.get('coordinates', [])[2], 1),
-                        "alert": eq.get('alert', ''),
-                        "url": eq.get('url', '')
-                    }
+                        # Construct and send the initial email alert
+                        message_dict = {
+                            "title": eq.get('title', ''),
+                            "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
+                            "coordinates": [round(coord, 3) for coord in eq.get('coordinates', [])],
+                            "magnitude": eq.get('mag', ''),
+                            "depth": round(eq.get('coordinates', [])[2], 1),
+                            "alert": eq.get('alert', ''),
+                            "url": eq.get('url', '')
+                        }
 
-                    # Convert the raw text table to an HTML table
-                    html_s1_table = ascii_table_to_html(s1_info)
-                    html_nisar_table = ascii_table_to_html(nisar_info)
+                        # Convert the raw text table to an HTML table
+                        html_s1_table = ascii_table_to_html(s1_info)
+                        html_nisar_table = ascii_table_to_html(nisar_info)
 
-                    # Construct and send the email
-                    header_html = f"""
-                    <div style="font-family: Arial, sans-serif; color: #333; max-width: 850px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-                        <div style="background-color: #003366; color: white; padding: 20px;">
-                            <h2 style="margin: 0; font-size: 22px;">{message_dict['title']}</h2>
-                            <p style="margin: 5px 0 0; font-size: 14px; color: #b3d4fc;">{message_dict['time']} UTC</p>
-                        </div>
-                        <div style="padding: 20px;">
-                            <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Event Details</h3>
-                            <table style="width: 100%; text-align: left; margin-bottom: 25px; border-collapse: collapse;">
-                                <tr>
-                                    <th style="width: 150px; padding: 4px 0;">Epicenter (Lat, Lon):</th>
-                                    <td style="padding: 4px 0;">{message_dict['coordinates'][1]}, {message_dict['coordinates'][0]}</td>
-                                </tr>
-                                <tr>
-                                    <th style="padding: 4px 0;">Depth:</th>
-                                    <td style="padding: 4px 0;">{message_dict['depth']} km</td>
-                                </tr>
-                            </table>
-                            <a href="{message_dict['url']}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
-                    """
-                    
-                    s1_section = f"""
-                            <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Acquisitions</h3>
-                            {html_s1_table}
-                    """
-                    
-                    nisar_section = f"""
-                            <h3 style="margin: 25px 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">NISAR Acquisitions</h3>
-                            {html_nisar_table}
-                    """
+                        # Construct and send the email
+                        header_html = f"""
+                        <div style="font-family: Arial, sans-serif; color: #333; max-width: 850px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                            <div style="background-color: #003366; color: white; padding: 20px;">
+                                <h2 style="margin: 0; font-size: 22px;">{message_dict['title']}</h2>
+                                <p style="margin: 5px 0 0; font-size: 14px; color: #b3d4fc;">{message_dict['time']} UTC</p>
+                            </div>
+                            <div style="padding: 20px;">
+                                <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Event Details</h3>
+                                <table style="width: 100%; text-align: left; margin-bottom: 25px; border-collapse: collapse;">
+                                    <tr>
+                                        <th style="width: 150px; padding: 4px 0;">Epicenter (Lat, Lon):</th>
+                                        <td style="padding: 4px 0;">{message_dict['coordinates'][1]}, {message_dict['coordinates'][0]}</td>
+                                    </tr>
+                                    <tr>
+                                        <th style="padding: 4px 0;">Depth:</th>
+                                        <td style="padding: 4px 0;">{message_dict['depth']} km</td>
+                                    </tr>
+                                </table>
+                                <a href="{message_dict['url']}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
+                        """
+                        
+                        s1_section = f"""
+                                <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Acquisitions</h3>
+                                {html_s1_table}
+                        """
+                        
+                        nisar_section = f"""
+                                <h3 style="margin: 25px 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">NISAR Acquisitions</h3>
+                                {html_nisar_table}
+                        """
 
-                    footer_html = """
-                        </div>
-                        <div style="background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #e0e0e0;">
-                            This is an automated message. Please do not reply.<br>
-                            For product-specific inquiries, contact Dr. Cole Speed (<a href="mailto:cole.speed@jpl.nasa.gov">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href="mailto:bato@jpl.nasa.gov">bato@jpl.nasa.gov</a>).
-                        </div>
-                    </div>
-                    """
-
-                    # Helper function to generate the clickable button to route to HTML map
-                    def get_button_html(url):
-                        if not url: return ""
-                        return f"""
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="{url}" style="background-color: #003366; color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-family: Arial, sans-serif; font-size: 18px;">
-                                Click here for interactive overpass map
-                            </a>
+                        footer_html = """
+                            </div>
+                            <div style="background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #e0e0e0;">
+                                This is an automated message. Please do not reply.<br>
+                                For product-specific inquiries, contact Dr. Cole Speed (<a href="mailto:cole.speed@jpl.nasa.gov">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href="mailto:bato@jpl.nasa.gov">bato@jpl.nasa.gov</a>).
+                            </div>
                         </div>
                         """
 
-                    if send_email_flag:
-                        subject_text = f"New Event: {message_dict['title']}"
+                        # Helper function to generate the clickable button to route to HTML map
+                        def get_button_html(url):
+                            if not url: return ""
+                            return f"""
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="{url}" style="background-color: #003366; color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-family: Arial, sans-serif; font-size: 18px;">
+                                    Click here for interactive overpass map
+                                </a>
+                            </div>
+                            """
+
+                        if send_email_flag:
+                            subject_text = f"New Event: {message_dict['title']}"
+                            
+                            # Send S1-only to PRIMARY_RECIPIENTS
+                            if PRIMARY_RECIPIENTS:
+                                primary_body = (header_html + s1_section + get_button_html(s1_map_url) + footer_html).replace('\n', '')
+                                send_email(subject=subject_text, body=primary_body, recipients=PRIMARY_RECIPIENTS)
+                                print('=========================================')
+                                print('S1-only email sent.')
+                                print('=========================================')
+
+                            # Send S1 + NISAR to TERTIARY_RECIPIENTS
+                            if TERTIARY_RECIPIENTS:
+                                tertiary_body = (header_html + s1_section + nisar_section + get_button_html(nisar_map_url) + footer_html).replace('\n', '')
+                                send_email(subject=subject_text, body=tertiary_body, recipients=TERTIARY_RECIPIENTS)
+                                print('=========================================')
+                                print('S1+NISAR email sent.')
+                                print('=========================================')
+                        else:
+                            print('=========================================')
+                            print('Email sending is disabled (--send_email not provided).')
+                            print('=========================================')
+
+                        # START TRACKING FOR THIS EVENT
+                        # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
+                        add_to_tracker(eq, aoi, resolution)
                         
-                        # Send S1-only to PRIMARY_RECIPIENTS
-                        if PRIMARY_RECIPIENTS:
-                            primary_body = (header_html + s1_section + get_button_html(s1_map_url) + footer_html).replace('\n', '')
-                            send_email(subject=subject_text, body=primary_body, recipients=PRIMARY_RECIPIENTS)
-                            print('=========================================')
-                            print('S1-only email sent.')
-                            print('=========================================')
-
-                        # Send S1 + NISAR to TERTIARY_RECIPIENTS
-                        if TERTIARY_RECIPIENTS:
-                            tertiary_body = (header_html + s1_section + nisar_section + get_button_html(nisar_map_url) + footer_html).replace('\n', '')
-                            send_email(subject=subject_text, body=tertiary_body, recipients=TERTIARY_RECIPIENTS)
-                            print('=========================================')
-                            print('S1+NISAR email sent.')
-                            print('=========================================')
-                    else:
-                        print('=========================================')
-                        print('Email sending is disabled (--send_email not provided).')
-                        print('=========================================')
-
-                    # START TRACKING FOR THIS EVENT
-                    # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
-                    add_to_tracker(eq, aoi, resolution)
-                    
-            else:
-                print(f"No new significant earthquakes found as of {current_time}.")
-
+                else:
+                    print(f"No new significant earthquakes found as of {current_time}.")
+        else:
+            print("Running in --process_only mode. Skipping USGS earthquake discovery.")
+        
         # Check ASF DAAC for available SLCs for pending earthquakes
         check_tracker_for_updates(do_processing, send_email_flag)
         
@@ -2203,6 +2209,7 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["sar", "optical"], default="sar", help="Processing mode: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
     parser.add_argument("--do_processing", action="store_true", help="Execute local topsApp processing.")
     parser.add_argument("--send_email", action="store_true", help="Send email notifications.")
+    parser.add_argument("--process_only", action="store_true", help="Skip discovery; only process existing jobs in the tracker.")
 
     args = parser.parse_args()
 
@@ -2261,4 +2268,4 @@ if __name__ == "__main__":
         if not args.do_processing and not args.send_email:
             print("Warning: Running --forward without --do_processing or --send_email. The script will only update tracking files.")
 
-        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email)
+        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, mode=args.mode, optical_backend=args.optical_backend, process_only=args.process_only)
