@@ -50,7 +50,10 @@
                 ],
                 "partial_job_file": "job_m_55_25_km_ene_of_baganga_philippines_DESCENDING_163_partial.json",
                 "reference_date": "2026-05-04",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-04 (Pre) - 2026-05-10 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_25_km_ene_of_baganga_philippines/DESCENDING163/coseismic/DESCENDING163_20260504_20260510"
             }
         }
     }
