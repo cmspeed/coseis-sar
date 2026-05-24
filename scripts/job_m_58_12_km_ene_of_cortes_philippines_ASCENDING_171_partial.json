@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_58_12_km_ene_of_cortes_philippines-ASCENDING171",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20260517T094809_20260517T094836_007692_00FA22_85C3",
+                "S1C_IW_SLC__1SDV_20260517T094744_20260517T094811_007692_00FA22_3F49"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
