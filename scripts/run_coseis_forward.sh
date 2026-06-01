@@ -35,8 +35,9 @@ python coseis.py --forward --pairing coseismic --do_processing --process_only >>
 # Sync with Github 
 # Add the updated tracker JSON
 git add active_job_tracking.json
+
 # Stage any partial files that the python script deleted locally
-git add -u *_partial.json || true
+git add -u "*_partial.json" || true
 if ! git diff --cached --quiet; then
     git commit -m "Local processing: update COSEIS tracking state and remove finished partials [skip ci]"
     git pull --rebase origin main
