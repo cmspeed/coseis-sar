@@ -1,0 +1,20 @@
+[
+    {
+        "name": "m_61_104_km_wnw_of_mantua_cuba-DESCENDING55",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20260527T113549_20260527T113618_064702_0826C0_E5A6"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]

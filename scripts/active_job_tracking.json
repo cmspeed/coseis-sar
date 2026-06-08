@@ -73,5 +73,48 @@
                 "status": "AWAITING_POST_SEISMIC"
             }
         }
+    },
+    "us7000srjx": {
+        "title": "m_61_104_km_wnw_of_mantua_cuba",
+        "time": 1780941625689,
+        "aoi": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -85.6393,
+                        22.3009
+                    ],
+                    [
+                        -84.6393,
+                        22.3009
+                    ],
+                    [
+                        -84.6393,
+                        23.3009
+                    ],
+                    [
+                        -85.6393,
+                        23.3009
+                    ],
+                    [
+                        -85.6393,
+                        22.3009
+                    ]
+                ]
+            ]
+        },
+        "tracks": {
+            "DESCENDING_55": {
+                "flight_direction": "DESCENDING",
+                "path_number": 55,
+                "frame_numbers": [
+                    518
+                ],
+                "partial_job_file": "job_m_61_104_km_wnw_of_mantua_cuba_DESCENDING_55_partial.json",
+                "reference_date": "2026-05-27",
+                "status": "AWAITING_POST_SEISMIC"
+            }
+        }
     }
 }
