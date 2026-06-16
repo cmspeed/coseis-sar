@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_67_43_km_ese_of_palu_indonesia-DESCENDING134",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20260608T214235_20260608T214301_003150_005792_781D",
+                "S1D_IW_SLC__1SDV_20260608T214210_20260608T214237_003150_005792_8170"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
