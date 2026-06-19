@@ -353,5 +353,59 @@
                 "status": "AWAITING_POST_SEISMIC"
             }
         }
+    },
+    "us7000sui3": {
+        "title": "m_66_133_km_ese_of_petropavlovskkamchatsky_russia",
+        "time": 1781851951597,
+        "aoi": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        160.0652,
+                        52.2943
+                    ],
+                    [
+                        161.0652,
+                        52.2943
+                    ],
+                    [
+                        161.0652,
+                        53.2943
+                    ],
+                    [
+                        160.0652,
+                        53.2943
+                    ],
+                    [
+                        160.0652,
+                        52.2943
+                    ]
+                ]
+            ]
+        },
+        "tracks": {
+            "DESCENDING_60": {
+                "flight_direction": "DESCENDING",
+                "path_number": 60,
+                "frame_numbers": [
+                    419,
+                    414
+                ],
+                "partial_job_file": "job_m_66_133_km_ese_of_petropavlovskkamchatsky_russia_DESCENDING_60_partial.json",
+                "reference_date": "2026-06-08",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "ASCENDING_38": {
+                "flight_direction": "ASCENDING",
+                "path_number": 38,
+                "frame_numbers": [
+                    172
+                ],
+                "partial_job_file": "job_m_66_133_km_ese_of_petropavlovskkamchatsky_russia_ASCENDING_38_partial.json",
+                "reference_date": "2026-06-07",
+                "status": "AWAITING_POST_SEISMIC"
+            }
+        }
     }
 }
