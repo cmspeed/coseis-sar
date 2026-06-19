@@ -49,7 +49,10 @@
                 ],
                 "partial_job_file": "job_m_56_15_km_wnw_of_punakha_bhutan_DESCENDING_48_partial.json",
                 "reference_date": "2026-05-27",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-27 (Pre) - 2026-06-08 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_15_km_wnw_of_punakha_bhutan/DESCENDING048/coseismic/DESCENDING048_20260527_20260608"
             },
             "DESCENDING_150": {
                 "flight_direction": "DESCENDING",
@@ -73,7 +76,10 @@
                 ],
                 "partial_job_file": "job_m_56_15_km_wnw_of_punakha_bhutan_ASCENDING_114_partial.json",
                 "reference_date": "2026-05-31",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-31 (Pre) - 2026-06-12 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_15_km_wnw_of_punakha_bhutan/ASCENDING114/coseismic/ASCENDING114_20260531_20260612"
             }
         }
     },
