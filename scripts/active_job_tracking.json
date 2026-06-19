@@ -60,7 +60,10 @@
                 ],
                 "partial_job_file": "job_m_56_15_km_wnw_of_punakha_bhutan_DESCENDING_150_partial.json",
                 "reference_date": "2026-05-21",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-21 (Pre) - 2026-06-14 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_15_km_wnw_of_punakha_bhutan/DESCENDING150/coseismic/DESCENDING150_20260521_20260614"
             },
             "ASCENDING_114": {
                 "flight_direction": "ASCENDING",
