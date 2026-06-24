@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_56_11_km_n_of_redwood_valley_ca-DESCENDING115",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20260612T141551_20260612T141619_064937_082EF8_F967",
+                "S1A_IW_SLC__1SDV_20260612T141526_20260612T141553_064937_082EF8_4538"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
