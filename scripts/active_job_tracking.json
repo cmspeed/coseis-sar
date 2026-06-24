@@ -443,5 +443,84 @@
                 "status": "AWAITING_POST_SEISMIC"
             }
         }
+    },
+    "us6000t7zc": {
+        "title": "m_71_28_km_nw_of_montalban_venezuela",
+        "time": 1782338672505,
+        "aoi": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -68.9932,
+                        9.907
+                    ],
+                    [
+                        -67.9932,
+                        9.907
+                    ],
+                    [
+                        -67.9932,
+                        10.907
+                    ],
+                    [
+                        -68.9932,
+                        10.907
+                    ],
+                    [
+                        -68.9932,
+                        9.907
+                    ]
+                ]
+            ]
+        },
+        "tracks": {
+            "ASCENDING_106": {
+                "flight_direction": "ASCENDING",
+                "path_number": 106,
+                "frame_numbers": [
+                    28,
+                    1213
+                ],
+                "partial_job_file": "job_m_71_28_km_nw_of_montalban_venezuela_ASCENDING_106_partial.json",
+                "reference_date": "2026-06-18",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "ASCENDING_33": {
+                "flight_direction": "ASCENDING",
+                "path_number": 33,
+                "frame_numbers": [
+                    1218,
+                    1213,
+                    30
+                ],
+                "partial_job_file": "job_m_71_28_km_nw_of_montalban_venezuela_ASCENDING_33_partial.json",
+                "reference_date": "2026-06-18",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "DESCENDING_98": {
+                "flight_direction": "DESCENDING",
+                "path_number": 98,
+                "frame_numbers": [
+                    560,
+                    554
+                ],
+                "partial_job_file": "job_m_71_28_km_nw_of_montalban_venezuela_DESCENDING_98_partial.json",
+                "reference_date": "2026-06-18",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "DESCENDING_25": {
+                "flight_direction": "DESCENDING",
+                "path_number": 25,
+                "frame_numbers": [
+                    561,
+                    556,
+                    558
+                ],
+                "partial_job_file": "job_m_71_28_km_nw_of_montalban_venezuela_DESCENDING_25_partial.json",
+                "reference_date": "2026-06-18",
+                "status": "AWAITING_POST_SEISMIC"
+            }
+        }
     }
 }

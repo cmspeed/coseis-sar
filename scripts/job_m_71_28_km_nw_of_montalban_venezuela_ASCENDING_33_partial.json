@@ -1,0 +1,20 @@
+[
+    {
+        "name": "m_71_28_km_nw_of_montalban_venezuela-ASCENDING33",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20260618T224250_20260618T224320_065030_083236_48BF"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
