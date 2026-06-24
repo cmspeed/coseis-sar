@@ -43,7 +43,7 @@ jobs:
           cd scripts
           
           # Execute the Python script
-          python coseis.py --forward --pairing coseismic
+          python coseis.py --forward --pairing coseismic --send_email
 
       - name: Save Tracking State
         run: |
