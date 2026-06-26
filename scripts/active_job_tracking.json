@@ -82,7 +82,10 @@
                 ],
                 "partial_job_file": "job_m_61_104_km_wnw_of_mantua_cuba_DESCENDING_55_partial.json",
                 "reference_date": "2026-05-27",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-27 (Pre) - 2026-06-20 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_61_104_km_wnw_of_mantua_cuba/DESCENDING055/coseismic/DESCENDING055_20260527_20260620"
             }
         }
     },
@@ -117,6 +120,20 @@
             ]
         },
         "tracks": {
+            "DESCENDING_54": {
+                "flight_direction": "DESCENDING",
+                "path_number": 54,
+                "frame_numbers": [
+                    688,
+                    683
+                ],
+                "partial_job_file": "job_m_55_128_km_nw_of_vallenar_chile_DESCENDING_54_partial.json",
+                "reference_date": "2026-06-03",
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-03 (Pre) - 2026-06-15 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_128_km_nw_of_vallenar_chile/DESCENDING054/coseismic/DESCENDING054_20260603_20260615"
+            },
             "DESCENDING_56": {
                 "flight_direction": "DESCENDING",
                 "path_number": 56,
@@ -127,6 +144,34 @@
                 "reference_date": "2026-06-03",
                 "status": "AWAITING_POST_SEISMIC"
             },
+            "DESCENDING_156": {
+                "flight_direction": "DESCENDING",
+                "path_number": 156,
+                "frame_numbers": [
+                    685,
+                    686
+                ],
+                "partial_job_file": "job_m_55_128_km_nw_of_vallenar_chile_DESCENDING_156_partial.json",
+                "reference_date": "2026-05-28",
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-28 (Pre) - 2026-06-15 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_128_km_nw_of_vallenar_chile/DESCENDING156/coseismic/DESCENDING156_20260528_20260615"
+            },
+            "ASCENDING_120": {
+                "flight_direction": "ASCENDING",
+                "path_number": 120,
+                "frame_numbers": [
+                    1091,
+                    1086
+                ],
+                "partial_job_file": "job_m_55_128_km_nw_of_vallenar_chile_ASCENDING_120_partial.json",
+                "reference_date": "2026-05-31",
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-31 (Pre) - 2026-06-12 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_128_km_nw_of_vallenar_chile/ASCENDING120/coseismic/ASCENDING120_20260531_20260612"
+            },
             "ASCENDING_18": {
                 "flight_direction": "ASCENDING",
                 "path_number": 18,
@@ -135,7 +180,10 @@
                 ],
                 "partial_job_file": "job_m_55_128_km_nw_of_vallenar_chile_ASCENDING_18_partial.json",
                 "reference_date": "2026-05-30",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-30 (Pre) - 2026-06-30 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_128_km_nw_of_vallenar_chile/ASCENDING018/coseismic/ASCENDING018_20260530_20260630"
             }
         }
     },
@@ -179,7 +227,10 @@
                 ],
                 "partial_job_file": "job_m_67_43_km_ese_of_palu_indonesia_DESCENDING_134_partial.json",
                 "reference_date": "2026-06-08",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-08 (Pre) - 2026-06-20 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_67_43_km_ese_of_palu_indonesia/DESCENDING134/coseismic/DESCENDING134_20260608_20260620"
             },
             "DESCENDING_136": {
                 "flight_direction": "DESCENDING",
@@ -209,7 +260,24 @@
                 ],
                 "partial_job_file": "job_m_67_43_km_ese_of_palu_indonesia_DESCENDING_61_partial.json",
                 "reference_date": "2026-05-27",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-05-27 (Pre) - 2026-06-20 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_67_43_km_ese_of_palu_indonesia/DESCENDING061/coseismic/DESCENDING061_20260527_20260620"
+            },
+            "ASCENDING_112": {
+                "flight_direction": "ASCENDING",
+                "path_number": 112,
+                "frame_numbers": [
+                    1178,
+                    1173
+                ],
+                "partial_job_file": "job_m_67_43_km_ese_of_palu_indonesia_ASCENDING_112_partial.json",
+                "reference_date": "2026-06-07",
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-07 (Pre) - 2026-06-19 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_67_43_km_ese_of_palu_indonesia/ASCENDING112/coseismic/ASCENDING112_20260607_20260619"
             }
         }
     },
@@ -253,7 +321,38 @@
                 ],
                 "partial_job_file": "job_m_63_260_km_sse_of_dunhuang_china_ASCENDING_172_partial.json",
                 "reference_date": "2026-06-11",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1D_IW_SLC__1SDV_20260623T113439_20260623T113506_003363_005E90_3824', '--secondary-scenes', 'S1D_IW_SLC__1SDV_20260611T113503_20260611T113539_003188_0058DC_3EEF S1D_IW_SLC__1SDV_20260611T113438_20260611T113505_003188_0058DC_A497', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
+                "dates": "2026-06-11 (Pre) - 2026-06-23 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_63_260_km_sse_of_dunhuang_china/ASCENDING172/coseismic/ASCENDING172_20260611_20260623"
+            },
+            "ASCENDING_70": {
+                "flight_direction": "ASCENDING",
+                "path_number": 70,
+                "frame_numbers": [
+                    121,
+                    116
+                ],
+                "partial_job_file": "job_m_63_260_km_sse_of_dunhuang_china_ASCENDING_70_partial.json",
+                "reference_date": "2026-06-04",
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-04 (Pre) - 2026-06-16 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_63_260_km_sse_of_dunhuang_china/ASCENDING070/coseismic/ASCENDING070_20260604_20260616"
+            },
+            "DESCENDING_77": {
+                "flight_direction": "DESCENDING",
+                "path_number": 77,
+                "frame_numbers": [
+                    464,
+                    469
+                ],
+                "partial_job_file": "job_m_63_260_km_sse_of_dunhuang_china_DESCENDING_77_partial.json",
+                "reference_date": "2026-06-04",
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-04 (Pre) - 2026-06-16 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_63_260_km_sse_of_dunhuang_china/DESCENDING077/coseismic/DESCENDING077_20260604_20260616"
             }
         }
     },
@@ -297,7 +396,23 @@
                 ],
                 "partial_job_file": "job_m_66_133_km_ese_of_petropavlovskkamchatsky_russia_DESCENDING_60_partial.json",
                 "reference_date": "2026-06-08",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-08 (Pre) - 2026-06-20 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_66_133_km_ese_of_petropavlovskkamchatsky_russia/DESCENDING060/coseismic/DESCENDING060_20260608_20260620"
+            },
+            "ASCENDING_38": {
+                "flight_direction": "ASCENDING",
+                "path_number": 38,
+                "frame_numbers": [
+                    172
+                ],
+                "partial_job_file": "job_m_66_133_km_ese_of_petropavlovskkamchatsky_russia_ASCENDING_38_partial.json",
+                "reference_date": "2026-06-07",
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-07 (Pre) - 2026-06-19 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_66_133_km_ese_of_petropavlovskkamchatsky_russia/ASCENDING038/coseismic/ASCENDING038_20260607_20260619"
             }
         }
     },
@@ -342,7 +457,10 @@
                 ],
                 "partial_job_file": "job_m_56_11_km_n_of_redwood_valley_ca_ASCENDING_35_partial.json",
                 "reference_date": "2026-06-19",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1D_IW_SLC__1SDV_20260626T020745_20260626T020812_003401_005FC7_67C0', '--secondary-scenes', 'S1A_IW_SLC__1SDV_20260619T020826_20260619T020853_065032_083249_A875 S1A_IW_SLC__1SDV_20260619T020801_20260619T020828_065032_083249_77A6', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
+                "dates": "2026-06-19 (Pre) - 2026-06-26 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_11_km_n_of_redwood_valley_ca/ASCENDING035/coseismic/ASCENDING035_20260619_20260626"
             },
             "DESCENDING_13": {
                 "flight_direction": "DESCENDING",
@@ -353,7 +471,10 @@
                 ],
                 "partial_job_file": "job_m_56_11_km_n_of_redwood_valley_ca_DESCENDING_13_partial.json",
                 "reference_date": "2026-06-17",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-17 (Pre) - 2026-06-29 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_11_km_n_of_redwood_valley_ca/DESCENDING013/coseismic/DESCENDING013_20260617_20260629"
             },
             "DESCENDING_115": {
                 "flight_direction": "DESCENDING",
@@ -364,242 +485,10 @@
                 ],
                 "partial_job_file": "job_m_56_11_km_n_of_redwood_valley_ca_DESCENDING_115_partial.json",
                 "reference_date": "2026-06-12",
-                "status": "AWAITING_POST_SEISMIC"
-            }
-        }
-    },
-    "us6000t7zc": {
-        "title": "m_71_28_km_nw_of_montalban_venezuela",
-        "time": 1782338672505,
-        "aoi": {
-            "type": "Polygon",
-            "coordinates": [
-                [
-                    [
-                        -68.9932,
-                        9.907
-                    ],
-                    [
-                        -67.9932,
-                        9.907
-                    ],
-                    [
-                        -67.9932,
-                        10.907
-                    ],
-                    [
-                        -68.9932,
-                        10.907
-                    ],
-                    [
-                        -68.9932,
-                        9.907
-                    ]
-                ]
-            ]
-        },
-        "tracks": {
-            "ASCENDING_106": {
-                "flight_direction": "ASCENDING",
-                "path_number": 106,
-                "frame_numbers": [
-                    28,
-                    1213
-                ],
-                "partial_job_file": "job_m_71_28_km_nw_of_montalban_venezuela_ASCENDING_106_partial.json",
-                "reference_date": "2026-06-18",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "ASCENDING_33": {
-                "flight_direction": "ASCENDING",
-                "path_number": 33,
-                "frame_numbers": [
-                    1218,
-                    1213,
-                    30
-                ],
-                "partial_job_file": "job_m_71_28_km_nw_of_montalban_venezuela_ASCENDING_33_partial.json",
-                "reference_date": "2026-06-18",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "DESCENDING_98": {
-                "flight_direction": "DESCENDING",
-                "path_number": 98,
-                "frame_numbers": [
-                    560,
-                    554
-                ],
-                "partial_job_file": "job_m_71_28_km_nw_of_montalban_venezuela_DESCENDING_98_partial.json",
-                "reference_date": "2026-06-18",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "DESCENDING_25": {
-                "flight_direction": "DESCENDING",
-                "path_number": 25,
-                "frame_numbers": [
-                    561,
-                    556,
-                    558
-                ],
-                "partial_job_file": "job_m_71_28_km_nw_of_montalban_venezuela_DESCENDING_25_partial.json",
-                "reference_date": "2026-06-18",
-                "status": "AWAITING_POST_SEISMIC"
-            }
-        }
-    },
-    "us6000t7zp": {
-        "title": "m_75_16_km_sw_of_moron_venezuela",
-        "time": 1782338711975,
-        "aoi": {
-            "type": "Polygon",
-            "coordinates": [
-                [
-                    [
-                        -68.8206,
-                        9.9009
-                    ],
-                    [
-                        -67.8206,
-                        9.9009
-                    ],
-                    [
-                        -67.8206,
-                        10.9009
-                    ],
-                    [
-                        -68.8206,
-                        10.9009
-                    ],
-                    [
-                        -68.8206,
-                        9.9009
-                    ]
-                ]
-            ]
-        },
-        "tracks": {
-            "ASCENDING_106": {
-                "flight_direction": "ASCENDING",
-                "path_number": 106,
-                "frame_numbers": [
-                    28,
-                    1213
-                ],
-                "partial_job_file": "job_m_75_16_km_sw_of_moron_venezuela_ASCENDING_106_partial.json",
-                "reference_date": "2026-06-18",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "ASCENDING_33": {
-                "flight_direction": "ASCENDING",
-                "path_number": 33,
-                "frame_numbers": [
-                    1218,
-                    1213,
-                    30
-                ],
-                "partial_job_file": "job_m_75_16_km_sw_of_moron_venezuela_ASCENDING_33_partial.json",
-                "reference_date": "2026-06-18",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "DESCENDING_98": {
-                "flight_direction": "DESCENDING",
-                "path_number": 98,
-                "frame_numbers": [
-                    560,
-                    554
-                ],
-                "partial_job_file": "job_m_75_16_km_sw_of_moron_venezuela_DESCENDING_98_partial.json",
-                "reference_date": "2026-06-18",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "DESCENDING_25": {
-                "flight_direction": "DESCENDING",
-                "path_number": 25,
-                "frame_numbers": [
-                    561,
-                    556,
-                    558
-                ],
-                "partial_job_file": "job_m_75_16_km_sw_of_moron_venezuela_DESCENDING_25_partial.json",
-                "reference_date": "2026-06-18",
-                "status": "AWAITING_POST_SEISMIC"
-            }
-        }
-    },
-    "us6000t99j": {
-        "title": "m_60_75_km_ssw_of_el_progreso_mexico",
-        "time": 1782848740116,
-        "aoi": {
-            "type": "Polygon",
-            "coordinates": [
-                [
-                    [
-                        -109.4285,
-                        24.3239
-                    ],
-                    [
-                        -108.4285,
-                        24.3239
-                    ],
-                    [
-                        -108.4285,
-                        25.3239
-                    ],
-                    [
-                        -109.4285,
-                        25.3239
-                    ],
-                    [
-                        -109.4285,
-                        24.3239
-                    ]
-                ]
-            ]
-        },
-        "tracks": {
-            "ASCENDING_122": {
-                "flight_direction": "ASCENDING",
-                "path_number": 122,
-                "frame_numbers": [
-                    81,
-                    77
-                ],
-                "partial_job_file": "job_m_60_75_km_ssw_of_el_progreso_mexico_ASCENDING_122_partial.json",
-                "reference_date": "2026-06-26",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "ASCENDING_20": {
-                "flight_direction": "ASCENDING",
-                "path_number": 20,
-                "frame_numbers": [
-                    72,
-                    78
-                ],
-                "partial_job_file": "job_m_60_75_km_ssw_of_el_progreso_mexico_ASCENDING_20_partial.json",
-                "reference_date": "2026-06-13",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "DESCENDING_56": {
-                "flight_direction": "DESCENDING",
-                "path_number": 56,
-                "frame_numbers": [
-                    513,
-                    508
-                ],
-                "partial_job_file": "job_m_60_75_km_ssw_of_el_progreso_mexico_DESCENDING_56_partial.json",
-                "reference_date": "2026-06-20",
-                "status": "AWAITING_POST_SEISMIC"
-            },
-            "DESCENDING_158": {
-                "flight_direction": "DESCENDING",
-                "path_number": 158,
-                "frame_numbers": [
-                    513,
-                    508
-                ],
-                "partial_job_file": "job_m_60_75_km_ssw_of_el_progreso_mexico_DESCENDING_158_partial.json",
-                "reference_date": "2026-06-15",
-                "status": "AWAITING_POST_SEISMIC"
+                "status": "READY_FOR_EMAIL",
+                "processing_status": "Success",
+                "dates": "2026-06-12 (Pre) - 2026-07-01 (Post)",
+                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_11_km_n_of_redwood_valley_ca/DESCENDING115/coseismic/DESCENDING115_20260612_20260701"
             }
         }
     }
