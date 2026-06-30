@@ -525,5 +525,82 @@
                 "status": "AWAITING_POST_SEISMIC"
             }
         }
+    },
+    "us6000t99j": {
+        "title": "m_60_75_km_ssw_of_el_progreso_mexico",
+        "time": 1782848740116,
+        "aoi": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -109.4285,
+                        24.3239
+                    ],
+                    [
+                        -108.4285,
+                        24.3239
+                    ],
+                    [
+                        -108.4285,
+                        25.3239
+                    ],
+                    [
+                        -109.4285,
+                        25.3239
+                    ],
+                    [
+                        -109.4285,
+                        24.3239
+                    ]
+                ]
+            ]
+        },
+        "tracks": {
+            "ASCENDING_122": {
+                "flight_direction": "ASCENDING",
+                "path_number": 122,
+                "frame_numbers": [
+                    81,
+                    77
+                ],
+                "partial_job_file": "job_m_60_75_km_ssw_of_el_progreso_mexico_ASCENDING_122_partial.json",
+                "reference_date": "2026-06-26",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "ASCENDING_20": {
+                "flight_direction": "ASCENDING",
+                "path_number": 20,
+                "frame_numbers": [
+                    72,
+                    78
+                ],
+                "partial_job_file": "job_m_60_75_km_ssw_of_el_progreso_mexico_ASCENDING_20_partial.json",
+                "reference_date": "2026-06-13",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "DESCENDING_56": {
+                "flight_direction": "DESCENDING",
+                "path_number": 56,
+                "frame_numbers": [
+                    513,
+                    508
+                ],
+                "partial_job_file": "job_m_60_75_km_ssw_of_el_progreso_mexico_DESCENDING_56_partial.json",
+                "reference_date": "2026-06-20",
+                "status": "AWAITING_POST_SEISMIC"
+            },
+            "DESCENDING_158": {
+                "flight_direction": "DESCENDING",
+                "path_number": 158,
+                "frame_numbers": [
+                    513,
+                    508
+                ],
+                "partial_job_file": "job_m_60_75_km_ssw_of_el_progreso_mexico_DESCENDING_158_partial.json",
+                "reference_date": "2026-06-15",
+                "status": "AWAITING_POST_SEISMIC"
+            }
+        }
     }
 }

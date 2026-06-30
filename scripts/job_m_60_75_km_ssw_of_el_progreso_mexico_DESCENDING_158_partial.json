@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_60_75_km_ssw_of_el_progreso_mexico-DESCENDING158",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1A_IW_SLC__1SDV_20260615T130554_20260615T130621_064980_083070_3307",
+                "S1A_IW_SLC__1SDV_20260615T130529_20260615T130556_064980_083070_5C43"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
