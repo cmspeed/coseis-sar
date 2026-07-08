@@ -7,6 +7,10 @@ from hyp3_autorift import geometry, utils
 from hyp3_autorift.vend.testGeogrid import GeogridOptical, runGeogrid
 from hyp3_autorift.vend.testautoRIFT import generateAutoriftProduct
 
+import numpy as np
+if not hasattr(np.lib, 'pad'):
+    np.lib.pad = np.pad
+
 # Create dummy class to hold metadata
 class Dummy(object):
     pass
