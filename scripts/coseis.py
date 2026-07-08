@@ -618,44 +618,140 @@ def withinCoastline(earthquake, coastline):
     return within_coastline_buffer
 
 
-def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
+def get_event_rake(event_id):
+    """
+    Fetches the rake angles for a specific event ID from USGS. Example : [-170.21, -34.16]
+    :param event_id: The USGS event ID for the earthquake.
+    :return: A list of rake angles from both nodal planes, or an empty list if not available.
+    """
+    detail_url = f"https://earthquake.usgs.gov/fdsnws/event/1/query"
+    params = {"eventid": event_id, "format": "geojson"}
+
+    print(f'Fetching rake for event_id: {event_id}')
+    try:
+        response = requests.get(detail_url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        # Access products
+        products = data.get("properties", {}).get("products", {})
+
+        candidates = products.get("moment-tensor", []) + products.get("focal-mechanism", [])
+
+        if not candidates:
+            print(f"  No moment-tensor or focal-mechanism products found for {event_id}.")
+            return []
+
+        # Iterate through ALL candidates until we find one with rake data
+        for product in candidates:
+            props = product.get("properties", {})
+            
+            # Check if this product has the nodal plane info
+            r1 = props.get("nodal-plane-1-rake")
+            r2 = props.get("nodal-plane-2-rake")
+
+            # If both exist, we found a valid product
+            if r1 is not None and r2 is not None:
+                try:
+                    rakes = [float(r1), float(r2)]
+                    print(f"  Found rakes in product {product.get('code')}: {rakes}") 
+                    return rakes
+                except ValueError:
+                    continue
+
+        print(f"  Warning: products found, but no 'nodal-plane-X-rake' properties present for {event_id}.")
+        return []
+
+    except Exception as e:
+        print(f"Warning: Could not fetch rake for {event_id}: {e}")
+        return []
+
+
+def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mode='historic'):
     """
     Check the significance of each earthquake based on its 
     (1) magnitude (>=6.0), (2) USGS alert level (['green','yellow','orange','red]),
-    (3) depth (<=30.0 km), and (4) distance from land (within 0.5 degrees, ~55 km of the coastline).
+    (3) depth (<=30.0 km), (4) distance from land (within 0.5 degrees, ~55 km of the coastline),
+    and (5) if sensor is 'optical', rake angle (must be strike-slip: ~0 or ~180 degrees).
+    
     :param earthquakes: list of dictionaries containing earthquake data
+    :param start_date: start date in the format 'YYYY-MM-DD'
+    :param end_date: end date in the format 'YYYY-MM-DD' (optional)
+    :param sensor: determines if rake filter will be applied ('sar' or 'optical')
+    :param mode: 'historic' or 'forward' - determines the alert criteria used for filtering.
     :return: List of dictionaries containing significant earthquakes
     """
     print('=========================================')
-    print("Checking for significant earthquakes...")
+    print(f"Checking for significant earthquakes (Sensor: {sensor.upper()})...")
     print('=========================================')
 
     significant_earthquakes = []
-    alert_list = ['green','yellow', 'orange', 'red']
+    alert_list = ['green', 'yellow', 'orange', 'red']
     coastline = get_coastline(coastline_api)
+    
+    # Rake tolerance (degrees)
+    RAKE_TOLERANCE = 45.0 
 
-    # Include alert criteria for historic data
-    if mode == 'historic':
-        for earthquake in earthquakes:
-            magnitude = earthquake.get('mag')
-            alert = earthquake.get('alert')
-            depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
+    for earthquake in earthquakes:
+        magnitude = earthquake.get('mag')
+        alert = earthquake.get('alert')
+        depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
+        
+        # Filters applicable to both sensors
+        is_candidate = False
+        
+        if all(var is not None for var in (magnitude, depth)):
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
-            if all(var is not None for var in (magnitude, alert, depth)):
-                if (magnitude >= 5.5) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
-                    significant_earthquakes.append(earthquake)
+            
+            if mode == 'historic':
+                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+                    is_candidate = True
+            elif mode == 'forward':
+                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
+                    is_candidate = True
+        
+        if not is_candidate:
+            continue
 
-    # Base significance on magnitude, depth, and distance from land for forward-looking data
-    if mode =='forward':
-        for earthquake in earthquakes:
-            magnitude = earthquake.get('mag')
-            depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
-            within_Coastline_buffer = withinCoastline(earthquake, coastline)
-            if all(var is not None for var in (magnitude, depth)):
-                if (magnitude >= 5.5) and (depth <= 15.0) and within_Coastline_buffer:
-                    significant_earthquakes.append(earthquake)
+        # Fetch Rake
+        title = earthquake.get('title', 'Unknown Event')
+        print(f"  Fetching rake for candidate: {title}...")
+        
+        rakes = get_event_rake(earthquake.get('id'))
+        earthquake['rakes'] = rakes 
 
-    # Write significant earthquakes to a GeoJSON file
+        # Sensor-Specific Filtering
+        if sensor == 'optical':
+            if not rakes:
+                print(f"    -> Skipped (Optical mode requires rake data, none found)")
+                continue
+
+            # Check if ANY available rake satisfies the condition
+            is_strike_slip = False
+            accepted_rake_val = None
+
+            for r in rakes:
+                if (abs(r) <= RAKE_TOLERANCE) or (abs(r) >= (180.0 - RAKE_TOLERANCE)):
+                    is_strike_slip = True
+                    accepted_rake_val = r
+                    break
+            
+            if is_strike_slip:
+                 print(f"    -> Accepted (Rake {accepted_rake_val}° fits strike-slip criteria)")
+                 significant_earthquakes.append(earthquake)
+            else:
+                 print(f"    -> Skipped (Rakes {rakes} indicate dip-slip/oblique motion)")
+                 
+        else:
+            # SAR mode: Accept even if rake is missing or "bad"
+            if rakes:
+                print(f"    -> Accepted (SAR mode; Rakes found: {rakes})")
+            else:
+                print(f"    -> Accepted (SAR mode; No rake data found)")
+            
+            significant_earthquakes.append(earthquake)
+
+    # Output / Logging
     if len(significant_earthquakes) > 0:
         print('=========================================')
         print(f"Found {len(significant_earthquakes)} significant earthquakes.")
@@ -666,8 +762,10 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             print(f"Magnitude: {eq['mag']}")
             print(f"Depth: {eq['coordinates'][2]} km")
             print(f"Alert Level: {eq['alert']}")
+            if 'rakes' in eq:
+                print(f"Rakes: {eq['rakes']}")
             print('=========================================')
-        print('=========================================')
+        
         significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_date, end_date)
         return significant_earthquakes
     else:
@@ -2157,7 +2255,7 @@ def merge_and_compress_chips(chip_paths, output_path):
     return output_path
 
 
-def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar', optical_backend='copernicus'):
+def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='sar', optical_backend='copernicus'):
     """
     Process earthquake event and generate the necessary SLC pairs for InSAR processing.
     :param eq: dictionary containing earthquake data
@@ -2165,8 +2263,8 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
     :param resolution: Output resolution for the topsApp processing, default is 90m
-    :param mode: 'sar' for SAR processing, 'optical' for optical processing
-    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if mode is 'optical')
+    :param sensor: 'sar' for SAR processing, 'optical' for optical processing
+    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if sensor is 'optical')
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
     title = eq.get('title', '')
@@ -2199,7 +2297,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
     all_jobs = []
     all_features = []
 
-    if mode == 'sar':
+    if sensor == 'sar':
         path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
         
         # Frame visualization logic (SAR specific)
@@ -2218,7 +2316,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
                                                            title, pairing_mode, job_list, resolution)
             all_jobs.append(isce_jobs)
 
-    elif mode == 'optical':
+    elif sensor == 'optical':
         rupture_time = eq.get('time')
         rupture_dt = convert_time(rupture_time)
         
@@ -2261,11 +2359,11 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
             # Define 30-day temporal windows
             rupture_dt = convert_time(rupture_time).replace(tzinfo=None)
-            pre_start = (rupture_dt - timedelta(days=30)).strftime('%Y-%m-%d')
+            pre_start = (rupture_dt - timedelta(days=60)).strftime('%Y-%m-%d') # this was previously 30
             pre_end = rupture_dt.strftime('%Y-%m-%d')
             
             post_start = rupture_dt.strftime('%Y-%m-%d')
-            post_end = (rupture_dt + timedelta(days=30)).strftime('%Y-%m-%d')
+            post_end = (rupture_dt + timedelta(days=60)).strftime('%Y-%m-%d') # this was previously 30
 
             # Dynamically compute EPSG for outputs
             lon, lat = coords[0], coords[1]
@@ -2467,7 +2565,7 @@ def parse_custom_eq_list(file_path):
     return earthquakes
 
 
-def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, mode='sar', optical_backend='copernicus'):
+def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, sensor='sar', optical_backend='copernicus'):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
@@ -2475,8 +2573,8 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
     :param resolution: Output resolution for the topsApp processing, default is 90m
     :param do_processing: If True, runs the dockerized topsApp processing workflow after generating the JSONs. Default is False.
     :param send_email_flag: If True, sends an email alert after processing. Default is False.
-    :param mode: 'sar' for SAR processing, 'optical' for optical processing
-    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if mode is 'optical')
+    :param sensor: 'sar' for SAR processing, 'optical' for optical processing
+    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if sensor is 'optical')
     """
     import shutil
 
@@ -2683,7 +2781,7 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
             os.remove(lock_file)
 
 
-def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, pairing_mode=None, job_list=False, resolution=90, mode='sar', optical_backend='copernicus'):
+def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, pairing_mode=None, job_list=False, resolution=90, sensor='sar', optical_backend='copernicus'):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -2696,8 +2794,8 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing.
     :param job_list: If True, create a list of jobs in HYP3 format for cloud processing.
     :param resolution: Output resolution for the topsApp processing, default is 90m
-    :param mode: 'sar' for SAR processing, 'optical' for optical processing
-    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if mode is 'optical')
+    :param sensor: 'sar' for SAR processing, 'optical' for optical processing
+    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if sensor is 'optical')
     """
     # Generate the list of earthquakes
     geojson_data = None
@@ -2723,7 +2821,7 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
 
         if geojson_data:
             earthquakes = parse_geojson(geojson_data)
-            eq_sig = check_significance(earthquakes, start_date, end_date, mode='historic')
+            eq_sig = check_significance(earthquakes, start_date, end_date, sensor=sensor, mode='historic')
         else:
             eq_sig = None
             
@@ -2735,7 +2833,7 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
 
         for eq in eq_sig:
             try:
-                eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, mode, optical_backend)
+                eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, sensor, optical_backend)
 
                 if eq_features:
                     master_scene_features.extend(eq_features)
@@ -2774,7 +2872,7 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
 
         if master_scene_features:
             current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
-            feature_filename = f'all_selected_scenes_{mode}_{optical_backend}_{current_time}.geojson'
+            feature_filename = f'all_selected_scenes_{sensor}_{optical_backend}_{current_time}.geojson'
             fc = {"type": "FeatureCollection", "features": master_scene_features}
             with open(feature_filename, 'w') as f:
                 json.dump(fc, f, indent=2)
@@ -2814,21 +2912,21 @@ if __name__ == "__main__":
     parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for SAR processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
     parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
-    parser.add_argument("--mode", choices=["sar", "optical"], default="sar", help="Processing mode: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
+    parser.add_argument("--sensor", choices=["sar", "optical"], default="sar", help="Sensor: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
     parser.add_argument("--do_processing", action="store_true", help="Execute local topsApp processing.")
     parser.add_argument("--send_email", action="store_true", help="Send email notifications.")
-    parser.add_argument("--optical_backend", choices=["copernicus", "element84", "gee"], default="copernicus", help="Specify the optical data provider if mode is optical. Default is copernicus.")
+    parser.add_argument("--optical_backend", choices=["copernicus", "element84", "gee"], default="copernicus", help="Specify the optical data provider if sensor is optical. Default is copernicus.")
 
     args = parser.parse_args()
 
     # Global constraint check
-    if args.mode == 'sar' and '--optical_backend' in sys.argv:
-        print("Error: --optical_backend can only be used when --mode is 'optical'.")
+    if args.sensor == 'sar' and '--optical_backend' in sys.argv:
+        print("Error: --optical_backend can only be used when --sensor is 'optical'.")
         parser.print_help()
         exit(1)
         
-    if args.mode == 'sar' and not args.pairing:
-        print("Error: --pairing is required when using --mode sar. Options: 'all', 'sequential', 'coseismic'.")
+    if args.sensor == 'sar' and not args.pairing:
+        print("Error: --pairing is required when using --sensor sar. Options: 'all', 'sequential', 'coseismic'.")
         parser.print_help()
         exit(1)
 
@@ -2846,7 +2944,7 @@ if __name__ == "__main__":
 
         start_date = args.dates[0]
         end_date = args.dates[1] if len(args.dates) == 2 else None
-        main_historic(start_date=start_date, end_date=end_date, aoi=args.aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, mode=args.mode, optical_backend=args.optical_backend)
+        main_historic(start_date=start_date, end_date=end_date, aoi=args.aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, sensor=args.sensor, optical_backend=args.optical_backend)
 
     elif args.eq_list:
         if args.send_email or args.do_processing:
@@ -2856,7 +2954,7 @@ if __name__ == "__main__":
             print("Error: --dates cannot be used with --eq_list. The dates are defined in the file.")
             exit(1)
             
-        main_historic(eq_list_path=args.eq_list, aoi=args.aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, mode=args.mode, optical_backend=args.optical_backend)
+        main_historic(eq_list_path=args.eq_list, aoi=args.aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, sensor=args.sensor, optical_backend=args.optical_backend)
 
     elif args.forward:
         if args.job_list or args.dates or args.aoi:
@@ -2866,7 +2964,7 @@ if __name__ == "__main__":
         if not args.do_processing and not args.send_email:
             print("Warning: Running --forward without --do_processing or --send_email. The script will only update tracking files.")
 
-        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, mode=args.mode, optical_backend=args.optical_backend)
+        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, sensor=args.sensor, optical_backend=args.optical_backend)
 
     elif args.forward:
         if args.job_list:
@@ -2892,4 +2990,4 @@ if __name__ == "__main__":
         if not args.do_processing and not args.send_email:
             print("Warning: Running --forward without --do_processing or --send_email. The script will only update tracking files.")
 
-        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, mode=args.mode, optical_backend=args.optical_backend)
+        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, sensor=args.sensor, optical_backend=args.optical_backend)
