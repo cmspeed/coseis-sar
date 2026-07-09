@@ -2346,7 +2346,38 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
         elif optical_backend == 'gee':
             print("Routing to Google Earth Engine backend...")
             
-            # Check if composite already exists. If so, skip GEE processing and return empty lists to avoid reduntant processing.
+            # Define temporal windows
+            rupture_dt = convert_time(rupture_time).replace(tzinfo=None)
+            pre_start = (rupture_dt - timedelta(days=60)).strftime('%Y-%m-%d') 
+            pre_end = rupture_dt.strftime('%Y-%m-%d')
+            
+            post_start = rupture_dt.strftime('%Y-%m-%d')
+            post_end = (rupture_dt + timedelta(days=60)).strftime('%Y-%m-%d') 
+
+            # Dynamically compute EPSG for outputs
+            lon, lat = coords[0], coords[1]
+            utm_zone = math.floor((lon + 180) / 6) + 1
+            epsg_base = 32600 if lat >= 0 else 32700
+            target_crs = f"EPSG:{epsg_base + utm_zone}"
+            
+            if job_list:
+                print(f"  Generating GEE Job payload for {title} (Skipping computation).")
+                gee_job = {
+                    "name": f"{title}-GEE_OPTICAL",
+                    "job_type": "GEE_OPTICAL_COSEIS",
+                    "job_parameters": {
+                        "event_title": title,
+                        "target_crs": target_crs,
+                        "pre_start": pre_start,
+                        "pre_end": pre_end,
+                        "post_start": post_start,
+                        "post_end": post_end
+                    }
+                }
+                # Return the job wrapped in nested lists to match the SAR output structure
+                return [[gee_job]], [{"type": "Feature", "geometry": mapping(aoi), "properties": {"title": title, "crs": target_crs}}]
+
+            # Check if composite already exists locally
             local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
             manifest_path = os.path.join(local_dir, f"{title}_autorift_manifest.json")
             if os.path.exists(manifest_path):
@@ -2357,9 +2388,9 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             gcs_bucket = os.getenv('COSEIS_GCS_BUCKET')
             if not gcs_bucket:
                 print("Error: COSEIS_GCS_BUCKET environment variable is not set.")
-                print("Please set it to your Google Cloud Storage bucket name (e.g., export COSEIS_GCS_BUCKET='my-gee-bucket').")
                 return [], []
 
+            # Initialize GEE and run the exports (Keep existing logic below...)
             try:
                 ee.Initialize()
             except Exception as e:
