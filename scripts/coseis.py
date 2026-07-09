@@ -2133,7 +2133,7 @@ def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bu
     :return: The GEE export task object
     """
     # Convert Shapely polygon to GEE Geometry
-    bounds = aoi_polygon.bounds # (minx, miny, maxx, maxy)
+    bounds = aoi_polygon.bounds
     ee_roi = ee.Geometry.Rectangle([bounds[0], bounds[1], bounds[2], bounds[3]])
 
     # Query the S2 Harmonized Collection
@@ -2146,13 +2146,19 @@ def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bu
     s2_linked = s2_col.linkCollection(cs_plus, ['cs_cdf'])
 
     def mask_clouds(img):
-        # cs_cdf is the clear-sky probability (0 to 1). We keep pixels > 0.65
         mask = img.select('cs_cdf').gte(0.65)
         return img.updateMask(mask)
 
     s2_masked = s2_linked.map(mask_clouds)
 
-    # Generate the composite using Band 8 (NIR), force to Uint16 for export (median creates float64)
+    # Map over the collection to get just the date strings, then pull to local machine
+    def get_date(img):
+        return ee.Feature(None, {'date': img.date().format('yyyy-MM-dd')})
+    
+    raw_dates = s2_masked.map(get_date).aggregate_array('date').getInfo()
+    unique_dates = sorted(list(set(raw_dates)))
+
+    # Generate the composite
     composite = s2_masked.select('B8').median().clip(ee_roi).toUint16()
 
     # Create Export Task
@@ -2172,7 +2178,10 @@ def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bu
     
     task.start()
     print(f"  Started GCS Export Task: {file_name} (CRS: {crs_epsg})")
-    return task
+    print(f"  Included {len(unique_dates)} unique acquisition dates.")
+    
+    # Return both the task and the dates
+    return task, unique_dates
 
 
 def wait_for_gee_tasks(tasks):
@@ -2375,10 +2384,10 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
 
             # Start GEE Tasks
             print(f"Generating Pre-Event Composite ({pre_start} to {pre_end})...")
-            task_pre = export_gee_composite(aoi, pre_start, pre_end, title, "PRE", gcs_bucket, crs_epsg=target_crs)
+            task_pre, pre_dates = export_gee_composite(aoi, pre_start, pre_end, title, "PRE", gcs_bucket, crs_epsg=target_crs)
             
             print(f"Generating Post-Event Composite ({post_start} to {post_end})...")
-            task_post = export_gee_composite(aoi, post_start, post_end, title, "POST", gcs_bucket, crs_epsg=target_crs)
+            task_post, post_dates = export_gee_composite(aoi, post_start, post_end, title, "POST", gcs_bucket, crs_epsg=target_crs)
 
             # Wait for them to finish in Google Cloud Storage
             wait_for_gee_tasks([task_pre, task_post])
@@ -2409,7 +2418,9 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 "event_title": title,
                 "backend": "Google Earth Engine",
                 "pre_composite_path": final_pre_path,   
-                "post_composite_path": final_post_path, 
+                "post_composite_path": final_post_path,
+                "pre_dates_used": pre_dates,
+                "post_dates_used": post_dates,
                 "status": "DOWNLOADED_READY_FOR_AUTORIFT"
             }
             
