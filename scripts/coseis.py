@@ -2154,7 +2154,7 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
 
     # Map over the collection to get just the date strings, then pull to local machine
     def get_date(img):
-        return ee.Feature(None, {'date': img.date().format('yyyy-MM-dd')})
+        return ee.Feature(None, {'date': img.date().format("yyyy-MM-dd'T'HH:mm:ss")})
     
     raw_dates = s2_masked.map(get_date).aggregate_array('date').getInfo()
     unique_dates = sorted(list(set(raw_dates)))
@@ -2210,8 +2210,9 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
 
     l_masked = l_col.map(mask_clouds)
 
+    # Map over the collection to get just the date strings, then pull to local machine
     def get_date(img):
-        return ee.Feature(None, {'date': img.date().format('yyyy-MM-dd')})
+        return ee.Feature(None, {'date': img.date().format("yyyy-MM-dd'T'HH:mm:ss")})
     
     raw_dates = l_masked.map(get_date).aggregate_array('date').getInfo()
     unique_dates = sorted(list(set(raw_dates)))
@@ -2408,9 +2409,10 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             # Define 60-day temporal windows
             rupture_dt = convert_time(rupture_time).replace(tzinfo=None)
             pre_start = (rupture_dt - timedelta(days=60)).strftime('%Y-%m-%d')
-            pre_end = rupture_dt.strftime('%Y-%m-%d')
             
-            post_start = rupture_dt.strftime('%Y-%m-%d')
+            # Keep exact UTC time for the rupture boundaries
+            pre_end = rupture_dt.strftime('%Y-%m-%dT%H:%M:%S')
+            post_start = rupture_dt.strftime('%Y-%m-%dT%H:%M:%S')
             post_end = (rupture_dt + timedelta(days=60)).strftime('%Y-%m-%d')
 
             lon, lat = coords[0], coords[1]
