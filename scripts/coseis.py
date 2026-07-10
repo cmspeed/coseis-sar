@@ -26,7 +26,6 @@ from itertools import combinations
 import logging
 import yagmail
 import time
-from datetime import timedelta
 from google.cloud import storage
 from time import sleep
 from types import SimpleNamespace
@@ -704,7 +703,9 @@ def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mod
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             
             if mode == 'historic':
-                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+                # if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
+                #     is_candidate = True
+                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
                     is_candidate = True
             elif mode == 'forward':
                 if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
@@ -721,7 +722,7 @@ def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mod
         earthquake['rakes'] = rakes 
 
         # Sensor-Specific Filtering
-        if sensor == 'optical':
+        if sensor in ['sentinel-2', 'landsat']:
             if not rakes:
                 print(f"    -> Skipped (Optical mode requires rake data, none found)")
                 continue
@@ -2120,7 +2121,7 @@ def send_email(subject, body, recipients=None):
     return
 
 
-def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, crs_epsg='EPSG:4326'):
+def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, crs_epsg='EPSG:4326'):
     """
     Generates a cloud-free median composite in GEE and exports to Google Cloud Storage.
     :param aoi_polygon: Shapely Polygon representing the Area of Interest
@@ -2181,6 +2182,58 @@ def export_gee_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bu
     print(f"  Included {len(unique_dates)} unique acquisition dates.")
     
     # Return both the task and the dates
+    return task, unique_dates
+
+
+def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, collection_id, band_name, scale, crs_epsg='EPSG:4326'):
+    """Generates a cloud-free median TOA composite for the explicitly provided Landsat mission."""
+    bounds = aoi_polygon.bounds
+    ee_roi = ee.Geometry.Rectangle([bounds[0], bounds[1], bounds[2], bounds[3]])
+
+    # Query the explicit collection passed into the function
+    l_col = ee.ImageCollection(collection_id) \
+        .filterBounds(ee_roi) \
+        .filterDate(start_date, end_date)
+
+    # Apply USGS QA_PIXEL bitmask for clouds and shadows
+    def mask_clouds(img):
+        qa = img.select('QA_PIXEL')
+        cloud_shadow_bitmask = (1 << 4)
+        clouds_bitmask = (1 << 3)
+        dilated_cloud_bitmask = (1 << 1)
+        
+        mask = qa.bitwiseAnd(cloud_shadow_bitmask).eq(0) \
+            .And(qa.bitwiseAnd(clouds_bitmask).eq(0)) \
+            .And(qa.bitwiseAnd(dilated_cloud_bitmask).eq(0))
+            
+        return img.updateMask(mask).select([band_name], ['OPTICAL_BAND'])
+
+    l_masked = l_col.map(mask_clouds)
+
+    def get_date(img):
+        return ee.Feature(None, {'date': img.date().format('yyyy-MM-dd')})
+    
+    raw_dates = l_masked.map(get_date).aggregate_array('date').getInfo()
+    unique_dates = sorted(list(set(raw_dates)))
+
+    composite = l_masked.select('OPTICAL_BAND').median().multiply(10000).toUint16().clip(ee_roi)
+    file_name = f"{title}_Landsat_{band_name}_{stage}_{start_date}_to_{end_date}"
+    
+    task = ee.batch.Export.image.toCloudStorage(
+        image=composite,
+        description=file_name,
+        bucket=gcs_bucket,
+        fileNamePrefix=f"COSEIS_Composites/{title}/{file_name}",
+        region=ee_roi,
+        scale=scale, 
+        crs=crs_epsg,
+        maxPixels=1e13,
+        formatOptions={'cloudOptimized': True}
+    )
+    
+    task.start()
+    print(f"  Started GCS Export Task: {file_name} (CRS: {crs_epsg})")
+    print(f"  Included {len(unique_dates)} unique acquisition dates.")
     return task, unique_dates
 
 
@@ -2272,7 +2325,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
     :param resolution: Output resolution for the topsApp processing, default is 90m
-    :param sensor: 'sar' for SAR processing, 'optical' for optical processing
+    :param sensor: 'sar' for SAR processing, 'sentinel-2' or 'landsat' for optical processing
     :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if sensor is 'optical')
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
@@ -2289,6 +2342,12 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
         print("FFM URL found. Loading AOI from FFM GeoJSON...")
         # Load the FFM geometry
         aoi = load_aoi_from_json(ffm_url)
+        
+        # Buffer the FFM to capture the full deformation field 
+        # 0.5 degrees adds ~55km to all sides. .envelope forces it back to a clean rectangle.
+        buffer_deg = 0.15
+        aoi = aoi.buffer(buffer_deg).envelope
+        print(f"  -> Buffered FFM bounds by {buffer_deg} degrees to ensure coverage.")
 
     elif aoi:
         print("AOI provided. Using the provided AOI...")
@@ -2325,7 +2384,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                                                            title, pairing_mode, job_list, resolution)
             all_jobs.append(isce_jobs)
 
-    elif sensor == 'optical':
+    elif sensor in ['sentinel-2', 'landsat']:
         rupture_time = eq.get('time')
         rupture_dt = convert_time(rupture_time)
         
@@ -2346,88 +2405,103 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
         elif optical_backend == 'gee':
             print("Routing to Google Earth Engine backend...")
             
-            # Define temporal windows
+            # Define 60-day temporal windows
             rupture_dt = convert_time(rupture_time).replace(tzinfo=None)
-            pre_start = (rupture_dt - timedelta(days=60)).strftime('%Y-%m-%d') 
+            pre_start = (rupture_dt - timedelta(days=60)).strftime('%Y-%m-%d')
             pre_end = rupture_dt.strftime('%Y-%m-%d')
             
             post_start = rupture_dt.strftime('%Y-%m-%d')
-            post_end = (rupture_dt + timedelta(days=60)).strftime('%Y-%m-%d') 
+            post_end = (rupture_dt + timedelta(days=60)).strftime('%Y-%m-%d')
 
-            # Dynamically compute EPSG for outputs
             lon, lat = coords[0], coords[1]
             utm_zone = math.floor((lon + 180) / 6) + 1
             epsg_base = 32600 if lat >= 0 else 32700
             target_crs = f"EPSG:{epsg_base + utm_zone}"
             
+            # --- LANDSAT MISSION DECISION LOGIC ---
+            landsat_collection, landsat_band, landsat_scale = None, None, None
+            if sensor == 'landsat':
+                pre_dt = datetime.strptime(pre_start, '%Y-%m-%d')
+                post_dt = datetime.strptime(post_end, '%Y-%m-%d')
+
+                # Date Bookend Strategy to prevent cross-sensor pairs
+                if post_dt < datetime(2012, 1, 1):
+                    landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LT05/C02/T1_TOA', 'B2', 30
+                elif pre_dt >= datetime(2013, 4, 15):
+                    landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LC08/C02/T1_TOA', 'B8', 15
+                else:
+                    landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LE07/C02/T1_TOA', 'B8', 15
+                
+                print(f"  [Landsat Auto-Select] Assigned {landsat_collection} ({landsat_band}) at {landsat_scale}m resolution.")
+
+            # Create job_list, if applicable
             if job_list:
                 print(f"  Generating GEE Job payload for {title} (Skipping computation).")
                 gee_job = {
-                    "name": f"{title}-GEE_OPTICAL",
+                    "name": f"{title}-GEE_{sensor.upper()}",
                     "job_type": "GEE_OPTICAL_COSEIS",
                     "job_parameters": {
                         "event_title": title,
+                        "sensor": sensor,
                         "target_crs": target_crs,
                         "pre_start": pre_start,
                         "pre_end": pre_end,
                         "post_start": post_start,
-                        "post_end": post_end
+                        "post_end": post_end,
+                        # Inject Landsat parameters if applicable
+                        "landsat_collection": landsat_collection,
+                        "landsat_band": landsat_band,
+                        "landsat_scale": landsat_scale
                     }
                 }
-                # Return the job wrapped in nested lists to match the SAR output structure
                 return [[gee_job]], [{"type": "Feature", "geometry": mapping(aoi), "properties": {"title": title, "crs": target_crs}}]
 
-            # Check if composite already exists locally
+            # Execution logic
             local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
             manifest_path = os.path.join(local_dir, f"{title}_autorift_manifest.json")
             if os.path.exists(manifest_path):
                 print(f"  Data already downloaded for {title}. Skipping GEE computation.")
                 return [], []
             
-            # Fetch the bucket name from the environment
             gcs_bucket = os.getenv('COSEIS_GCS_BUCKET')
             if not gcs_bucket:
                 print("Error: COSEIS_GCS_BUCKET environment variable is not set.")
                 return [], []
 
-            # Initialize GEE and run the exports (Keep existing logic below...)
             try:
                 ee.Initialize()
             except Exception as e:
                 print("Earth Engine not authenticated. Run 'earthengine authenticate --auth_mode=notebook' in your terminal.")
                 raise e
 
-            # Define 30-day temporal windows
-            rupture_dt = convert_time(rupture_time).replace(tzinfo=None)
-            pre_start = (rupture_dt - timedelta(days=60)).strftime('%Y-%m-%d') # this was previously 30
-            pre_end = rupture_dt.strftime('%Y-%m-%d')
+            if sensor == 'sentinel-2':
+                print(f"Generating Pre-Event Sentinel-2 Composite...")
+                task_pre, pre_dates = export_gee_sentinel2_composite(
+                    aoi, pre_start, pre_end, title, "PRE", gcs_bucket, crs_epsg=target_crs
+                )
+                print(f"Generating Post-Event Sentinel-2 Composite...")
+                task_post, post_dates = export_gee_sentinel2_composite(
+                    aoi, post_start, post_end, title, "POST", gcs_bucket, crs_epsg=target_crs
+                )
             
-            post_start = rupture_dt.strftime('%Y-%m-%d')
-            post_end = (rupture_dt + timedelta(days=60)).strftime('%Y-%m-%d') # this was previously 30
-
-            # Dynamically compute EPSG for outputs
-            lon, lat = coords[0], coords[1]
-            utm_zone = math.floor((lon + 180) / 6) + 1
-            epsg_base = 32600 if lat >= 0 else 32700
-            target_crs = f"EPSG:{epsg_base + utm_zone}"
-            
-            print(f"\nDynamically calculated target CRS: {target_crs}")
-
-            # Start GEE Tasks
-            print(f"Generating Pre-Event Composite ({pre_start} to {pre_end})...")
-            task_pre, pre_dates = export_gee_composite(aoi, pre_start, pre_end, title, "PRE", gcs_bucket, crs_epsg=target_crs)
-            
-            print(f"Generating Post-Event Composite ({post_start} to {post_end})...")
-            task_post, post_dates = export_gee_composite(aoi, post_start, post_end, title, "POST", gcs_bucket, crs_epsg=target_crs)
+            elif sensor == 'landsat':
+                print(f"Generating Pre-Event Landsat Composite...")
+                task_pre, pre_dates = export_gee_landsat_composite(
+                    aoi, pre_start, pre_end, title, "PRE", gcs_bucket, landsat_collection,
+                    landsat_band, landsat_scale, crs_epsg=target_crs
+                )
+                print(f"Generating Post-Event Landsat Composite...")
+                task_post, post_dates = export_gee_landsat_composite(
+                    aoi, post_start, post_end, title, "POST", gcs_bucket, landsat_collection,
+                    landsat_band, landsat_scale, crs_epsg=target_crs
+                )
 
             # Wait for them to finish in Google Cloud Storage
             wait_for_gee_tasks([task_pre, task_post])
 
             # Download the files using a Prefix Search
             print("\nDownloading composites from Google Cloud Storage...")
-            local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
             
-            # Use the base description as the prefix (dropping the .tif extension)
             pre_prefix = f"COSEIS_Composites/{title}/{task_pre.config['description']}"
             post_prefix = f"COSEIS_Composites/{title}/{task_post.config['description']}"
             
@@ -2436,7 +2510,6 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
 
             print("\nStitching and Compressing Composites...")
             
-            # Use the original GEE task names to keep the exact date ranges!
             final_pre_path = os.path.join(local_dir, f"{task_pre.config['description']}.tif")
             final_post_path = os.path.join(local_dir, f"{task_post.config['description']}.tif")
             
@@ -2444,12 +2517,11 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             merge_and_compress_chips(post_local_paths, final_post_path)
 
             # Create the local manifest for AutoRIFT
-            manifest_path = os.path.join(local_dir, f"{title}_autorift_manifest.json")
             manifest_payload = {
                 "event_title": title,
                 "backend": "Google Earth Engine",
                 "pre_composite_path": final_pre_path,   
-                "post_composite_path": final_post_path,
+                "post_composite_path": final_post_path, 
                 "pre_dates_used": pre_dates,
                 "post_dates_used": post_dates,
                 "status": "DOWNLOADED_READY_FOR_AUTORIFT"
@@ -2460,7 +2532,6 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 
             print(f"\nManifest written to: {manifest_path}")
 
-            # Return empty lists since we bypass the traditional HYP3 job queue
             return [], []
         
         if s2_jobs:
@@ -2499,8 +2570,6 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     except ImportError as e:
         print(f"Could not import plot_maps: {e}")
         return None, None, None, None
-    
-    from datetime import date
 
     min_lon, min_lat, max_lon, max_lat = AOI.bounds
     bbox = [str(min_lat), str(max_lat), str(min_lon), str(max_lon)]
@@ -2954,7 +3023,8 @@ if __name__ == "__main__":
     parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for SAR processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
     parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
-    parser.add_argument("--sensor", choices=["sar", "optical"], default="sar", help="Sensor: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
+    parser.add_argument("--sensor", choices=["sar", "sentinel-2", "landsat"], default="sar", 
+                        help="Sensor: 'sar' (Sentinel-1), 'sentinel-2', or 'landsat'. Default is sar.")
     parser.add_argument("--do_processing", action="store_true", help="Execute local topsApp processing.")
     parser.add_argument("--send_email", action="store_true", help="Send email notifications.")
     parser.add_argument("--optical_backend", choices=["copernicus", "element84", "gee"], default="copernicus", help="Specify the optical data provider if sensor is optical. Default is copernicus.")
@@ -2963,7 +3033,7 @@ if __name__ == "__main__":
 
     # Global constraint check
     if args.sensor == 'sar' and '--optical_backend' in sys.argv:
-        print("Error: --optical_backend can only be used when --sensor is 'optical'.")
+        print("Error: --optical_backend can only be used when --sensor is 'sentinel-2' or 'landsat'.")
         parser.print_help()
         exit(1)
         
@@ -3006,9 +3076,6 @@ if __name__ == "__main__":
         if not args.do_processing and not args.send_email:
             print("Warning: Running --forward without --do_processing or --send_email. The script will only update tracking files.")
 
-        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, sensor=args.sensor, optical_backend=args.optical_backend)
-
-    elif args.forward:
         if args.job_list:
             print("Error: --job_list is only supported in --historic mode.")
             parser.print_help()
