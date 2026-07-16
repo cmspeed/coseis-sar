@@ -11,6 +11,7 @@ import json
 import folium
 import geojson
 import geopandas as gpd
+import glob
 import csv
 from shapely import wkt
 from shapely.geometry import mapping, shape, box, Point, Polygon, LineString, MultiLineString, MultiPolygon
@@ -42,7 +43,7 @@ root_dir = os.path.join(os.getcwd(), "data")
 # Global variables
 OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
 
-TRACKING_FILE = "active_job_tracking.json"
+TRACKING_DIR = "active_jobs"
 
 def get_recipients_from_env(var_name):
     """
@@ -58,20 +59,39 @@ SECONDARY_RECIPIENTS = get_recipients_from_env('COSEIS_SECONDARY_RECIPIENTS')
 TERTIARY_RECIPIENTS = get_recipients_from_env('COSEIS_TERTIARY_RECIPIENTS')
 
 def load_tracker():
-    """Loads the active job tracking file."""
-    if not os.path.exists(TRACKING_FILE):
-        return {}
-    try:
-        with open(TRACKING_FILE, "r") as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        return {}
-
+    """Loads all active jobs from the tracking directory."""
+    tracker = {}
+    if not os.path.exists(TRACKING_DIR):
+        os.makedirs(TRACKING_DIR, exist_ok=True)
+        return tracker
+    
+    for file in glob.glob(os.path.join(TRACKING_DIR, "*.json")):
+        try:
+            with open(file, "r") as f:
+                event_data = json.load(f)
+                # The filename (minus .json) is the event_id
+                event_id = os.path.basename(file).replace('.json', '')
+                tracker[event_id] = event_data
+        except json.JSONDecodeError:
+            continue
+    return tracker
 
 def save_tracker(data):
-    """Saves the active job tracking file."""
-    with open(TRACKING_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    """Saves the tracking data back to individual files."""
+    if not os.path.exists(TRACKING_DIR):
+        os.makedirs(TRACKING_DIR, exist_ok=True)
+        
+    # Save current tracker state to individual files
+    for event_id, event_data in data.items():
+        file_path = os.path.join(TRACKING_DIR, f"{event_id}.json")
+        with open(file_path, "w") as f:
+            json.dump(event_data, f, indent=4)
+            
+    # Remove files for events that are no longer in the tracker dictionary
+    for file in glob.glob(os.path.join(TRACKING_DIR, "*.json")):
+        event_id = os.path.basename(file).replace('.json', '')
+        if event_id not in data:
+            os.remove(file)
 
 
 def add_to_tracker(eq, aoi, resolution=90):
@@ -1896,10 +1916,9 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
         print("Running cronjob to check for new earthquakes...")
         print('=========================================')
         
-        # Initialize the tracking file if it doesn't exist
-        if not os.path.exists(TRACKING_FILE):
-            with open(TRACKING_FILE, 'w') as f:
-                json.dump({}, f)
+        # Initialize the tracking directory if it doesn't exist
+        if not os.path.exists(TRACKING_DIR):
+            os.makedirs(TRACKING_DIR, exist_ok=True)
 
         if not process_only:
             # Check for New Earthquakes over 48-hour window to ensre no events are missed due to API delays

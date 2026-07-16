@@ -1,0 +1,53 @@
+{
+    "title": "m_67_43_km_ese_of_palu_indonesia",
+    "time": 1781580464418,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    119.699,
+                    -1.6173
+                ],
+                [
+                    120.699,
+                    -1.6173
+                ],
+                [
+                    120.699,
+                    -0.6173
+                ],
+                [
+                    119.699,
+                    -0.6173
+                ],
+                [
+                    119.699,
+                    -1.6173
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_136": {
+            "flight_direction": "DESCENDING",
+            "path_number": 136,
+            "frame_numbers": [
+                596
+            ],
+            "partial_job_file": "job_m_67_43_km_ese_of_palu_indonesia_DESCENDING_136_partial.json",
+            "reference_date": "2026-06-08",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_34": {
+            "flight_direction": "DESCENDING",
+            "path_number": 34,
+            "frame_numbers": [
+                595
+            ],
+            "partial_job_file": "job_m_67_43_km_ese_of_palu_indonesia_DESCENDING_34_partial.json",
+            "reference_date": "2026-06-01",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

@@ -50,8 +50,8 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          # Stage the JSON file, the new partial jobs, and the maps directory
-          git add scripts/active_job_tracking.json || true
+          # Stage the tracking directory (catches additions, edits, and deletions), partial jobs, and maps
+          git add scripts/active_jobs/ || true
           git add scripts/*_partial.json || true
           git add docs/maps/*.html || true          
           

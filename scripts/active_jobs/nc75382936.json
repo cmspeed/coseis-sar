@@ -1,0 +1,45 @@
+{
+    "title": "m_56_11_km_n_of_redwood_valley_ca",
+    "time": 1782313840770,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -123.729331970215,
+                    38.8636665344238
+                ],
+                [
+                    -122.729331970215,
+                    38.8636665344238
+                ],
+                [
+                    -122.729331970215,
+                    39.8636665344238
+                ],
+                [
+                    -123.729331970215,
+                    39.8636665344238
+                ],
+                [
+                    -123.729331970215,
+                    38.8636665344238
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_35": {
+            "flight_direction": "ASCENDING",
+            "path_number": 35,
+            "frame_numbers": [
+                128,
+                123,
+                125
+            ],
+            "partial_job_file": "job_m_56_11_km_n_of_redwood_valley_ca_ASCENDING_35_partial.json",
+            "reference_date": "2026-06-19",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

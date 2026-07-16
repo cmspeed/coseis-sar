@@ -1,0 +1,44 @@
+{
+    "title": "m_63_260_km_sse_of_dunhuang_china",
+    "time": 1781600815226,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    94.9028,
+                    37.3888
+                ],
+                [
+                    95.9028,
+                    37.3888
+                ],
+                [
+                    95.9028,
+                    38.3888
+                ],
+                [
+                    94.9028,
+                    38.3888
+                ],
+                [
+                    94.9028,
+                    37.3888
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_172": {
+            "flight_direction": "ASCENDING",
+            "path_number": 172,
+            "frame_numbers": [
+                122,
+                117
+            ],
+            "partial_job_file": "job_m_63_260_km_sse_of_dunhuang_china_ASCENDING_172_partial.json",
+            "reference_date": "2026-06-11",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
