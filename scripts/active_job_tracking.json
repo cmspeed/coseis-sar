@@ -6,26 +6,11 @@
             "type": "Polygon",
             "coordinates": [
                 [
-                    [
-                        89.2236,
-                        27.1243
-                    ],
-                    [
-                        90.2236,
-                        27.1243
-                    ],
-                    [
-                        90.2236,
-                        28.1243
-                    ],
-                    [
-                        89.2236,
-                        28.1243
-                    ],
-                    [
-                        89.2236,
-                        27.1243
-                    ]
+                    [89.2236, 27.1243],
+                    [90.2236, 27.1243],
+                    [90.2236, 28.1243],
+                    [89.2236, 28.1243],
+                    [89.2236, 27.1243]
                 ]
             ]
         },
@@ -33,10 +18,7 @@
             "DESCENDING_50": {
                 "flight_direction": "DESCENDING",
                 "path_number": 50,
-                "frame_numbers": [
-                    498,
-                    503
-                ],
+                "frame_numbers": [498, 503],
                 "partial_job_file": "job_m_56_15_km_wnw_of_punakha_bhutan_DESCENDING_50_partial.json",
                 "reference_date": "2026-06-02",
                 "status": "AWAITING_POST_SEISMIC"
@@ -50,26 +32,11 @@
             "type": "Polygon",
             "coordinates": [
                 [
-                    [
-                        -72.2406,
-                        -28.3038
-                    ],
-                    [
-                        -71.2406,
-                        -28.3038
-                    ],
-                    [
-                        -71.2406,
-                        -27.3038
-                    ],
-                    [
-                        -72.2406,
-                        -27.3038
-                    ],
-                    [
-                        -72.2406,
-                        -28.3038
-                    ]
+                    [-72.2406, -28.3038],
+                    [-71.2406, -28.3038],
+                    [-71.2406, -27.3038],
+                    [-72.2406, -27.3038],
+                    [-72.2406, -28.3038]
                 ]
             ]
         },
@@ -77,9 +44,7 @@
             "DESCENDING_56": {
                 "flight_direction": "DESCENDING",
                 "path_number": 56,
-                "frame_numbers": [
-                    686
-                ],
+                "frame_numbers": [686],
                 "partial_job_file": "job_m_55_128_km_nw_of_vallenar_chile_DESCENDING_56_partial.json",
                 "reference_date": "2026-06-03",
                 "status": "AWAITING_POST_SEISMIC"
@@ -93,26 +58,11 @@
             "type": "Polygon",
             "coordinates": [
                 [
-                    [
-                        119.699,
-                        -1.6173
-                    ],
-                    [
-                        120.699,
-                        -1.6173
-                    ],
-                    [
-                        120.699,
-                        -0.6173
-                    ],
-                    [
-                        119.699,
-                        -0.6173
-                    ],
-                    [
-                        119.699,
-                        -1.6173
-                    ]
+                    [119.699, -1.6173],
+                    [120.699, -1.6173],
+                    [120.699, -0.6173],
+                    [119.699, -0.6173],
+                    [119.699, -1.6173]
                 ]
             ]
         },
@@ -120,9 +70,7 @@
             "DESCENDING_136": {
                 "flight_direction": "DESCENDING",
                 "path_number": 136,
-                "frame_numbers": [
-                    596
-                ],
+                "frame_numbers": [596],
                 "partial_job_file": "job_m_67_43_km_ese_of_palu_indonesia_DESCENDING_136_partial.json",
                 "reference_date": "2026-06-08",
                 "status": "AWAITING_POST_SEISMIC"
@@ -130,9 +78,7 @@
             "DESCENDING_34": {
                 "flight_direction": "DESCENDING",
                 "path_number": 34,
-                "frame_numbers": [
-                    595
-                ],
+                "frame_numbers": [595],
                 "partial_job_file": "job_m_67_43_km_ese_of_palu_indonesia_DESCENDING_34_partial.json",
                 "reference_date": "2026-06-01",
                 "status": "AWAITING_POST_SEISMIC"
@@ -146,26 +92,11 @@
             "type": "Polygon",
             "coordinates": [
                 [
-                    [
-                        94.9028,
-                        37.3888
-                    ],
-                    [
-                        95.9028,
-                        37.3888
-                    ],
-                    [
-                        95.9028,
-                        38.3888
-                    ],
-                    [
-                        94.9028,
-                        38.3888
-                    ],
-                    [
-                        94.9028,
-                        37.3888
-                    ]
+                    [94.9028, 37.3888],
+                    [95.9028, 37.3888],
+                    [95.9028, 38.3888],
+                    [94.9028, 38.3888],
+                    [94.9028, 37.3888]
                 ]
             ]
         },
@@ -173,16 +104,10 @@
             "ASCENDING_172": {
                 "flight_direction": "ASCENDING",
                 "path_number": 172,
-                "frame_numbers": [
-                    122,
-                    117
-                ],
+                "frame_numbers": [122, 117],
                 "partial_job_file": "job_m_63_260_km_sse_of_dunhuang_china_ASCENDING_172_partial.json",
                 "reference_date": "2026-06-11",
-                "status": "FAILED_NEEDS_ATTENTION",
-                "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1D_IW_SLC__1SDV_20260623T113439_20260623T113506_003363_005E90_3824', '--secondary-scenes', 'S1D_IW_SLC__1SDV_20260611T113503_20260611T113539_003188_0058DC_3EEF S1D_IW_SLC__1SDV_20260611T113438_20260611T113505_003188_0058DC_A497', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
-                "dates": "2026-06-11 (Pre) - 2026-06-23 (Post)",
-                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_63_260_km_sse_of_dunhuang_china/ASCENDING172/coseismic/ASCENDING172_20260611_20260623"
+                "status": "AWAITING_POST_SEISMIC"
             }
         }
     },
@@ -193,26 +118,11 @@
             "type": "Polygon",
             "coordinates": [
                 [
-                    [
-                        -123.729331970215,
-                        38.8636665344238
-                    ],
-                    [
-                        -122.729331970215,
-                        38.8636665344238
-                    ],
-                    [
-                        -122.729331970215,
-                        39.8636665344238
-                    ],
-                    [
-                        -123.729331970215,
-                        39.8636665344238
-                    ],
-                    [
-                        -123.729331970215,
-                        38.8636665344238
-                    ]
+                    [-123.729331970215, 38.8636665344238],
+                    [-122.729331970215, 38.8636665344238],
+                    [-122.729331970215, 39.8636665344238],
+                    [-123.729331970215, 39.8636665344238],
+                    [-123.729331970215, 38.8636665344238]
                 ]
             ]
         },
@@ -220,17 +130,10 @@
             "ASCENDING_35": {
                 "flight_direction": "ASCENDING",
                 "path_number": 35,
-                "frame_numbers": [
-                    128,
-                    123,
-                    125
-                ],
+                "frame_numbers": [128, 123, 125],
                 "partial_job_file": "job_m_56_11_km_n_of_redwood_valley_ca_ASCENDING_35_partial.json",
                 "reference_date": "2026-06-19",
-                "status": "FAILED_NEEDS_ATTENTION",
-                "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1D_IW_SLC__1SDV_20260626T020745_20260626T020812_003401_005FC7_67C0', '--secondary-scenes', 'S1A_IW_SLC__1SDV_20260619T020826_20260619T020853_065032_083249_A875 S1A_IW_SLC__1SDV_20260619T020801_20260619T020828_065032_083249_77A6', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
-                "dates": "2026-06-19 (Pre) - 2026-06-26 (Post)",
-                "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_11_km_n_of_redwood_valley_ca/ASCENDING035/coseismic/ASCENDING035_20260619_20260626"
+                "status": "AWAITING_POST_SEISMIC"
             }
         }
     }
