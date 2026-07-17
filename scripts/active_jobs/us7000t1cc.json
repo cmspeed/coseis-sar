@@ -1,0 +1,54 @@
+{
+    "title": "m_60_90_km_sw_of_puerto_madero_mexico",
+    "time": 1784301606868,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -93.5929,
+                    13.7369
+                ],
+                [
+                    -92.5929,
+                    13.7369
+                ],
+                [
+                    -92.5929,
+                    14.7369
+                ],
+                [
+                    -93.5929,
+                    14.7369
+                ],
+                [
+                    -93.5929,
+                    13.7369
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_34": {
+            "flight_direction": "ASCENDING",
+            "path_number": 34,
+            "frame_numbers": [
+                44,
+                38
+            ],
+            "partial_job_file": "job_m_60_90_km_sw_of_puerto_madero_mexico_ASCENDING_34_partial.json",
+            "reference_date": "2026-07-08",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_99": {
+            "flight_direction": "DESCENDING",
+            "path_number": 99,
+            "frame_numbers": [
+                544
+            ],
+            "partial_job_file": "job_m_60_90_km_sw_of_puerto_madero_mexico_DESCENDING_99_partial.json",
+            "reference_date": "2026-06-23",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
