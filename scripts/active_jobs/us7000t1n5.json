@@ -1,0 +1,44 @@
+{
+    "title": "m_57_72_km_sw_of_puerto_madero_mexico",
+    "time": 1784395585879,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -93.3805,
+                    13.7392
+                ],
+                [
+                    -92.3805,
+                    13.7392
+                ],
+                [
+                    -92.3805,
+                    14.7392
+                ],
+                [
+                    -93.3805,
+                    14.7392
+                ],
+                [
+                    -93.3805,
+                    13.7392
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_34": {
+            "flight_direction": "ASCENDING",
+            "path_number": 34,
+            "frame_numbers": [
+                44,
+                38
+            ],
+            "partial_job_file": "job_m_57_72_km_sw_of_puerto_madero_mexico_ASCENDING_34_partial.json",
+            "reference_date": "2026-07-08",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
