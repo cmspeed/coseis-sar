@@ -1,0 +1,78 @@
+{
+    "title": "m_55_2_km_wsw_of_sicaya_peru",
+    "time": 1784427876324,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -75.8013,
+                    -12.5429
+                ],
+                [
+                    -74.8013,
+                    -12.5429
+                ],
+                [
+                    -74.8013,
+                    -11.5429
+                ],
+                [
+                    -75.8013,
+                    -11.5429
+                ],
+                [
+                    -75.8013,
+                    -12.5429
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_171": {
+            "flight_direction": "DESCENDING",
+            "path_number": 171,
+            "frame_numbers": [
+                635,
+                630,
+                631
+            ],
+            "partial_job_file": "job_m_55_2_km_wsw_of_sicaya_peru_DESCENDING_171_partial.json",
+            "reference_date": "2026-07-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_98": {
+            "flight_direction": "DESCENDING",
+            "path_number": 98,
+            "frame_numbers": [
+                628
+            ],
+            "partial_job_file": "job_m_55_2_km_wsw_of_sicaya_peru_DESCENDING_98_partial.json",
+            "reference_date": "2026-06-30",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_120": {
+            "flight_direction": "ASCENDING",
+            "path_number": 120,
+            "frame_numbers": [
+                1140,
+                1142,
+                1135
+            ],
+            "partial_job_file": "job_m_55_2_km_wsw_of_sicaya_peru_ASCENDING_120_partial.json",
+            "reference_date": "2026-07-01",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_18": {
+            "flight_direction": "ASCENDING",
+            "path_number": 18,
+            "frame_numbers": [
+                1139,
+                1134
+            ],
+            "partial_job_file": "job_m_55_2_km_wsw_of_sicaya_peru_ASCENDING_18_partial.json",
+            "reference_date": "2026-06-30",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

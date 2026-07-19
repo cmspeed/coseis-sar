@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_55_2_km_wsw_of_sicaya_peru-ASCENDING18",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20260630T233312_20260630T233339_008341_01081E_AC6C",
+                "S1C_IW_SLC__1SDV_20260630T233247_20260630T233314_008341_01081E_B6BC"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
