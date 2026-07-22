@@ -1,6 +1,7 @@
 import re
 import unicodedata
 import os
+from osgeo import gdal
 import argparse
 import asf_search as asf
 from dateutil import parser as dateparser
@@ -2159,8 +2160,16 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
     raw_dates = s2_masked.map(get_date).aggregate_array('date').getInfo()
     unique_dates = sorted(list(set(raw_dates)))
 
-    # Generate the composite
-    composite = s2_masked.select('B8').median().clip(ee_roi).toUint16()
+    # Calculate median per orbit to avoid artifacts from mosaicking different orbits
+    distinct_orbits = ee.List(s2_masked.aggregate_array('SENSING_ORBIT_NUMBER')).distinct()
+    
+    def median_by_orbit(orbit):
+        # Filter the collection to a single orbit, then calculate its median
+        return s2_masked.filter(ee.Filter.eq('SENSING_ORBIT_NUMBER', orbit)).median()
+        
+    # Map the function over all distinct orbits, then mosaic them side-by-side
+    orbit_medians = ee.ImageCollection.fromImages(distinct_orbits.map(median_by_orbit))
+    composite = orbit_medians.mosaic().select('B8').toUint16().clip(ee_roi)
 
     # Create Export Task
     file_name = f"{title}_S2_B8_{stage}_{start_date}_to_{end_date}"
@@ -2186,9 +2195,33 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
 
 
 def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, collection_id, band_name, scale, crs_epsg='EPSG:4326'):
-    """Generates a cloud-free median TOA composite for the explicitly provided Landsat mission."""
+    """Generates a cloud-free median TOA composite for the explicitly provided Landsat mission.
+    :param aoi_polygon: Shapely Polygon representing the Area of Interest
+    :param start_date: Start date for the image collection filter (YYYY-MM-DD)
+    :param end_date: End date for the image collection filter (YYYY-MM-DD)
+    :param title: Title of the earthquake event (used for file naming)
+    :param stage: 'pre-event' or 'post-event' to indicate the timing of the composite
+    :param gcs_bucket: Name of the Google Cloud Storage bucket to export the composite
+    :param collection_id: Landsat collection ID (e.g., 'LANDSAT/LC08/C02/T1_L2')
+    :param band_name: Name of the optical band to export (e.g., 'SR_B4' for Landsat 8 Red)
+    :param scale: Scale in meters for the export (e.g., 30 for Landsat)
+    :param crs_epsg: EPSG code for the coordinate reference system to use in the export (default is 'EPSG:4326')
+    :return: The GEE export task object and a list of unique acquisition dates
+    """
     bounds = aoi_polygon.bounds
     ee_roi = ee.Geometry.Rectangle([bounds[0], bounds[1], bounds[2], bounds[3]])
+
+    # Determine Landsat Mission from collection_id for dynamic file naming
+    if 'LT05' in collection_id:
+        mission_name = 'Landsat5'
+    elif 'LE07' in collection_id:
+        mission_name = 'Landsat7'
+    elif 'LC08' in collection_id:
+        mission_name = 'Landsat8'
+    elif 'LC09' in collection_id:
+        mission_name = 'Landsat9'
+    else:
+        mission_name = 'Landsat'
 
     # Query the explicit collection passed into the function
     l_col = ee.ImageCollection(collection_id) \
@@ -2217,8 +2250,31 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
     raw_dates = l_masked.map(get_date).aggregate_array('date').getInfo()
     unique_dates = sorted(list(set(raw_dates)))
 
-    composite = l_masked.select('OPTICAL_BAND').median().multiply(10000).toUint16().clip(ee_roi)
-    file_name = f"{title}_Landsat_{band_name}_{stage}_{start_date}_to_{end_date}"
+    # Calculate median per path to avoid artifacts from mosaicking different paths
+    distinct_paths = ee.List(l_masked.aggregate_array('WRS_PATH')).distinct()
+    
+    def median_by_path(path):
+        # Filter the collection to a single path, then calculate its median
+        return l_masked.filter(ee.Filter.eq('WRS_PATH', path)).median()
+        
+    # Map the function over all distinct paths, then mosaic them side-by-side
+    # path_medians = ee.ImageCollection.fromImages(distinct_paths.map(median_by_path))
+    # composite_raw = path_medians.mosaic().select('OPTICAL_BAND').clip(ee_roi)
+
+    # Blend overlapping track edges seamlessly at the pixel level
+    composite_raw = l_masked.median().select('OPTICAL_BAND').clip(ee_roi)
+    
+    # Scale based on the collection type to ensure autoRIFT gets clean uint16
+    if 'TOA' in collection_id:
+        # TOA is stored as floats (0.0 to 1.0+). Multiply to scale up.
+        composite = composite_raw.multiply(10000).toUint16()
+    else:
+        # Raw DNs are already neat, clean integers (8-bit for L5, 12-bit for L8).
+        # We unmask to 0 to make our background crisp and cast directly.
+        composite = composite_raw.unmask(0).toUint16()
+
+    # Use the dynamic mission_name in the file export
+    file_name = f"{title}_{mission_name}_{band_name}_{stage}_{start_date}_to_{end_date}"
     
     task = ee.batch.Export.image.toCloudStorage(
         image=composite,
@@ -2318,7 +2374,24 @@ def merge_and_compress_chips(chip_paths, output_path):
     return output_path
 
 
-def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='sar', optical_backend='copernicus'):
+def assign_nodata(filepath, nodata_val=0):
+    """
+    Opens the specified GeoTIFF and explicitly writes the NoData 
+    value into the metadata header.
+    """
+    ds = gdal.Open(filepath, gdal.GA_Update)
+    if ds is not None:
+        band = ds.GetRasterBand(1)
+        if band.GetNoDataValue() is None:
+            band.SetNoDataValue(nodata_val)
+        # FlushCache ensures the metadata is written securely to disk
+        ds.FlushCache()
+        ds = None
+    else:
+        print(f"Warning: Could not open {filepath} to assign NoData value.")
+
+
+def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='sar', optical_backend='copernicus', landsat_level='raw'):
     """
     Process earthquake event and generate the necessary SLC pairs for InSAR processing.
     :param eq: dictionary containing earthquake data
@@ -2408,12 +2481,12 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             
             # Define 60-day temporal windows
             rupture_dt = convert_time(rupture_time).replace(tzinfo=None)
-            pre_start = (rupture_dt - timedelta(days=60)).strftime('%Y-%m-%d')
+            pre_start = (rupture_dt - timedelta(days=90)).strftime('%Y-%m-%d')
             
             # Keep exact UTC time for the rupture boundaries
             pre_end = rupture_dt.strftime('%Y-%m-%dT%H:%M:%S')
             post_start = rupture_dt.strftime('%Y-%m-%dT%H:%M:%S')
-            post_end = (rupture_dt + timedelta(days=60)).strftime('%Y-%m-%d')
+            post_end = (rupture_dt + timedelta(days=90)).strftime('%Y-%m-%d')
 
             lon, lat = coords[0], coords[1]
             utm_zone = math.floor((lon + 180) / 6) + 1
@@ -2422,19 +2495,32 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             
             # --- LANDSAT MISSION DECISION LOGIC ---
             landsat_collection, landsat_band, landsat_scale = None, None, None
-            if sensor == 'landsat':
+            landsat_collection, landsat_band, landsat_scale = None, None, None
+    
+            if sensor == 'landsat' and optical_backend == 'gee':
                 pre_dt = datetime.strptime(pre_start, '%Y-%m-%d')
                 post_dt = datetime.strptime(post_end, '%Y-%m-%d')
-
-                # Date Bookend Strategy to prevent cross-sensor pairs
-                if post_dt < datetime(2012, 1, 1):
-                    landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LT05/C02/T1_TOA', 'B2', 30
-                elif pre_dt >= datetime(2013, 4, 15):
-                    landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LC08/C02/T1_TOA', 'B8', 15
-                else:
-                    landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LE07/C02/T1_TOA', 'B8', 15
                 
-                print(f"  [Landsat Auto-Select] Assigned {landsat_collection} ({landsat_band}) at {landsat_scale}m resolution.")
+                mission = 'L5'
+                if post_dt < datetime(2012, 1, 1):
+                    mission = 'L5'
+                elif pre_dt >= datetime(2013, 4, 15):
+                    mission = 'L8'
+                else:
+                    mission = 'L7'
+
+                # Force handling of raw vs standard TOA levels
+                if landsat_level.lower() == 'raw':
+                    if mission == 'L5': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LT05/C02/T1', 'B2', 30
+                    if mission == 'L7': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LE07/C02/T1', 'B8', 15
+                    if mission == 'L8': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LC08/C02/T1', 'B8', 15
+                else:
+                    landsat_level = 'toa'
+                    if mission == 'L5': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LT05/C02/T1_TOA', 'B2', 30
+                    if mission == 'L7': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LE07/C02/T1_TOA', 'B8', 15
+                    if mission == 'L8': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LC08/C02/T1_TOA', 'B8', 15
+                
+                print(f"  [Landsat Setup] Level: {landsat_level.upper()} | Collection: {landsat_collection} | Band: {landsat_band}")
 
             # Create job_list, if applicable
             if job_list:
@@ -2515,8 +2601,14 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             final_pre_path = os.path.join(local_dir, f"{task_pre.config['description']}.tif")
             final_post_path = os.path.join(local_dir, f"{task_post.config['description']}.tif")
             
+            # Stitch the downloaded GEE chips into single files
             merge_and_compress_chips(pre_local_paths, final_pre_path)
             merge_and_compress_chips(post_local_paths, final_post_path)
+
+            # Explicitly assign the NoData value to the final files
+            print("Assigning NoData values to the composite headers...")
+            assign_nodata(final_pre_path, nodata_val=0)
+            assign_nodata(final_post_path, nodata_val=0)
 
             # Create the local manifest for AutoRIFT
             manifest_payload = {
