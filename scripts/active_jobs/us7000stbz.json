@@ -38,7 +38,10 @@
             ],
             "partial_job_file": "job_m_63_260_km_sse_of_dunhuang_china_ASCENDING_172_partial.json",
             "reference_date": "2026-06-11",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-06-11 (Pre) - 2026-06-23 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_63_260_km_sse_of_dunhuang_china/ASCENDING172/coseismic/ASCENDING172_20260611_20260623"
         }
     }
 }

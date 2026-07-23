@@ -39,7 +39,10 @@
             ],
             "partial_job_file": "job_m_56_11_km_n_of_redwood_valley_ca_ASCENDING_35_partial.json",
             "reference_date": "2026-06-19",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-06-19 (Pre) - 2026-06-26 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_11_km_n_of_redwood_valley_ca/ASCENDING035/coseismic/ASCENDING035_20260619_20260626"
         }
     }
 }
