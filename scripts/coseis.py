@@ -2139,7 +2139,7 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
     ee_roi = ee.Geometry.Rectangle([bounds[0], bounds[1], bounds[2], bounds[3]])
 
     # Query the S2 Harmonized Collection
-    s2_col = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED') \
+    s2_col = ee.ImageCollection('COPERNICUS/S2_HARMONIZED') \
         .filterBounds(ee_roi) \
         .filterDate(start_date, end_date)
 
