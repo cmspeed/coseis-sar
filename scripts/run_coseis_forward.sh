@@ -33,11 +33,12 @@ git pull --rebase origin main
 python coseis.py --forward --pairing coseismic --do_processing --process_only >> log_tracking.txt 2>&1
 
 # Sync with Github 
-# Add the updated tracker JSON
-git add active_job_tracking.json
+# Add the updated tracking directory (catches edits to existing jobs)
+git add active_jobs/ || true
 
 # Stage any partial files that the python script deleted locally
 git add -u "*_partial.json" || true
+
 if ! git diff --cached --quiet; then
     git commit -m "Local processing: update COSEIS tracking state and remove finished partials [skip ci]"
     git pull --rebase origin main
