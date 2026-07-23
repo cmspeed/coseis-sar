@@ -2153,45 +2153,63 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
 
     s2_masked = s2_linked.map(mask_clouds)
 
-    # Map over the collection to get just the date strings, then pull to local machine
-    def get_date(img):
-        return ee.Feature(None, {'date': img.date().format("yyyy-MM-dd'T'HH:mm:ss")})
+    # Fetch distinct orbits intersecting the AOI to the local Python environment
+    distinct_orbits = ee.List(s2_masked.aggregate_array('SENSING_ORBIT_NUMBER')).distinct().getInfo()
     
-    raw_dates = s2_masked.map(get_date).aggregate_array('date').getInfo()
-    unique_dates = sorted(list(set(raw_dates)))
+    if not distinct_orbits:
+        print(f"  No Sentinel-2 data found for {stage} between {start_date} and {end_date}.")
+        return {}, []
 
-    # Calculate median per orbit to avoid artifacts from mosaicking different orbits
-    distinct_orbits = ee.List(s2_masked.aggregate_array('SENSING_ORBIT_NUMBER')).distinct()
+    print(f"  Found {len(distinct_orbits)} distinct SENSING_ORBIT_NUMBER(s): {distinct_orbits}")
     
-    def median_by_orbit(orbit):
-        # Filter the collection to a single orbit, then calculate its median
-        return s2_masked.filter(ee.Filter.eq('SENSING_ORBIT_NUMBER', orbit)).median()
+    orbit_exports = {}
+    all_unique_dates = []
+
+    # Iterate over each distinct orbit
+    for orbit in distinct_orbits:
+        orbit_col = s2_masked.filter(ee.Filter.eq('SENSING_ORBIT_NUMBER', orbit))
         
-    # Map the function over all distinct orbits, then mosaic them side-by-side
-    orbit_medians = ee.ImageCollection.fromImages(distinct_orbits.map(median_by_orbit))
-    composite = orbit_medians.mosaic().select('B8').toUint16().clip(ee_roi)
+        def get_date(img):
+            return ee.Feature(None, {'date': img.date().format("yyyy-MM-dd'T'HH:mm:ss")})
+        
+        raw_dates = orbit_col.map(get_date).aggregate_array('date').getInfo()
+        orbit_dates = sorted(list(set(raw_dates)))
+        all_unique_dates.extend(orbit_dates)
+        
+        # Calculate median for JUST this orbit
+        composite = orbit_col.median().select('B8').toUint16().clip(ee_roi)
 
-    # Create Export Task
-    file_name = f"{title}_S2_B8_{stage}_{start_date}_to_{end_date}"
-    
-    task = ee.batch.Export.image.toCloudStorage(
-        image=composite,
-        description=file_name,
-        bucket=gcs_bucket,
-        fileNamePrefix=f"COSEIS_Composites/{title}/{file_name}",
-        region=ee_roi,
-        scale=10, 
-        crs=crs_epsg,
-        maxPixels=1e13,
-        formatOptions={'cloudOptimized': True}
-    )
-    
-    task.start()
-    print(f"  Started GCS Export Task: {file_name} (CRS: {crs_epsg})")
-    print(f"  Included {len(unique_dates)} unique acquisition dates.")
-    
-    # Return both the task and the dates
-    return task, unique_dates
+        # Clean up the start and end dates for file naming
+        clean_start = start_date.replace('T', '_').replace(':', '') + 'UTC' if 'T' in start_date else start_date + '_000000UTC'
+        clean_end = end_date.replace('T', '_').replace(':', '') + 'UTC' if 'T' in end_date else end_date + '_000000UTC'
+
+        # Create Export Task
+        file_name = f"{title}_S2_B8_{stage}_{clean_start}_to_{clean_end}"
+        prefix = f"COSEIS_Composites/{title}/{file_name}"
+        
+        task = ee.batch.Export.image.toCloudStorage(
+            image=composite,
+            description=file_name[:100],
+            bucket=gcs_bucket,
+            fileNamePrefix=prefix,
+            region=ee_roi,
+            scale=10, 
+            crs=crs_epsg,
+            maxPixels=1e13,
+            formatOptions={'cloudOptimized': True}
+        )
+        
+        task.start()
+        print(f"  Started GCS Export Task for Orbit {orbit}: {file_name}")
+        
+        orbit_exports[str(orbit)] = {
+            'task': task,
+            'gcs_uri': f"gs://{gcs_bucket}/{prefix}.tif",
+            'prefix': prefix,
+            'dates_included': orbit_dates
+        }
+
+    return orbit_exports, sorted(list(set(all_unique_dates)))
 
 
 def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, collection_id, band_name, scale, crs_epsg='EPSG:4326'):
@@ -2243,55 +2261,72 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
 
     l_masked = l_col.map(mask_clouds)
 
-    # Map over the collection to get just the date strings, then pull to local machine
-    def get_date(img):
-        return ee.Feature(None, {'date': img.date().format("yyyy-MM-dd'T'HH:mm:ss")})
+    # Fetch distinct paths intersecting the AOI to the local Python environment
+    # .getInfo() pulls the list from GEE servers to local execution
+    distinct_paths = ee.List(l_masked.aggregate_array('WRS_PATH')).distinct().getInfo()
     
-    raw_dates = l_masked.map(get_date).aggregate_array('date').getInfo()
-    unique_dates = sorted(list(set(raw_dates)))
+    if not distinct_paths:
+        print(f"  No Landsat data found for {stage} between {start_date} and {end_date}.")
+        return {}, []
 
-    # Calculate median per path to avoid artifacts from mosaicking different paths
-    distinct_paths = ee.List(l_masked.aggregate_array('WRS_PATH')).distinct()
+    print(f"  Found {len(distinct_paths)} distinct WRS_PATH(s): {distinct_paths}")
     
-    def median_by_path(path):
-        # Filter the collection to a single path, then calculate its median
-        return l_masked.filter(ee.Filter.eq('WRS_PATH', path)).median()
+    path_exports = {}
+    all_unique_dates = []
+
+    # Iterate over each distinct path to create independent composites and export tasks
+    for path in distinct_paths:
+        path_col = l_masked.filter(ee.Filter.eq('WRS_PATH', path))
         
-    # Map the function over all distinct paths, then mosaic them side-by-side
-    # path_medians = ee.ImageCollection.fromImages(distinct_paths.map(median_by_path))
-    # composite_raw = path_medians.mosaic().select('OPTICAL_BAND').clip(ee_roi)
+        # Map over the specific path collection to get acquisition dates
+        def get_date(img):
+            return ee.Feature(None, {'date': img.date().format("yyyy-MM-dd'T'HH:mm:ss")})
+        
+        raw_dates = path_col.map(get_date).aggregate_array('date').getInfo()
+        path_dates = sorted(list(set(raw_dates)))
+        all_unique_dates.extend(path_dates)
+        
+        # Calculate median for JUST this path to avoid cross-track blending
+        composite_raw = path_col.median().select('OPTICAL_BAND').clip(ee_roi)
+        
+        # Scale based on the collection type to ensure autoRIFT gets clean uint16
+        if 'TOA' in collection_id:
+            composite = composite_raw.multiply(10000).toUint16()
+        else:
+            composite = composite_raw.unmask(0).toUint16()
+        
+        # Clean up the start and end dates for file naming
+        clean_start = start_date.replace('T', '_').replace(':', '') + 'UTC' if 'T' in start_date else start_date + '_000000UTC'
+        clean_end = end_date.replace('T', '_').replace(':', '') + 'UTC' if 'T' in end_date else end_date + '_000000UTC'
 
-    # Blend overlapping track edges seamlessly at the pixel level
-    composite_raw = l_masked.median().select('OPTICAL_BAND').clip(ee_roi)
-    
-    # Scale based on the collection type to ensure autoRIFT gets clean uint16
-    if 'TOA' in collection_id:
-        # TOA is stored as floats (0.0 to 1.0+). Multiply to scale up.
-        composite = composite_raw.multiply(10000).toUint16()
-    else:
-        # Raw DNs are already neat, clean integers (8-bit for L5, 12-bit for L8).
-        # We unmask to 0 to make our background crisp and cast directly.
-        composite = composite_raw.unmask(0).toUint16()
+        # Include the specific WRS_PATH in the file name
+        file_name = f"{title}_{mission_name}_Path{path}_{band_name}_{stage}_{clean_start}_to_{clean_end}"
+        prefix = f"COSEIS_Composites/{title}/{file_name}"
+        
+        task = ee.batch.Export.image.toCloudStorage(
+            image=composite,
+            description=file_name[:100],
+            bucket=gcs_bucket,
+            fileNamePrefix=prefix,
+            region=ee_roi,
+            scale=scale, 
+            crs=crs_epsg,
+            maxPixels=1e13,
+            formatOptions={'cloudOptimized': True}
+        )
+        
+        task.start()
+        print(f"  Started GCS Export Task for Path {path}: {file_name}")
+        
+        # Store the task and metadata keyed by path string to build the manifest later
+        path_exports[str(path)] = {
+            'task': task,
+            'gcs_uri': f"gs://{gcs_bucket}/{prefix}.tif",
+            'prefix': prefix,
+            'dates_included': path_dates
+        }
 
-    # Use the dynamic mission_name in the file export
-    file_name = f"{title}_{mission_name}_{band_name}_{stage}_{start_date}_to_{end_date}"
-    
-    task = ee.batch.Export.image.toCloudStorage(
-        image=composite,
-        description=file_name,
-        bucket=gcs_bucket,
-        fileNamePrefix=f"COSEIS_Composites/{title}/{file_name}",
-        region=ee_roi,
-        scale=scale, 
-        crs=crs_epsg,
-        maxPixels=1e13,
-        formatOptions={'cloudOptimized': True}
-    )
-    
-    task.start()
-    print(f"  Started GCS Export Task: {file_name} (CRS: {crs_epsg})")
-    print(f"  Included {len(unique_dates)} unique acquisition dates.")
-    return task, unique_dates
+    return path_exports, sorted(list(set(all_unique_dates)))
 
 
 def wait_for_gee_tasks(tasks):
@@ -2379,7 +2414,9 @@ def assign_nodata(filepath, nodata_val=0):
     Opens the specified GeoTIFF and explicitly writes the NoData 
     value into the metadata header.
     """
-    ds = gdal.Open(filepath, gdal.GA_Update)
+    # Open the file in update mode, explicitly passing the open option to break COG layout
+    ds = gdal.OpenEx(filepath, gdal.OF_UPDATE, open_options=["IGNORE_COG_LAYOUT_BREAK=YES"])
+    
     if ds is not None:
         band = ds.GetRasterBand(1)
         if band.GetNoDataValue() is None:
@@ -2546,7 +2583,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
 
             # Execution logic
             local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
-            manifest_path = os.path.join(local_dir, f"{title}_autorift_manifest.json")
+            manifest_path = os.path.join(local_dir, f"{title}_{sensor}_autorift_manifest.json")
             if os.path.exists(manifest_path):
                 print(f"  Data already downloaded for {title}. Skipping GEE computation.")
                 return [], []
@@ -2563,59 +2600,74 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 raise e
 
             if sensor == 'sentinel-2':
-                print(f"Generating Pre-Event Sentinel-2 Composite...")
-                task_pre, pre_dates = export_gee_sentinel2_composite(
+                print(f"Generating Pre-Event Sentinel-2 Composites...")
+                pre_exports, pre_dates = export_gee_sentinel2_composite(
                     aoi, pre_start, pre_end, title, "PRE", gcs_bucket, crs_epsg=target_crs
                 )
-                print(f"Generating Post-Event Sentinel-2 Composite...")
-                task_post, post_dates = export_gee_sentinel2_composite(
+                print(f"Generating Post-Event Sentinel-2 Composites...")
+                post_exports, post_dates = export_gee_sentinel2_composite(
                     aoi, post_start, post_end, title, "POST", gcs_bucket, crs_epsg=target_crs
                 )
             
             elif sensor == 'landsat':
-                print(f"Generating Pre-Event Landsat Composite...")
-                task_pre, pre_dates = export_gee_landsat_composite(
+                print(f"Generating Pre-Event Landsat Composites...")
+                pre_exports, pre_dates = export_gee_landsat_composite(
                     aoi, pre_start, pre_end, title, "PRE", gcs_bucket, landsat_collection,
                     landsat_band, landsat_scale, crs_epsg=target_crs
                 )
-                print(f"Generating Post-Event Landsat Composite...")
-                task_post, post_dates = export_gee_landsat_composite(
+                print(f"Generating Post-Event Landsat Composites...")
+                post_exports, post_dates = export_gee_landsat_composite(
                     aoi, post_start, post_end, title, "POST", gcs_bucket, landsat_collection,
                     landsat_band, landsat_scale, crs_epsg=target_crs
                 )
 
-            # Wait for them to finish in Google Cloud Storage
-            wait_for_gee_tasks([task_pre, task_post])
+            # Extract task objects from the dictionaries to monitor them
+            all_tasks = [v['task'] for v in pre_exports.values()] + [v['task'] for v in post_exports.values()]
+            wait_for_gee_tasks(all_tasks)
 
             # Download the files using a Prefix Search
-            print("\nDownloading composites from Google Cloud Storage...")
+            print("\nDownloading independent track composites from Google Cloud Storage...")
+            track_pairs = {}
             
-            pre_prefix = f"COSEIS_Composites/{title}/{task_pre.config['description']}"
-            post_prefix = f"COSEIS_Composites/{title}/{task_post.config['description']}"
+            # Find the overlapping tracks that have both Pre and Post data
+            valid_tracks = set(pre_exports.keys()).intersection(set(post_exports.keys()))
             
-            pre_local_paths = download_from_gcs(gcs_bucket, pre_prefix, local_dir)
-            post_local_paths = download_from_gcs(gcs_bucket, post_prefix, local_dir)
-
-            print("\nStitching and Compressing Composites...")
-            
-            final_pre_path = os.path.join(local_dir, f"{task_pre.config['description']}.tif")
-            final_post_path = os.path.join(local_dir, f"{task_post.config['description']}.tif")
-            
-            # Stitch the downloaded GEE chips into single files
-            merge_and_compress_chips(pre_local_paths, final_pre_path)
-            merge_and_compress_chips(post_local_paths, final_post_path)
-
-            # Explicitly assign the NoData value to the final files
-            print("Assigning NoData values to the composite headers...")
-            assign_nodata(final_pre_path, nodata_val=0)
-            assign_nodata(final_post_path, nodata_val=0)
+            for track in valid_tracks:
+                print(f"Processing Track {track}...")
+                
+                # Download Pre-event for this specific track
+                pre_local_paths = download_from_gcs(gcs_bucket, pre_exports[track]['prefix'], local_dir)
+                full_pre_filename = os.path.basename(pre_exports[track]['prefix'])
+                final_pre_path = os.path.join(local_dir, f"{full_pre_filename}.tif")
+                
+                if len(pre_local_paths) > 1:
+                    merge_and_compress_chips(pre_local_paths, final_pre_path)
+                elif len(pre_local_paths) == 1:
+                    os.rename(pre_local_paths[0], final_pre_path)
+                    
+                # Download Post-event for this specific track
+                post_local_paths = download_from_gcs(gcs_bucket, post_exports[track]['prefix'], local_dir)
+                full_post_filename = os.path.basename(post_exports[track]['prefix'])
+                final_post_path = os.path.join(local_dir, f"{full_post_filename}.tif")
+                
+                if len(post_local_paths) > 1:
+                    merge_and_compress_chips(post_local_paths, final_post_path)
+                elif len(post_local_paths) == 1:
+                    os.rename(post_local_paths[0], final_post_path)
+                
+                assign_nodata(final_pre_path, nodata_val=0)
+                assign_nodata(final_post_path, nodata_val=0)
+                
+                track_pairs[track] = {
+                    "pre_image": final_pre_path,
+                    "post_image": final_post_path
+                }
 
             # Create the local manifest for AutoRIFT
             manifest_payload = {
                 "event_title": title,
                 "backend": "Google Earth Engine",
-                "pre_composite_path": final_pre_path,   
-                "post_composite_path": final_post_path, 
+                "track_pairs": track_pairs,
                 "pre_dates_used": pre_dates,
                 "post_dates_used": post_dates,
                 "status": "DOWNLOADED_READY_FOR_AUTORIFT"
