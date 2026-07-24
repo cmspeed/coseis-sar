@@ -61,7 +61,10 @@
             ],
             "partial_job_file": "job_m_55_2_km_wsw_of_sicaya_peru_ASCENDING_120_partial.json",
             "reference_date": "2026-07-01",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1C_IW_SLC__1SDV_20260719T232438_20260719T232505_008618_01112B_9024', '--secondary-scenes', 'S1D_IW_SLC__1SDV_20260701T232524_20260701T232550_003486_0062A9_A74E', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
+            "dates": "2026-07-01 (Pre) - 2026-07-19 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_2_km_wsw_of_sicaya_peru/ASCENDING120/coseismic/ASCENDING120_20260701_20260719"
         },
         "ASCENDING_18": {
             "flight_direction": "ASCENDING",
