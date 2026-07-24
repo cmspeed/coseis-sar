@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_57_49_km_w_of_turangi_new_zealand-DESCENDING73",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20260710T172937_20260710T173004_003614_006703_3135",
+                "S1D_IW_SLC__1SDV_20260710T172913_20260710T172940_003614_006703_CC8A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
