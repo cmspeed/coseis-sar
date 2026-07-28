@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_58_191_km_nw_of_oula_xiuma_china-DESCENDING106",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20260724T232743_20260724T232810_003822_006E1D_95B8",
+                "S1D_IW_SLC__1SDV_20260724T232718_20260724T232745_003822_006E1D_9FE1"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]

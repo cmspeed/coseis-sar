@@ -1,0 +1,79 @@
+{
+    "title": "m_58_191_km_nw_of_oula_xiuma_china",
+    "time": 1785209645779,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    99.0513,
+                    34.8866
+                ],
+                [
+                    100.0513,
+                    34.8866
+                ],
+                [
+                    100.0513,
+                    35.8866
+                ],
+                [
+                    99.0513,
+                    35.8866
+                ],
+                [
+                    99.0513,
+                    34.8866
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_106": {
+            "flight_direction": "DESCENDING",
+            "path_number": 106,
+            "frame_numbers": [
+                473,
+                476,
+                478,
+                471
+            ],
+            "partial_job_file": "job_m_58_191_km_nw_of_oula_xiuma_china_DESCENDING_106_partial.json",
+            "reference_date": "2026-07-24",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_33": {
+            "flight_direction": "DESCENDING",
+            "path_number": 33,
+            "frame_numbers": [
+                475
+            ],
+            "partial_job_file": "job_m_58_191_km_nw_of_oula_xiuma_china_DESCENDING_33_partial.json",
+            "reference_date": "2026-07-19",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_99": {
+            "flight_direction": "ASCENDING",
+            "path_number": 99,
+            "frame_numbers": [
+                113,
+                108,
+                1295
+            ],
+            "partial_job_file": "job_m_58_191_km_nw_of_oula_xiuma_china_ASCENDING_99_partial.json",
+            "reference_date": "2026-07-24",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_26": {
+            "flight_direction": "ASCENDING",
+            "path_number": 26,
+            "frame_numbers": [
+                113,
+                108
+            ],
+            "partial_job_file": "job_m_58_191_km_nw_of_oula_xiuma_china_ASCENDING_26_partial.json",
+            "reference_date": "2026-07-19",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
