@@ -56,7 +56,6 @@ def get_recipients_from_env(var_name):
 # Load recipients from environment variables
 PRIMARY_RECIPIENTS = get_recipients_from_env('COSEIS_PRIMARY_RECIPIENTS')
 SECONDARY_RECIPIENTS = get_recipients_from_env('COSEIS_SECONDARY_RECIPIENTS')
-TERTIARY_RECIPIENTS = get_recipients_from_env('COSEIS_TERTIARY_RECIPIENTS')
 
 def load_tracker():
     """Loads all active jobs from the tracking directory."""
@@ -1864,29 +1863,17 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     
     default_map_file = timestamp_dir / "satellite_overpasses_map.html"
     
-    # Generate S1-Only Map
-    s1_map_path = timestamp_dir / "S1_overpass_map.html"
+    # Generate Joint S1 + NISAR Map
+    map_path = timestamp_dir / "overpass_map.html"
     try:
-        # Pass None for NISAR
-        plot_maps.make_overpasses_map(result_s1, None, None, None, args.bbox, timestamp_dir)
-        if default_map_file.exists():
-            os.rename(default_map_file, s1_map_path)
-    except Exception as e:
-        print(f"Could not generate S1-only map: {e}")
-        s1_map_path = None
-
-    # Generate S1 + NISAR Map
-    nisar_map_path = timestamp_dir / "S1_NISAR_overpass_map.html"
-    try:
-        # Pass result_nisar into your plot_maps signature
         plot_maps.make_overpasses_map(result_s1, None, None, result_nisar, args.bbox, timestamp_dir)
         if default_map_file.exists():
-            os.rename(default_map_file, nisar_map_path)
+            os.rename(default_map_file, map_path)
     except Exception as e:
-        print(f"Could not generate S1+NISAR map: {e}")
-        nisar_map_path = None
+        print(f"Could not generate overpass map: {e}")
+        map_path = None
 
-    return s1_info, nisar_info, s1_map_path, nisar_map_path
+    return s1_info, nisar_info, map_path
 
 
 def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, mode='sar', process_only=False):
@@ -1975,8 +1962,8 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
                         timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
                         timestamp_dir.mkdir(parents=True, exist_ok=True)
 
-                        # Run next_pass to get the next S1 overpasses
-                        s1_info, nisar_info, s1_map, nisar_map = get_next_pass(aoi, timestamp_dir)
+                        # Run next_pass to get the next overpasses
+                        s1_info, nisar_info, overpass_map = get_next_pass(aoi, timestamp_dir)
                         
                         # Setup Github pages directory
                         docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
@@ -1986,19 +1973,12 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
                         # Create a unique ID for the filenames so they aren't overwritten
                         unique_id = eq.get('id', datetime.now().strftime('%Y%m%d%H%M%S'))
 
-                        # Route S1 Map
-                        s1_map_url = ""
-                        if s1_map and os.path.exists(s1_map):
-                            new_s1_name = f"{title_snake}_{unique_id}_S1_overpass_map.html"
-                            shutil.copy(s1_map, docs_maps_dir / new_s1_name)
-                            s1_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_s1_name}"
-
-                        # Route NISAR Map
-                        nisar_map_url = ""
-                        if nisar_map and os.path.exists(nisar_map):
-                            new_nisar_name = f"{title_snake}_{unique_id}_S1_NISAR_overpass_map.html"
-                            shutil.copy(nisar_map, docs_maps_dir / new_nisar_name)
-                            nisar_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_nisar_name}"
+                        # Route Joint Map
+                        map_url = ""
+                        if overpass_map and os.path.exists(overpass_map):
+                            new_map_name = f"{title_snake}_{unique_id}_overpass_map.html"
+                            shutil.copy(overpass_map, docs_maps_dir / new_map_name)
+                            map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_map_name}"
 
                         # Construct and send the initial email alert
                         message_dict = {
@@ -2070,20 +2050,12 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
                         if send_email_flag:
                             subject_text = f"New Event: {message_dict['title']}"
                             
-                            # Send S1-only to PRIMARY_RECIPIENTS
+                            # Send joint S1 + NISAR email to PRIMARY_RECIPIENTS
                             if PRIMARY_RECIPIENTS:
-                                primary_body = (header_html + s1_section + get_button_html(s1_map_url) + footer_html).replace('\n', '')
+                                primary_body = (header_html + s1_section + nisar_section + get_button_html(map_url) + footer_html).replace('\n', '')
                                 send_email(subject=subject_text, body=primary_body, recipients=PRIMARY_RECIPIENTS)
                                 print('=========================================')
-                                print('S1-only email sent.')
-                                print('=========================================')
-
-                            # Send S1 + NISAR to TERTIARY_RECIPIENTS
-                            if TERTIARY_RECIPIENTS:
-                                tertiary_body = (header_html + s1_section + nisar_section + get_button_html(nisar_map_url) + footer_html).replace('\n', '')
-                                send_email(subject=subject_text, body=tertiary_body, recipients=TERTIARY_RECIPIENTS)
-                                print('=========================================')
-                                print('S1+NISAR email sent.')
+                                print('Joint S1 and NISAR email sent to primary recipients.')
                                 print('=========================================')
                         else:
                             print('=========================================')
