@@ -120,34 +120,47 @@ def add_to_tracker(eq, aoi, resolution=90):
     for (flight_direction, path_number), frame_numbers_set in path_frame_numbers.items():
         frame_numbers = list(set(fn[0] for fn in frame_numbers_set))
         
-        # Unique key for this track
-        track_key = f"{flight_direction}_{path_number}"
+        # Fetch SLCs intersecting the AOI (Historical search relative to event time)
+        slcs = get_SLCs(flight_direction, path_number, aoi.wkt, event_time, processing_mode='historic')
         
-        # Find Pre-seismic SLCs (Historical search relative to event time)
-        # We look back 24 days to ensure we get the latest coverage
-        slcs = get_SLCs(flight_direction, path_number, frame_numbers, event_time, processing_mode='historic')
-        
-        # Filter for pre-seismic only (closest to event)
         rupture_dt = convert_time(event_time).replace(tzinfo=None)
         pre_slcs = []
+        reference_date = None
+        
         if slcs:
-            # Filter by full datetime first, then group by calendar date
+            # Determine the maximum footprint this specific track has over the AOI
+            scenes_by_date = defaultdict(list)
+            for s in slcs:
+                scenes_by_date[s['date'][:10]].append(s)
+                
+            max_track_area = 0
+            for date_str, scenes in scenes_by_date.items():
+                union_geom = unary_union([s['geometry'] for s in scenes])
+                intersection_area = union_geom.intersection(aoi).area
+                if intersection_area > max_track_area:
+                    max_track_area = intersection_area
+
+            # Filter for pre-seismic scenes and select the closest valid date
             valid_pre_scenes = [s for s in slcs if datetime.strptime(s['date'], "%Y-%m-%dT%H:%M:%SZ") < rupture_dt]
             
             if valid_pre_scenes:
-                dates = sorted(list(set(s['date'][:10] for s in valid_pre_scenes)))
-                reference_date = dates[-1] # The latest calendar day before earthquake
-                # Grab ALL slices that share this calendar date
-                pre_slcs = [s['fileID'].removesuffix("-SLC") for s in valid_pre_scenes if s['date'][:10] == reference_date]
-            else:
-                print(f"No pre-seismic data found for {track_key}. Skipping track.")
-                continue
-        else:
-             print(f"No SLCs found for {track_key}. Skipping track.")
-             continue
-
+                # Sort dates newest to oldest (closest to earthquake first)
+                dates = sorted(list(set(s['date'][:10] for s in valid_pre_scenes)), reverse=True)
+                
+                for ref_date in dates:
+                    candidate_scenes = [s for s in valid_pre_scenes if s['date'][:10] == ref_date]
+                    union_geom = unary_union([s['geometry'] for s in candidate_scenes])
+                    intersection_area = union_geom.intersection(aoi).area
+                    
+                    # Ensure coverage is at least 95% of the track's max expected footprint
+                    if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
+                        pre_slcs = [s['fileID'].removesuffix("-SLC") for s in candidate_scenes]
+                        reference_date = ref_date
+                        break # Successfully found valid coverage
+        
         if not pre_slcs:
-            continue
+             print(f"No fully overlapping pre-seismic coverage found for {track_key}. Skipping track.")
+             continue
 
         # Create Partial Job List
         # We leave 'granules' (post-seismic) empty for now
@@ -218,24 +231,47 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
 
                 flight_dir = track_info['flight_direction']
                 path_num = track_info['path_number']
-                frames = track_info['frame_numbers']
                 
-                slcs = get_SLCs(flight_dir, path_num, frames, event_time, processing_mode='forward')
+                # Reconstruct the AOI geometry from the tracker dictionary
+                aoi_geom = shape(event_data['aoi'])
+                
+                slcs = get_SLCs(flight_dir, path_num, aoi_geom.wkt, event_time, processing_mode='forward')
                 
                 rupture_dt = convert_time(event_time).replace(tzinfo=None)
                 post_slcs = []
                 secondary_date = None
 
                 if slcs:
+                    # Determine the maximum footprint this specific track has over the AOI
+                    scenes_by_date = defaultdict(list)
+                    for s in slcs:
+                        scenes_by_date[s['date'][:10]].append(s)
+                        
+                    max_track_area = 0
+                    for date_str, scenes in scenes_by_date.items():
+                        union_geom = unary_union([s['geometry'] for s in scenes])
+                        intersection_area = union_geom.intersection(aoi_geom).area
+                        if intersection_area > max_track_area:
+                            max_track_area = intersection_area
+
+                    # Filter for post-seismic scenes and select the closest valid date
                     slcs.sort(key=lambda x: x['date'])
-                    # Filter by full datetime first, then group by calendar date
                     valid_post_scenes = [s for s in slcs if datetime.strptime(s['date'], "%Y-%m-%dT%H:%M:%SZ") > rupture_dt]                    
                     
                     if valid_post_scenes:
+                        # Sort dates oldest to newest (closest to earthquake first)
                         post_dates = sorted(list(set(s['date'][:10] for s in valid_post_scenes)))
-                        secondary_date = post_dates[0] # The first date after the earthquake
-                        # Grab ALL slices that share this calendar date
-                        post_slcs = [s['fileID'].removesuffix("-SLC") for s in valid_post_scenes if s['date'][:10] == secondary_date]
+                        
+                        for sec_date in post_dates:
+                            candidate_scenes = [s for s in valid_post_scenes if s['date'][:10] == sec_date]
+                            union_geom = unary_union([s['geometry'] for s in candidate_scenes])
+                            intersection_area = union_geom.intersection(aoi_geom).area
+                            
+                            # Ensure coverage is at least 95% of the track's max expected footprint
+                            if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
+                                post_slcs = [s['fileID'].removesuffix("-SLC") for s in candidate_scenes]
+                                secondary_date = sec_date
+                                break # Successfully found valid coverage
                 
                 if post_slcs:
                     pre_seismic_date = track_info['reference_date']
@@ -982,23 +1018,23 @@ def get_path_and_frame_numbers(AOI, time):
     return {}, gpd.GeoDataFrame()
 
 
-def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode):
+def get_SLCs(flight_direction, path_number, aoi_wkt, time, processing_mode):
     """
-    Query the ASF DAAC API for SLC data based on the given path and frame numbers.
-    The data are organized by flight direction, path number, and frame numbers.
+    Query the ASF DAAC API for SLC data based on the given path and AOI.
+    The data are organized by flight direction and path number.
     :param processing_mode: 'historic', 'forward'
     :param flight_direction: 'ASCENDING' or 'DESCENDING'
     :param path_number: Sentinel-1 path number
-    :param frame_numbers: List of Sentinel-1 frame numbers
+    :param aoi_wkt: WKT string representation of the Area of Interest
     :param time: Unix timestamp representing the earthquake's origin time
-    :return: List of dictionaries containing SLC fileIDs and their respective dates
+    :return: List of dictionaries containing SLC fileIDs, dates, and geometries
     """
     # Establish the date range for the query
     rupture_date = convert_time(time)
     
     if processing_mode == 'historic':
         start_date = rupture_date - timedelta(days=90)  # 90 days before the earthquake
-        start_date= start_date.replace(hour=0, minute=0, second=0)
+        start_date = start_date.replace(hour=0, minute=0, second=0)
         end_date = rupture_date + timedelta(days=30)    # 30 days after the earthquake
         end_date = end_date.replace(hour=23, minute=59, second=59)
     elif processing_mode == 'forward':
@@ -1014,32 +1050,27 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
     # Define the query parameters
     params = {
         'flightDirection': flight_direction,
-        'frame': ','.join(str(f) for f in frame_numbers),
         'relativeOrbit': path_number,
-        'dataset':'SENTINEL-1',
+        'intersectsWith': aoi_wkt,
+        'dataset': 'SENTINEL-1',
         'processingLevel': 'SLC',
         'beamSwath': 'IW',
-        'start':start_date,
-        'end':end_date,
+        'start': start_date,
+        'end': end_date,
         'output': 'geojson'
     }
 
-    print('Performing ASF DAAC API query to return SLCs for the given path and frame numbers...')
+    print(f'Performing ASF DAAC API query to return SLCs for {flight_direction} path {path_number} intersecting the AOI...')
     
-    # Sometimes the request to ASF DAAC times out for various reasons. This logic is meant to reduce that.
     MAX_RETRIES = 10
     WAIT_SECONDS = 30
 
     for attempt in range(MAX_RETRIES):
         try:
-            # Fetch data from the ASF DAAC API
-            print(f"Attempt {attempt + 1} of {MAX_RETRIES}")
             response = requests.get(ASF_DAAC_API, params=params, timeout=160)
             response.raise_for_status()
-            # Parse the response as GeoJSON
             data = geojson.loads(response.text)
 
-            # Extract the file IDs from the GeoJSON data
             SLCs = []
             for feature in data['features']:
                 start_time = feature['properties']['startTime']
@@ -1056,17 +1087,14 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
                     'fileID': feature['properties']['fileID'],
                     'date': date,
                     'pathNumber': path,
-                    'frameNumber': frame
+                    'frameNumber': frame,
+                    'geometry': shape(feature['geometry'])
                 }
-
                 SLCs.append(SLC)
 
-            # Print the SLCs
             print('=========================================')
-            print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} and frame numbers {frame_numbers}.")
+            print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} intersecting the AOI.")
             print('=========================================')
-            for SLC in SLCs:
-                print(f"FileID: {SLC['fileID']}, Date: {SLC['date']}")
             return SLCs
         
         except requests.exceptions.RequestException as e:
@@ -1390,7 +1418,7 @@ def generate_pairs(pairs, mode):
         return []
 
 
-def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing_mode='sequential', job_list = False, resolution=90):
+def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, aoi, pairing_mode='sequential', job_list = False, resolution=90):
     """
     Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, 
     and determine whether each pair is pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
@@ -1399,6 +1427,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     :param flight_direction: 'ASCENDING' or 'DESCENDING'
     :param path_number: Sentinel-1 path number
     :param title: USGS title of the earthquake event, used for file organization
+    :param aoi: Shapely Polygon object representing the Area of Interest
     :param pairing_mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'coseismic' for pairs bounding the rupture date only
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
     :param resolution: Output resolution for the topsApp processing, default is 90m
@@ -1424,10 +1453,24 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     
     sorted_dates = sorted(slc_by_date.keys())
     initial_pairs = []
+    
+    # Determine the maximum footprint this specific track has over the AOI
+    max_track_area = 0
     for date in sorted_dates:
         frames = slc_by_date[date]
-        frame_numbers = {slc['frameNumber'] for slc in frames}
-        if len(frames) == len(frame_numbers):
+        union_geom = unary_union([slc['geometry'] for slc in frames])
+        intersection_area = union_geom.intersection(aoi).area
+        if intersection_area > max_track_area:
+            max_track_area = intersection_area
+
+    # Filter dates based on coverage
+    for date in sorted_dates:
+        frames = slc_by_date[date]
+        union_geom = unary_union([slc['geometry'] for slc in frames])
+        intersection_area = union_geom.intersection(aoi).area
+        
+        # Only accept dates where the available data covers >95% of the track's max expected footprint
+        if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
             initial_pairs.append((date, frames))
     
     # Split the pairs into pre-seismic, co-seismic, and post-seismic
@@ -1785,9 +1828,9 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, mode='sar
 
         for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
             frame_numbers = list(set(fn[0] for fn in frame_numbers))
-            SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
+            SLCs = get_SLCs(flight_direction, path_number, aoi.wkt, eq.get('time'), processing_mode='historic')
             isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, 
-                                                           title, pairing_mode, job_list, resolution)
+                                                           title, aoi, pairing_mode, job_list, resolution)
             all_jobs.append(isce_jobs)
 
     elif mode == 'optical':
