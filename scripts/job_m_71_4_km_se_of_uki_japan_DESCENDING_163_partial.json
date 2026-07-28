@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_71_4_km_se_of_uki_japan-DESCENDING163",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20260716T211653_20260716T211720_003704_006A0F_FB19",
+                "S1D_IW_SLC__1SDV_20260716T211628_20260716T211655_003704_006A0F_6D30"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
