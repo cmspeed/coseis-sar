@@ -49,20 +49,6 @@
             "partial_job_file": "job_m_71_4_km_se_of_uki_japan_ASCENDING_156_partial.json",
             "reference_date": "2026-07-22",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "DESCENDING_163": {
-            "flight_direction": "DESCENDING",
-            "path_number": 163,
-            "frame_numbers": [
-                488,
-                483
-            ],
-            "partial_job_file": "job_m_71_4_km_se_of_uki_japan_DESCENDING_163_partial.json",
-            "reference_date": "2026-07-16",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-07-16 (Pre) - 2026-07-28 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_71_4_km_se_of_uki_japan/DESCENDING163/coseismic/DESCENDING163_20260716_20260728"
         }
     }
 }
