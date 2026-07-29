@@ -59,7 +59,10 @@
             ],
             "partial_job_file": "job_m_68_5_km_e_of_uto_japan_DESCENDING_163_partial.json",
             "reference_date": "2026-07-16",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-07-16 (Pre) - 2026-07-28 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_68_5_km_e_of_uto_japan/DESCENDING163/coseismic/DESCENDING163_20260716_20260728"
         }
     }
 }
