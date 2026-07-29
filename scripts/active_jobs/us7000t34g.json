@@ -1,0 +1,86 @@
+{
+    "title": "m_57_49_km_w_of_turangi_new_zealand",
+    "time": 1784911897514,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    174.7332,
+                    -39.4621
+                ],
+                [
+                    175.7332,
+                    -39.4621
+                ],
+                [
+                    175.7332,
+                    -38.4621
+                ],
+                [
+                    174.7332,
+                    -38.4621
+                ],
+                [
+                    174.7332,
+                    -39.4621
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_175": {
+            "flight_direction": "DESCENDING",
+            "path_number": 175,
+            "frame_numbers": [
+                723
+            ],
+            "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_DESCENDING_175_partial.json",
+            "reference_date": "2026-07-17",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_146": {
+            "flight_direction": "DESCENDING",
+            "path_number": 146,
+            "frame_numbers": [
+                719
+            ],
+            "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_DESCENDING_146_partial.json",
+            "reference_date": "2026-07-15",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_73": {
+            "flight_direction": "DESCENDING",
+            "path_number": 73,
+            "frame_numbers": [
+                723,
+                718
+            ],
+            "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_DESCENDING_73_partial.json",
+            "reference_date": "2026-07-10",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_81": {
+            "flight_direction": "ASCENDING",
+            "path_number": 81,
+            "frame_numbers": [
+                1051,
+                1046
+            ],
+            "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_ASCENDING_81_partial.json",
+            "reference_date": "2026-07-17",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_154": {
+            "flight_direction": "ASCENDING",
+            "path_number": 154,
+            "frame_numbers": [
+                1051,
+                1046
+            ],
+            "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_ASCENDING_154_partial.json",
+            "reference_date": "2026-07-10",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
