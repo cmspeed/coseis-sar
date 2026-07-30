@@ -29,19 +29,6 @@
         ]
     },
     "tracks": {
-        "DESCENDING_175": {
-            "flight_direction": "DESCENDING",
-            "path_number": 175,
-            "frame_numbers": [
-                723
-            ],
-            "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_DESCENDING_175_partial.json",
-            "reference_date": "2026-07-17",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-07-17 (Pre) - 2026-07-29 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_57_49_km_w_of_turangi_new_zealand/DESCENDING175/coseismic/DESCENDING175_20260717_20260729"
-        },
         "DESCENDING_73": {
             "flight_direction": "DESCENDING",
             "path_number": 73,
