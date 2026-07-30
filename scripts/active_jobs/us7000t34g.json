@@ -39,19 +39,6 @@
             "reference_date": "2026-07-17",
             "status": "AWAITING_POST_SEISMIC"
         },
-        "DESCENDING_146": {
-            "flight_direction": "DESCENDING",
-            "path_number": 146,
-            "frame_numbers": [
-                719
-            ],
-            "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_DESCENDING_146_partial.json",
-            "reference_date": "2026-07-15",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-07-15 (Pre) - 2026-07-27 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_57_49_km_w_of_turangi_new_zealand/DESCENDING146/coseismic/DESCENDING146_20260715_20260727"
-        },
         "DESCENDING_73": {
             "flight_direction": "DESCENDING",
             "path_number": 73,
@@ -62,20 +49,6 @@
             "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_DESCENDING_73_partial.json",
             "reference_date": "2026-07-10",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "ASCENDING_81": {
-            "flight_direction": "ASCENDING",
-            "path_number": 81,
-            "frame_numbers": [
-                1051,
-                1046
-            ],
-            "partial_job_file": "job_m_57_49_km_w_of_turangi_new_zealand_ASCENDING_81_partial.json",
-            "reference_date": "2026-07-17",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-07-17 (Pre) - 2026-07-29 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_57_49_km_w_of_turangi_new_zealand/ASCENDING081/coseismic/ASCENDING081_20260717_20260729"
         },
         "ASCENDING_154": {
             "flight_direction": "ASCENDING",
