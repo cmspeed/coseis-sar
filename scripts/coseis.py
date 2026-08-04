@@ -299,6 +299,15 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
                         try:
                             run_dockerized_topsApp(job, processing_dir)
                             track_info['processing_status'] = "Success"
+
+                            # Cleanup raw SLCs after successful processing
+                            print(f"    Processing successful. Cleaning up raw SLCs in {pair_folder_name}...")
+                            import shutil
+                            for slc_zip in glob.glob(os.path.join(processing_dir, "S1[A-D]*.zip")):
+                                os.remove(slc_zip)
+                            for slc_safe in glob.glob(os.path.join(processing_dir, "S1[A-D]*.SAFE")):
+                                shutil.rmtree(slc_safe)
+
                         except Exception as e:
                             print(f"    Processing failed for {pair_folder_name}: {e}")
                             track_info['processing_status'] = f"Failed: {str(e)}"
