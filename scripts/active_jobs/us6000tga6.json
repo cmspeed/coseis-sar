@@ -42,19 +42,6 @@
             "reference_date": "2026-07-24",
             "status": "AWAITING_POST_SEISMIC"
         },
-        "DESCENDING_33": {
-            "flight_direction": "DESCENDING",
-            "path_number": 33,
-            "frame_numbers": [
-                475
-            ],
-            "partial_job_file": "job_m_58_190_km_nw_of_oula_xiuma_china_DESCENDING_33_partial.json",
-            "reference_date": "2026-07-19",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-07-19 (Pre) - 2026-07-31 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_190_km_nw_of_oula_xiuma_china/DESCENDING033/coseismic/DESCENDING033_20260719_20260731"
-        },
         "ASCENDING_99": {
             "flight_direction": "ASCENDING",
             "path_number": 99,
@@ -66,20 +53,6 @@
             "partial_job_file": "job_m_58_190_km_nw_of_oula_xiuma_china_ASCENDING_99_partial.json",
             "reference_date": "2026-07-24",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "ASCENDING_26": {
-            "flight_direction": "ASCENDING",
-            "path_number": 26,
-            "frame_numbers": [
-                113,
-                108
-            ],
-            "partial_job_file": "job_m_58_190_km_nw_of_oula_xiuma_china_ASCENDING_26_partial.json",
-            "reference_date": "2026-07-19",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-07-19 (Pre) - 2026-07-31 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_190_km_nw_of_oula_xiuma_china/ASCENDING026/coseismic/ASCENDING026_20260719_20260731"
         }
     }
 }
