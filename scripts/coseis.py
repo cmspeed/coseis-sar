@@ -120,6 +120,9 @@ def add_to_tracker(eq, aoi, resolution=90):
     for (flight_direction, path_number), frame_numbers_set in path_frame_numbers.items():
         frame_numbers = list(set(fn[0] for fn in frame_numbers_set))
         
+        # Unique key for this track
+        track_key = f"{flight_direction}_{path_number}"
+        
         # Fetch SLCs intersecting the AOI (Historical search relative to event time)
         slcs = get_SLCs(flight_direction, path_number, aoi.wkt, event_time, processing_mode='historic')
         
@@ -419,7 +422,7 @@ def get_historic_earthquake_data_single_date(eq_api, input_date):
             "starttime": input_date + "00:00:00",
             "endtime": input_date + "23:59:59",
             "minmagnitude": 6.0,
-            "maxdepth": 30.0
+            "maxdepth": 40.0
         }
 
         # Fetch data from the USGS Earthquake API
@@ -461,7 +464,7 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
             "format": "geojson",
             "starttime": start_date,
             "endtime": end_date,
-            "minmagnitude": 5.0,
+            "minmagnitude": 6.0,
             "maxdepth": 40.0
         }
 
@@ -692,7 +695,7 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, alert, depth)):
-                if (magnitude >= 5.5) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
+                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
                     significant_earthquakes.append(earthquake)
 
     # Base significance on magnitude, depth, and distance from land for forward-looking data
@@ -917,17 +920,21 @@ def make_interactive_map(frame_dataframe, title, coords, url):
 
 def get_path_and_frame_numbers(AOI, time):
     """
-    Query the ASF DAAC API for SLC data intersecting the Area of Interest (AOI) over the previous 24 days.
-    This ensures all possible intersecting SLC fileIDs are returned for the given AOI.
+    Query the ASF DAAC API for SLC data intersecting the Area of Interest (AOI) over a +/- 90 day window.
+    This ensures all possible intersecting tracks are returned for the given AOI, avoiding data gap omissions.
     :param AOI: Shapely Polygon object representing the Area of Interest
     :param time: Unix timestamp representing the earthquake's origin time
     :return: Dictionary containing the path and frame numbers for each *unique* intersecting SLC.
     """
     # Establish the date range for the query
     rupture_date = convert_time(time)
-    start_date = rupture_date - timedelta(days=24) # 24 days before the earthquake
+    
+    # Widen search to +/- 90 days to capture ALL intersecting tracks
+    start_date = rupture_date - timedelta(days=90) 
     start_date = start_date.replace(hour=0, minute=0, second=0)
-    end_date = rupture_date.replace(hour=23, minute=59, second=59) # the day of the earthquake
+    
+    end_date = rupture_date + timedelta(days=90) 
+    end_date = end_date.replace(hour=23, minute=59, second=59)
 
     # Format the datetime object into a string
     start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -1501,10 +1508,14 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             secondary_date, secondary_scenes = secondary
             reference_scenes_ids = [slc['fileID'].removesuffix("-SLC") for slc in reference_scenes]
             secondary_scenes_ids = [slc['fileID'].removesuffix("-SLC") for slc in secondary_scenes]
+
+            # Dynamically pull frame numbers for the JSON
+            current_frame_numbers = list(set(slc['frameNumber'] for slc in reference_scenes))
+
             if job_list:
                 json_output = make_job_json(title, flight_direction, path_number, reference_scenes_ids, secondary_scenes_ids, resolution)
             else:
-                json_output = make_json(title, timing, flight_direction, path_number, list(frame_numbers), 
+                json_output = make_json(title, timing, flight_direction, path_number, current_frame_numbers, 
                                         {'date': reference_date.strftime('%Y-%m-%d')}, 
                                         {'date': secondary_date.strftime('%Y-%m-%d')}, 
                                         reference_scenes_ids, secondary_scenes_ids)
