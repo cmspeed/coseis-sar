@@ -1,0 +1,65 @@
+{
+    "title": "m_63_32_km_sw_of_sarangani_philippines",
+    "time": 1785903246625,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    124.776,
+                    4.6812
+                ],
+                [
+                    125.776,
+                    4.6812
+                ],
+                [
+                    125.776,
+                    5.6812
+                ],
+                [
+                    124.776,
+                    5.6812
+                ],
+                [
+                    124.776,
+                    4.6812
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_171": {
+            "flight_direction": "ASCENDING",
+            "path_number": 171,
+            "frame_numbers": [
+                16
+            ],
+            "partial_job_file": "job_m_63_32_km_sw_of_sarangani_philippines_ASCENDING_171_partial.json",
+            "reference_date": "2026-06-23",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_69": {
+            "flight_direction": "ASCENDING",
+            "path_number": 69,
+            "frame_numbers": [
+                14
+            ],
+            "partial_job_file": "job_m_63_32_km_sw_of_sarangani_philippines_ASCENDING_69_partial.json",
+            "reference_date": "2026-07-28",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_163": {
+            "flight_direction": "DESCENDING",
+            "path_number": 163,
+            "frame_numbers": [
+                570,
+                573,
+                575
+            ],
+            "partial_job_file": "job_m_63_32_km_sw_of_sarangani_philippines_DESCENDING_163_partial.json",
+            "reference_date": "2026-07-28",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
