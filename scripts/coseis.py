@@ -1494,13 +1494,27 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
         if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
             initial_pairs.append((date, frames))
     
-    # Split the pairs into pre-seismic, co-seismic, and post-seismic
-    pre_seismic = [pair for pair in initial_pairs if pair[0] < rupture_date_dt]
-    post_seismic = [pair for pair in initial_pairs if pair[0] > rupture_date_dt]
+    pre_seismic = []
+    post_seismic = []
+    
+    for pair in initial_pairs:
+        # pair[1] is the list of frames. Take the exact datetime of the first frame.
+        exact_time = datetime.strptime(pair[1][0]['date'], "%Y-%m-%dT%H:%M:%SZ")
+        
+        if exact_time < rupture_date_dt:
+            pre_seismic.append(pair)
+        elif exact_time > rupture_date_dt:
+            post_seismic.append(pair)
+            
     co_seismic = []
     
     for i in range(len(initial_pairs) - 1):
-        if initial_pairs[i][0] < rupture_date_dt < initial_pairs[i + 1][0]:
+        # Extract the exact datetime for the first slice in each track pass
+        exact_time_1 = datetime.strptime(initial_pairs[i][1][0]['date'], "%Y-%m-%dT%H:%M:%SZ")
+        exact_time_2 = datetime.strptime(initial_pairs[i + 1][1][0]['date'], "%Y-%m-%dT%H:%M:%SZ")
+        
+        # Safely evaluate using precise hour/minute/second boundaries
+        if exact_time_1 < rupture_date_dt < exact_time_2:
             co_seismic = [(initial_pairs[i], initial_pairs[i + 1])]
             break
     
