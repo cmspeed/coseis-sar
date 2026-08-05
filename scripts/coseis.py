@@ -708,14 +708,19 @@ def check_significance(earthquakes, start_date, end_date=None, mode='historic'):
                     significant_earthquakes.append(earthquake)
 
     # Base significance on magnitude, depth, and distance from land for forward-looking data
-    if mode =='forward':
+    if mode == 'forward':
         for earthquake in earthquakes:
             magnitude = earthquake.get('mag')
             depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             if all(var is not None for var in (magnitude, depth)):
-                if (magnitude >= 5.5) and (depth <= 15.0) and within_Coastline_buffer:
-                    significant_earthquakes.append(earthquake)
+                if within_Coastline_buffer:
+                    # Catch M>=5.5 & <=15km OR M>=6.0 & <=40km
+                    is_shallow_moderate = (magnitude >= 5.5) and (depth <= 15.0)
+                    is_deeper_larger = (magnitude >= 6.0) and (depth <= 40.0)
+                    
+                    if is_shallow_moderate or is_deeper_larger:
+                        significant_earthquakes.append(earthquake)
 
     # Write significant earthquakes to a GeoJSON file
     if len(significant_earthquakes) > 0:
