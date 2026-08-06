@@ -52,7 +52,10 @@
             ],
             "partial_job_file": "job_m_58_190_km_nw_of_oula_xiuma_china_ASCENDING_99_partial.json",
             "reference_date": "2026-07-24",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-07-24 (Pre) - 2026-08-05 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_190_km_nw_of_oula_xiuma_china/ASCENDING099/coseismic/ASCENDING099_20260724_20260805"
         }
     }
 }
