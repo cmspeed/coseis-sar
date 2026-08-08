@@ -1,0 +1,65 @@
+{
+    "title": "m_56_57_km_wnw_of_skwentna_alaska",
+    "time": 1786164634985,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -152.814,
+                    61.769
+                ],
+                [
+                    -151.814,
+                    61.769
+                ],
+                [
+                    -151.814,
+                    62.769
+                ],
+                [
+                    -152.814,
+                    62.769
+                ],
+                [
+                    -152.814,
+                    61.769
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_131": {
+            "flight_direction": "DESCENDING",
+            "path_number": 131,
+            "frame_numbers": [
+                387,
+                381,
+                382
+            ],
+            "partial_job_file": "job_m_56_57_km_wnw_of_skwentna_alaska_DESCENDING_131_partial.json",
+            "reference_date": "2026-07-26",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_102": {
+            "flight_direction": "DESCENDING",
+            "path_number": 102,
+            "frame_numbers": [
+                387
+            ],
+            "partial_job_file": "job_m_56_57_km_wnw_of_skwentna_alaska_DESCENDING_102_partial.json",
+            "reference_date": "2026-08-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_36": {
+            "flight_direction": "ASCENDING",
+            "path_number": 36,
+            "frame_numbers": [
+                200
+            ],
+            "partial_job_file": "job_m_56_57_km_wnw_of_skwentna_alaska_ASCENDING_36_partial.json",
+            "reference_date": "2026-08-07",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
