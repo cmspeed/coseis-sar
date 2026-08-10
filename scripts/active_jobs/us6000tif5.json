@@ -38,21 +38,6 @@
             "partial_job_file": "job_m_59_32_km_sw_of_sarangani_philippines_ASCENDING_171_partial.json",
             "reference_date": "2026-06-23",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "DESCENDING_163": {
-            "flight_direction": "DESCENDING",
-            "path_number": 163,
-            "frame_numbers": [
-                570,
-                573,
-                575
-            ],
-            "partial_job_file": "job_m_59_32_km_sw_of_sarangani_philippines_DESCENDING_163_partial.json",
-            "reference_date": "2026-07-28",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-07-28 (Pre) - 2026-08-09 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_59_32_km_sw_of_sarangani_philippines/DESCENDING163/coseismic/DESCENDING163_20260728_20260809"
         }
     }
 }
