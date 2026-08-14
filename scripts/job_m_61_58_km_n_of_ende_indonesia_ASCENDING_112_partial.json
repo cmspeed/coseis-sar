@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_61_58_km_n_of_ende_indonesia-ASCENDING112",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20260806T101628_20260806T101655_004003_00746B_356A",
+                "S1D_IW_SLC__1SDV_20260806T101603_20260806T101630_004003_00746B_959A"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]

@@ -1,0 +1,65 @@
+{
+    "title": "m_55_49_km_ne_of_labuan_bajo_indonesia",
+    "time": 1786747037172,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    119.6908,
+                    -8.6604
+                ],
+                [
+                    120.6908,
+                    -8.6604
+                ],
+                [
+                    120.6908,
+                    -7.660399999999999
+                ],
+                [
+                    119.6908,
+                    -7.660399999999999
+                ],
+                [
+                    119.6908,
+                    -8.6604
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_112": {
+            "flight_direction": "ASCENDING",
+            "path_number": 112,
+            "frame_numbers": [
+                1153,
+                1148
+            ],
+            "partial_job_file": "job_m_55_49_km_ne_of_labuan_bajo_indonesia_ASCENDING_112_partial.json",
+            "reference_date": "2026-08-06",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_10": {
+            "flight_direction": "ASCENDING",
+            "path_number": 10,
+            "frame_numbers": [
+                1151
+            ],
+            "partial_job_file": "job_m_55_49_km_ne_of_labuan_bajo_indonesia_ASCENDING_10_partial.json",
+            "reference_date": "2026-06-17",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_61": {
+            "flight_direction": "DESCENDING",
+            "path_number": 61,
+            "frame_numbers": [
+                616,
+                621
+            ],
+            "partial_job_file": "job_m_55_49_km_ne_of_labuan_bajo_indonesia_DESCENDING_61_partial.json",
+            "reference_date": "2026-08-02",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

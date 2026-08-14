@@ -1,0 +1,78 @@
+{
+    "title": "m_56_61_km_nnw_of_ende_indonesia",
+    "time": 1786745886706,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    120.9284,
+                    -8.8406
+                ],
+                [
+                    121.9284,
+                    -8.8406
+                ],
+                [
+                    121.9284,
+                    -7.8406
+                ],
+                [
+                    120.9284,
+                    -7.8406
+                ],
+                [
+                    120.9284,
+                    -8.8406
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_163": {
+            "flight_direction": "DESCENDING",
+            "path_number": 163,
+            "frame_numbers": [
+                617,
+                620,
+                622
+            ],
+            "partial_job_file": "job_m_56_61_km_nnw_of_ende_indonesia_DESCENDING_163_partial.json",
+            "reference_date": "2026-08-09",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_61": {
+            "flight_direction": "DESCENDING",
+            "path_number": 61,
+            "frame_numbers": [
+                616,
+                621
+            ],
+            "partial_job_file": "job_m_56_61_km_nnw_of_ende_indonesia_DESCENDING_61_partial.json",
+            "reference_date": "2026-08-02",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_112": {
+            "flight_direction": "ASCENDING",
+            "path_number": 112,
+            "frame_numbers": [
+                1153,
+                1148
+            ],
+            "partial_job_file": "job_m_56_61_km_nnw_of_ende_indonesia_ASCENDING_112_partial.json",
+            "reference_date": "2026-08-06",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_10": {
+            "flight_direction": "ASCENDING",
+            "path_number": 10,
+            "frame_numbers": [
+                1145,
+                1151
+            ],
+            "partial_job_file": "job_m_56_61_km_nnw_of_ende_indonesia_ASCENDING_10_partial.json",
+            "reference_date": "2026-06-17",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
