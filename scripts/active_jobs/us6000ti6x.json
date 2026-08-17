@@ -37,7 +37,10 @@
             ],
             "partial_job_file": "job_m_63_32_km_sw_of_sarangani_philippines_ASCENDING_171_partial.json",
             "reference_date": "2026-06-23",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-06-23 (Pre) - 2026-08-16 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_63_32_km_sw_of_sarangani_philippines/ASCENDING171/coseismic/ASCENDING171_20260623_20260816"
         }
     }
 }
