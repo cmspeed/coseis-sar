@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_57_95_km_sw_of_puerto_madero_mexico-ASCENDING34",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20260813T002203_20260813T002230_004100_0077BE_33B4",
+                "S1D_IW_SLC__1SDV_20260813T002135_20260813T002205_004100_0077BE_2130"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
