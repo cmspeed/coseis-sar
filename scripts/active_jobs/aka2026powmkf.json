@@ -49,7 +49,10 @@
             ],
             "partial_job_file": "job_m_56_57_km_wnw_of_skwentna_alaska_DESCENDING_102_partial.json",
             "reference_date": "2026-08-05",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-08-05 (Pre) - 2026-08-17 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_57_km_wnw_of_skwentna_alaska/DESCENDING102/coseismic/DESCENDING102_20260805_20260817"
         },
         "ASCENDING_36": {
             "flight_direction": "ASCENDING",
