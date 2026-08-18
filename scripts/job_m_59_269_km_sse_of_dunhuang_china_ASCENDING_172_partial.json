@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_59_269_km_sse_of_dunhuang_china-ASCENDING172",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20260729T113507_20260729T113539_003888_007059_355B",
+                "S1D_IW_SLC__1SDV_20260729T113442_20260729T113509_003888_007059_EDB2"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]
