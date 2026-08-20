@@ -40,32 +40,6 @@
             "partial_job_file": "job_m_56_57_km_wnw_of_skwentna_alaska_DESCENDING_131_partial.json",
             "reference_date": "2026-07-26",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "DESCENDING_102": {
-            "flight_direction": "DESCENDING",
-            "path_number": 102,
-            "frame_numbers": [
-                387
-            ],
-            "partial_job_file": "job_m_56_57_km_wnw_of_skwentna_alaska_DESCENDING_102_partial.json",
-            "reference_date": "2026-08-05",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-08-05 (Pre) - 2026-08-17 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_57_km_wnw_of_skwentna_alaska/DESCENDING102/coseismic/DESCENDING102_20260805_20260817"
-        },
-        "ASCENDING_36": {
-            "flight_direction": "ASCENDING",
-            "path_number": 36,
-            "frame_numbers": [
-                200
-            ],
-            "partial_job_file": "job_m_56_57_km_wnw_of_skwentna_alaska_ASCENDING_36_partial.json",
-            "reference_date": "2026-08-07",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-08-07 (Pre) - 2026-08-19 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_57_km_wnw_of_skwentna_alaska/ASCENDING036/coseismic/ASCENDING036_20260807_20260819"
         }
     }
 }
