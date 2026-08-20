@@ -39,7 +39,10 @@
             ],
             "partial_job_file": "job_m_57_95_km_sw_of_puerto_madero_mexico_ASCENDING_34_partial.json",
             "reference_date": "2026-08-13",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-08-13 (Pre) - 2026-08-19 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_57_95_km_sw_of_puerto_madero_mexico/ASCENDING034/coseismic/ASCENDING034_20260813_20260819"
         },
         "DESCENDING_99": {
             "flight_direction": "DESCENDING",

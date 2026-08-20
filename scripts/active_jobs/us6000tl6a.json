@@ -37,7 +37,10 @@
             ],
             "partial_job_file": "job_m_55_76_km_n_of_ruteng_indonesia_ASCENDING_112_partial.json",
             "reference_date": "2026-08-06",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-08-06 (Pre) - 2026-08-18 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_76_km_n_of_ruteng_indonesia/ASCENDING112/coseismic/ASCENDING112_20260806_20260818"
         },
         "ASCENDING_10": {
             "flight_direction": "ASCENDING",
