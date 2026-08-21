@@ -50,7 +50,10 @@
             ],
             "partial_job_file": "job_m_55_74_km_ene_of_ruteng_indonesia_DESCENDING_61_partial.json",
             "reference_date": "2026-08-02",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1C_IW_SLC__1SDV_20260820T213528_20260820T213558_009084_01208A_0DB0 S1C_IW_SLC__1SDV_20260820T213556_20260820T213631_009084_01208A_BC33', '--secondary-scenes', 'S1D_IW_SLC__1SDV_20260802T213613_20260802T213641_003952_0072AB_334E S1D_IW_SLC__1SDV_20260802T213548_20260802T213615_003952_0072AB_77BF', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '90', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
+            "dates": "2026-08-02 (Pre) - 2026-08-20 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_74_km_ene_of_ruteng_indonesia/DESCENDING061/coseismic/DESCENDING061_20260802_20260820"
         },
         "ASCENDING_10": {
             "flight_direction": "ASCENDING",
