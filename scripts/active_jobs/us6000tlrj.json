@@ -52,22 +52,6 @@
             "reference_date": "2026-06-23",
             "status": "AWAITING_POST_SEISMIC"
         },
-        "ASCENDING_172": {
-            "flight_direction": "ASCENDING",
-            "path_number": 172,
-            "frame_numbers": [
-                122,
-                1307,
-                117,
-                1302
-            ],
-            "partial_job_file": "job_m_59_269_km_sse_of_dunhuang_china_ASCENDING_172_partial.json",
-            "reference_date": "2026-07-29",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-07-29 (Pre) - 2026-08-22 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_59_269_km_sse_of_dunhuang_china/ASCENDING172/coseismic/ASCENDING172_20260729_20260822"
-        },
         "ASCENDING_70": {
             "flight_direction": "ASCENDING",
             "path_number": 70,
