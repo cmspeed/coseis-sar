@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_55_108_km_ne_of_hengchun_taiwan-DESCENDING105",
+        "job_type": "ARIA_S1_COSEIS",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20260823T215216_20260823T215231_009128_0121FA_D9D0",
+                "S1C_IW_SLC__1SDV_20260823T215151_20260823T215218_009128_0121FA_6322"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 90
+        }
+    }
+]

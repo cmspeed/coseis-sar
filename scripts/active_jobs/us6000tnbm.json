@@ -1,0 +1,59 @@
+{
+    "title": "m_55_108_km_ne_of_hengchun_taiwan",
+    "time": 1787641210853,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    121.0709,
+                    22.1053
+                ],
+                [
+                    122.0709,
+                    22.1053
+                ],
+                [
+                    122.0709,
+                    23.1053
+                ],
+                [
+                    121.0709,
+                    23.1053
+                ],
+                [
+                    121.0709,
+                    22.1053
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_105": {
+            "flight_direction": "DESCENDING",
+            "path_number": 105,
+            "frame_numbers": [
+                520,
+                514,
+                515,
+                519
+            ],
+            "partial_job_file": "job_m_55_108_km_ne_of_hengchun_taiwan_DESCENDING_105_partial.json",
+            "reference_date": "2026-08-23",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_69": {
+            "flight_direction": "ASCENDING",
+            "path_number": 69,
+            "frame_numbers": [
+                72,
+                66,
+                68,
+                71
+            ],
+            "partial_job_file": "job_m_55_108_km_ne_of_hengchun_taiwan_ASCENDING_69_partial.json",
+            "reference_date": "2026-08-21",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
