@@ -303,13 +303,31 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
                             run_dockerized_topsApp(job, processing_dir)
                             track_info['processing_status'] = "Success"
 
-                            # Cleanup raw SLCs after successful processing
-                            print(f"    Processing successful. Cleaning up raw SLCs in {pair_folder_name}...")
-                            import shutil
-                            for slc_zip in glob.glob(os.path.join(processing_dir, "S1[A-D]*.zip")):
-                                os.remove(slc_zip)
-                            for slc_safe in glob.glob(os.path.join(processing_dir, "S1[A-D]*.SAFE")):
-                                shutil.rmtree(slc_safe)
+                            # Delete raw SLCs and intermediate files if final .nc product exists
+                            nc_files = glob.glob(os.path.join(processing_dir, "**", "*.nc"), recursive=True)
+                            
+                            if nc_files:
+                                print(f"    Output .nc file found. Cleaning up SLCs and heavy intermediate files in {pair_folder_name}...")
+                                import shutil
+                                
+                                # Delete raw .zip and .SAFE files
+                                for slc_zip in glob.glob(os.path.join(processing_dir, "S1[A-D]*.zip")):
+                                    os.remove(slc_zip)
+                                for slc_safe in glob.glob(os.path.join(processing_dir, "S1[A-D]*.SAFE")):
+                                    shutil.rmtree(slc_safe, ignore_errors=True)
+                                    
+                                # Delete intermediate ISCE2 folders
+                                intermediate_dirs = [
+                                    "geom_reference", "ion", "fine_interferogram", 
+                                    "fine_offsets", "fine_coreg", "mask", 
+                                    "reference", "secondary", "PICKLE", "aux_cal", "orbits"
+                                ]
+                                for idir in intermediate_dirs:
+                                    dir_path = os.path.join(processing_dir, idir)
+                                    if os.path.exists(dir_path):
+                                        shutil.rmtree(dir_path, ignore_errors=True)
+                            else:
+                                print(f"    WARNING: No final .nc product found in {pair_folder_name}. Retaining raw and intermediate files for debugging.")
 
                         except Exception as e:
                             print(f"    Processing failed for {pair_folder_name}: {e}")
