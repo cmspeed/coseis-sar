@@ -30,7 +30,7 @@ git checkout main
 git pull --rebase origin main 
 
 # Execute local processing (Scouting disabled via --process_only)
-python coseis.py --forward --pairing coseismic --do_processing --process_only >> log_tracking.txt 2>&1
+python coseis.py --forward --pairing coseismic --resolution 30 --do_processing --process_only >> log_tracking.txt 2>&1
 
 # Sync with Github 
 # Add the updated tracking directory (catches edits to existing jobs)

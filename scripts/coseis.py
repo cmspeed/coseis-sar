@@ -93,11 +93,14 @@ def save_tracker(data):
             os.remove(file)
 
 
-def add_to_tracker(eq, aoi, resolution=90):
+def add_to_tracker(eq, aoi, resolution=30):
     """
     Initializes tracking for a new earthquake.
     Identifies intersecting tracks, finds pre-seismic SLCs for each track, 
     creates a partial job file (granules=Empty, secondary_granules=Filled), and adds entry to tracking file.
+    :param eq: dictionary containing earthquake data
+    :param aoi: shapely Polygon object representing the area of interest
+    :param resolution: desired output resolution for processing (default=30)
     """
     tracker = load_tracker()
     event_id = eq.get('id')
@@ -1958,12 +1961,12 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     return s1_info, nisar_info, map_path
 
 
-def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, mode='sar', process_only=False):
+def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_email_flag=False, mode='sar', process_only=False):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
-    :param resolution: Output resolution for the topsApp processing, default is 90m
+    :param resolution: Output resolution for the topsApp processing, default is 30m
     :param do_processing: If True, runs the dockerized topsApp processing workflow after generating the JSONs. Default is False.
     :param send_email_flag: If True, sends an email alert after processing. Default is False.
     :param mode: 'sar' for SAR processing, 'optical' for optical processing
@@ -2277,7 +2280,7 @@ if __name__ == "__main__":
     parser.add_argument("--aoi", help="Specify a path to a json file representing the area of interest (AOI).")
     parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for historic processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
-    parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
+    parser.add_argument("--resolution", type=int, default=30, help="Output resolution for topsApp processing in meters. Default is 30m.")
     parser.add_argument("--mode", choices=["sar", "optical"], default="sar", help="Processing mode: 'sar' (Sentinel-1) or 'optical' (Landsat/Sentinel-2). Default is sar.")
     parser.add_argument("--do_processing", action="store_true", help="Execute local topsApp processing.")
     parser.add_argument("--send_email", action="store_true", help="Send email notifications.")
