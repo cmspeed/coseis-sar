@@ -29,19 +29,6 @@
         ]
     },
     "tracks": {
-        "ASCENDING_10": {
-            "flight_direction": "ASCENDING",
-            "path_number": 10,
-            "frame_numbers": [
-                1151
-            ],
-            "partial_job_file": "job_m_55_49_km_ne_of_labuan_bajo_indonesia_ASCENDING_10_partial.json",
-            "reference_date": "2026-06-17",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-06-17 (Pre) - 2026-08-23 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_49_km_ne_of_labuan_bajo_indonesia/ASCENDING010/coseismic/ASCENDING010_20260617_20260823"
-        },
         "DESCENDING_61": {
             "flight_direction": "DESCENDING",
             "path_number": 61,
