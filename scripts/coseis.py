@@ -15,7 +15,7 @@ import glob
 import csv
 from shapely import wkt
 from shapely.geometry import mapping, shape, box, Point, Polygon, LineString, MultiLineString, MultiPolygon
-from shapely.ops import unary_union
+from shapely.ops import unary_union, linemerge
 import subprocess
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
@@ -580,68 +580,83 @@ def check_for_new_data(eq_api):
         return None
 
 
-def get_coastline(coastline_api):
-    """
-    Fetch coastline data from OSGEO/PROJ Github repo and return it as a GeoJSON object.
-    The data returned will be in the form of a MultiPolygon. The data are also written to a file: "coastline_buffered.geojson".
-    :param coastline_api: API endpoint for the coastline data (https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson)
-    :return: GeoJSON object containing coastline data
-    """
-    try:
-        # Fetch data from the specified API
-        response = requests.get(coastline_api)
-        response.raise_for_status()  # Raise error if request fails
-        
-        # Parse the response as GeoJSON
-        coastline = geojson.loads(response.text)
-        
-        # Extract the LineString features from the GeoJSON data
-        features = []
-        for feature in coastline["features"]:
-            if feature["geometry"]["type"] == "LineString":
-                features.append(LineString(feature["geometry"]["coordinates"]))
-            else: 
-                print("Coastline data is not in LineString format.") # Ensure each feature is a LineString
-        
-        # Convert LineStrings to Polygons
-        polygons = []
-        for line in features:
-            if line.is_ring:  # Check if the LineString is closed
-                polygons.append(Polygon(line))
-            else:
-                # Close the LineString and create a Polygon
-                closed_line = LineString(list(line.coords) + [line.coords[0]])
-                polygons.append(Polygon(closed_line))
-
-        # Combine all polygons into a MultiPolygon
-        coastline = MultiPolygon(polygons)
-
-        # Buffer the coastline by 0.5 degrees        
-        coastline = coastline.buffer(0.5)
-
-        # Convert the MultiLineString to GeoJSON format
-        geojson_data = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "geometry": mapping(coastline),
-                    "properties": {}
-                }
-            ]
-        }
-
-        # Save to a GeoJSON file
-        output_file = "coastline_buffered.geojson"
-        with open(output_file, "w") as f:
-            json.dump(geojson_data, f, indent=2)
-        return coastline
+def get_coastline(coastline_api): 
+    """ 
+    Fetch coastline data from OSGEO/PROJ Github repo and return it as a GeoJSON object. 
+    The data returned will be in the form of a MultiPolygon covering the landmass interiors 
+    and a 0.5 degree ocean buffer. The data are also written to "coastline_buffered.geojson". 
     
-    except requests.RequestException as e:
-        print(f"Error accessing coastline API: {e}")
-        return None
-    except geojson.GeoJSONDecodeError as e:
-        print(f"Error parsing GeoJSON data: {e}")
+    :param coastline_api: API endpoint for the coastline data 
+    :return: GeoJSON object containing coastline data 
+    """
+    try: 
+        # Fetch data from the specified API 
+        response = requests.get(coastline_api) 
+        response.raise_for_status() 
+        
+        # Parse the response as GeoJSON 
+        coastline_data = geojson.loads(response.text) 
+        
+        # Extract the LineString features from the GeoJSON data 
+        features = [] 
+        for feature in coastline_data["features"]: 
+            if feature["geometry"]["type"] == "LineString": 
+                features.append(LineString(feature["geometry"]["coordinates"])) 
+            else: 
+                print("Coastline data is not in LineString format.") 
+                
+        # Merge contiguous line segments together to form complete coastlines
+        merged_lines = linemerge(features)
+        
+        # Ensure merged_lines is iterable (handles cases where linemerge returns a single LineString)
+        if isinstance(merged_lines, LineString):
+            merged_lines = [merged_lines]
+        else:
+            merged_lines = merged_lines.geoms
+
+        # Convert merged LineStrings to Polygons 
+        polygons = [] 
+        for line in merged_lines: 
+            if len(line.coords) < 3:
+                continue
+                
+            if line.is_ring:
+                polygons.append(Polygon(line)) 
+            else: 
+                # Close the LineString and create a Polygon 
+                closed_line = LineString(list(line.coords) + [line.coords[0]]) 
+                polygons.append(Polygon(closed_line)) 
+
+        # Combine all polygons into a MultiPolygon 
+        coastline_polys = MultiPolygon(polygons) 
+
+        # Buffer the entire MultiPolygon by 0.5 degrees 
+        coastline_buffered = coastline_polys.buffer(0.5) 
+
+        # Convert the MultiPolygon to GeoJSON format 
+        geojson_data = { 
+            "type": "FeatureCollection", 
+            "features": [ 
+                { 
+                    "type": "Feature", 
+                    "geometry": mapping(coastline_buffered), 
+                    "properties": {} 
+                } 
+            ] 
+        } 
+
+        # Save to a GeoJSON file 
+        output_file = "coastline_buffered.geojson" 
+        with open(output_file, "w") as f: 
+            json.dump(geojson_data, f, indent=2) 
+            
+        return coastline_buffered 
+        
+    except requests.RequestException as e: 
+        print(f"Error accessing coastline API: {e}") 
+        return None 
+    except json.JSONDecodeError as e: 
+        print(f"Error parsing GeoJSON data: {e}") 
         return None
     
 
