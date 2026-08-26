@@ -1106,6 +1106,9 @@ def get_SLCs(flight_direction, path_number, aoi_wkt, time, processing_mode):
     
     MAX_RETRIES = 10
     WAIT_SECONDS = 30
+    
+    # Specify cutoff date for filtering out S1D granules
+    S1D_CUTOFF = datetime(2026, 6, 24, tzinfo=timezone.utc)
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -1118,15 +1121,22 @@ def get_SLCs(flight_direction, path_number, aoi_wkt, time, processing_mode):
                 start_time = feature['properties']['startTime']
                 path = feature['properties']['pathNumber']
                 frame = feature['properties']['frameNumber']
+                file_id = feature['properties']['fileID']
 
                 try:
-                    date = isoparse(start_time).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    dt_obj = isoparse(start_time)
+                    date = dt_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
                 except Exception:
                     print(f"Warning: Unexpected date format in startTime: {start_time}")
                     date = None
+                    dt_obj = None
                 
+                # Apply S1D filter
+                if file_id.startswith("S1D") and dt_obj and dt_obj < S1D_CUTOFF:
+                    continue
+
                 SLC = {
-                    'fileID': feature['properties']['fileID'],
+                    'fileID': file_id,
                     'date': date,
                     'pathNumber': path,
                     'frameNumber': frame,
@@ -1135,7 +1145,7 @@ def get_SLCs(flight_direction, path_number, aoi_wkt, time, processing_mode):
                 SLCs.append(SLC)
 
             print('=========================================')
-            print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} intersecting the AOI.")
+            print(f"Found {len(SLCs)} valid SLCs for the {flight_direction} path {path_number} intersecting the AOI.")
             print('=========================================')
             return SLCs
         
