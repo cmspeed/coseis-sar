@@ -41,22 +41,6 @@
             "partial_job_file": "job_m_55_108_km_ne_of_hengchun_taiwan_DESCENDING_105_partial.json",
             "reference_date": "2026-08-23",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "ASCENDING_69": {
-            "flight_direction": "ASCENDING",
-            "path_number": 69,
-            "frame_numbers": [
-                72,
-                66,
-                68,
-                71
-            ],
-            "partial_job_file": "job_m_55_108_km_ne_of_hengchun_taiwan_ASCENDING_69_partial.json",
-            "reference_date": "2026-08-21",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-08-21 (Pre) - 2026-08-27 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_108_km_ne_of_hengchun_taiwan/ASCENDING069/coseismic/ASCENDING069_20260821_20260827"
         }
     }
 }
