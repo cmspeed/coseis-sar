@@ -1,0 +1,66 @@
+{
+    "title": "m_56_82_km_se_of_maba_indonesia",
+    "time": 1788250940813,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    128.3054,
+                    -0.3315
+                ],
+                [
+                    129.3054,
+                    -0.3315
+                ],
+                [
+                    129.3054,
+                    0.6685
+                ],
+                [
+                    128.3054,
+                    0.6685
+                ],
+                [
+                    128.3054,
+                    -0.3315
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_119": {
+            "flight_direction": "DESCENDING",
+            "path_number": 119,
+            "frame_numbers": [
+                595,
+                589
+            ],
+            "partial_job_file": "job_m_56_82_km_se_of_maba_indonesia_DESCENDING_119_partial.json",
+            "reference_date": "2026-08-30",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_17": {
+            "flight_direction": "DESCENDING",
+            "path_number": 17,
+            "frame_numbers": [
+                590
+            ],
+            "partial_job_file": "job_m_56_82_km_se_of_maba_indonesia_DESCENDING_17_partial.json",
+            "reference_date": "2026-08-23",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_97": {
+            "flight_direction": "ASCENDING",
+            "path_number": 97,
+            "frame_numbers": [
+                1177,
+                1178,
+                1182
+            ],
+            "partial_job_file": "job_m_56_82_km_se_of_maba_indonesia_ASCENDING_97_partial.json",
+            "reference_date": "2026-06-30",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
