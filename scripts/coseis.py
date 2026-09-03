@@ -1122,7 +1122,8 @@ def get_SLCs(flight_direction, path_number, aoi_wkt, time, processing_mode):
     MAX_RETRIES = 10
     WAIT_SECONDS = 30
     
-    # Specify cutoff date for filtering out S1D granules
+    # Specify cutoff date for filtering S1C and S1D granules based on the acquisition date (DockerizedTopsApp requirement)
+    S1C_CUTOFF = datetime(2025, 5, 19, tzinfo=timezone.utc)
     S1D_CUTOFF = datetime(2026, 6, 24, tzinfo=timezone.utc)
 
     for attempt in range(MAX_RETRIES):
@@ -1146,7 +1147,9 @@ def get_SLCs(flight_direction, path_number, aoi_wkt, time, processing_mode):
                     date = None
                     dt_obj = None
                 
-                # Apply S1D filter
+                # Apply S1C and S1D filters
+                if file_id.startswith("S1C") and dt_obj and dt_obj < S1C_CUTOFF:
+                    continue
                 if file_id.startswith("S1D") and dt_obj and dt_obj < S1D_CUTOFF:
                     continue
 
