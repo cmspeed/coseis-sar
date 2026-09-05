@@ -40,7 +40,10 @@
             ],
             "partial_job_file": "job_m_55_108_km_ne_of_hengchun_taiwan_DESCENDING_105_partial.json",
             "reference_date": "2026-08-23",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-08-23 (Pre) - 2026-09-04 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_108_km_ne_of_hengchun_taiwan/DESCENDING105/coseismic/DESCENDING105_20260823_20260904"
         }
     }
 }
