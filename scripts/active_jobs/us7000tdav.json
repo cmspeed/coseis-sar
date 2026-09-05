@@ -40,19 +40,6 @@
             "reference_date": "2026-08-30",
             "status": "AWAITING_POST_SEISMIC"
         },
-        "DESCENDING_17": {
-            "flight_direction": "DESCENDING",
-            "path_number": 17,
-            "frame_numbers": [
-                590
-            ],
-            "partial_job_file": "job_m_56_82_km_se_of_maba_indonesia_DESCENDING_17_partial.json",
-            "reference_date": "2026-08-23",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-08-23 (Pre) - 2026-09-04 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_82_km_se_of_maba_indonesia/DESCENDING017/coseismic/DESCENDING017_20260823_20260904"
-        },
         "ASCENDING_97": {
             "flight_direction": "ASCENDING",
             "path_number": 97,
