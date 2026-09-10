@@ -50,7 +50,10 @@
             ],
             "partial_job_file": "job_m_56_82_km_se_of_maba_indonesia_ASCENDING_97_partial.json",
             "reference_date": "2026-06-30",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-06-30 (Pre) - 2026-09-10 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_56_82_km_se_of_maba_indonesia/ASCENDING097/coseismic/ASCENDING097_20260630_20260910"
         }
     }
 }
