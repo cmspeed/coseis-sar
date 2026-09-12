@@ -29,20 +29,6 @@
         ]
     },
     "tracks": {
-        "ASCENDING_112": {
-            "flight_direction": "ASCENDING",
-            "path_number": 112,
-            "frame_numbers": [
-                1153,
-                1148
-            ],
-            "partial_job_file": "job_m_55_44_km_nne_of_ruteng_indonesia_ASCENDING_112_partial.json",
-            "reference_date": "2026-08-30",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-08-30 (Pre) - 2026-09-11 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_44_km_nne_of_ruteng_indonesia/ASCENDING112/coseismic/ASCENDING112_20260830_20260911"
-        },
         "ASCENDING_10": {
             "flight_direction": "ASCENDING",
             "path_number": 10,
