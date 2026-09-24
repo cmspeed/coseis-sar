@@ -2122,7 +2122,7 @@ def send_email(subject, body, recipients=None):
     return
 
 
-def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, crs_epsg='EPSG:4326'):
+def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, collection_id, optical_level, crs_epsg='EPSG:4326'):
     """
     Generates a cloud-free median composite in GEE and exports to Google Cloud Storage.
     :param aoi_polygon: Shapely Polygon representing the Area of Interest
@@ -2131,6 +2131,8 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
     :param title: Title of the earthquake event (used for file naming)
     :param stage: 'pre-event' or 'post-event' to indicate the timing of the composite
     :param gcs_bucket: Name of the Google Cloud Storage bucket to export the composite
+    :param collection_id: Sentinel-2 collection ID (e.g., 'COPERNICUS/S2_HARMONIZED')
+    :param optical_level: Optical processing level (e.g., TOA, SR) for file naming
     :param crs_epsg: EPSG code for the coordinate reference system to use in the export (default is 'EPSG:4326')
     :return: The GEE export task object
     """
@@ -2138,8 +2140,8 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
     bounds = aoi_polygon.bounds
     ee_roi = ee.Geometry.Rectangle([bounds[0], bounds[1], bounds[2], bounds[3]])
 
-    # Query the S2 Harmonized Collection
-    s2_col = ee.ImageCollection('COPERNICUS/S2_HARMONIZED') \
+    # Query the parameterized Harmonized Collection
+    s2_col = ee.ImageCollection(collection_id) \
         .filterBounds(ee_roi) \
         .filterDate(start_date, end_date)
 
@@ -2184,7 +2186,7 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
         clean_end = end_date.replace('T', '_').replace(':', '') + 'UTC' if 'T' in end_date else end_date + '_000000UTC'
 
         # Create Export Task
-        file_name = f"{title}_S2_B8_{stage}_{clean_start}_to_{clean_end}"
+        file_name = f"{title}_S2_Path{orbit}_{optical_level.upper()}_B8_{stage}_{clean_start}_to_{clean_end}"
         prefix = f"COSEIS_Composites/{title}/{file_name}"
         
         task = ee.batch.Export.image.toCloudStorage(
@@ -2196,7 +2198,7 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
             scale=10, 
             crs=crs_epsg,
             maxPixels=1e13,
-            formatOptions={'cloudOptimized': True}
+            formatOptions={'cloudOptimized': False}
         )
         
         task.start()
@@ -2212,7 +2214,7 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
     return orbit_exports, sorted(list(set(all_unique_dates)))
 
 
-def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, collection_id, band_name, scale, crs_epsg='EPSG:4326'):
+def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage, gcs_bucket, collection_id, band_name, scale, optical_level, crs_epsg='EPSG:4326'):
     """Generates a cloud-free median TOA composite for the explicitly provided Landsat mission.
     :param aoi_polygon: Shapely Polygon representing the Area of Interest
     :param start_date: Start date for the image collection filter (YYYY-MM-DD)
@@ -2223,6 +2225,7 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
     :param collection_id: Landsat collection ID (e.g., 'LANDSAT/LC08/C02/T1_L2')
     :param band_name: Name of the optical band to export (e.g., 'SR_B4' for Landsat 8 Red)
     :param scale: Scale in meters for the export (e.g., 30 for Landsat)
+    :param optical_level: Optical processing level (e.g., TOA, SR, RAW) for file naming
     :param crs_epsg: EPSG code for the coordinate reference system to use in the export (default is 'EPSG:4326')
     :return: The GEE export task object and a list of unique acquisition dates
     """
@@ -2292,6 +2295,9 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
         # Scale based on the collection type to ensure autoRIFT gets clean uint16
         if 'TOA' in collection_id:
             composite = composite_raw.multiply(10000).toUint16()
+        elif '_L2' in collection_id:
+            # GEE C02 L2 Surface Reflectance scaling: (pixel * 0.0000275) - 0.2
+            composite = composite_raw.multiply(0.0000275).subtract(0.2).multiply(10000).max(0).toUint16()
         else:
             composite = composite_raw.unmask(0).toUint16()
         
@@ -2299,8 +2305,8 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
         clean_start = start_date.replace('T', '_').replace(':', '') + 'UTC' if 'T' in start_date else start_date + '_000000UTC'
         clean_end = end_date.replace('T', '_').replace(':', '') + 'UTC' if 'T' in end_date else end_date + '_000000UTC'
 
-        # Include the specific WRS_PATH in the file name
-        file_name = f"{title}_{mission_name}_Path{path}_{band_name}_{stage}_{clean_start}_to_{clean_end}"
+        # Include the specific WRS_PATH and optical_level in the file name
+        file_name = f"{title}_{mission_name}_{optical_level.upper()}_Path{path}_{band_name}_{stage}_{clean_start}_to_{clean_end}"
         prefix = f"COSEIS_Composites/{title}/{file_name}"
         
         task = ee.batch.Export.image.toCloudStorage(
@@ -2312,7 +2318,7 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
             scale=scale, 
             crs=crs_epsg,
             maxPixels=1e13,
-            formatOptions={'cloudOptimized': True}
+            formatOptions={'cloudOptimized': False}
         )
         
         task.start()
@@ -2428,7 +2434,7 @@ def assign_nodata(filepath, nodata_val=0):
         print(f"Warning: Could not open {filepath} to assign NoData value.")
 
 
-def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='sar', optical_backend='copernicus', landsat_level='raw'):
+def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='sar', optical_backend='copernicus', optical_level='toa'):
     """
     Process earthquake event and generate the necessary SLC pairs for InSAR processing.
     :param eq: dictionary containing earthquake data
@@ -2438,6 +2444,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
     :param resolution: Output resolution for the topsApp processing, default is 90m
     :param sensor: 'sar' for SAR processing, 'sentinel-2' or 'landsat' for optical processing
     :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if sensor is 'optical')
+    :optical_level: 'toa', 'sr', or 'raw' for the desired optical product level (only applicable if sensor is 'optical')
     :return: List of JSON objects containing the parameters for each pair of SLCs
     """
     title = eq.get('title', '')
@@ -2470,7 +2477,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
         aoi = make_aoi(coords) # Create AOI if not provided
 
     # Write AOI to a geojson file
-    with open(f'{title}_AOI.geojson', 'w') as f:
+    with open(f'{title}_{sensor}_{optical_level}_AOI.geojson', 'w') as f:
         geojson.dump(mapping(aoi), f, indent=2)
 
     all_jobs = []
@@ -2530,11 +2537,19 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             epsg_base = 32600 if lat >= 0 else 32700
             target_crs = f"EPSG:{epsg_base + utm_zone}"
             
-            # --- LANDSAT MISSION DECISION LOGIC ---
-            landsat_collection, landsat_band, landsat_scale = None, None, None
-            landsat_collection, landsat_band, landsat_scale = None, None, None
-    
-            if sensor == 'landsat' and optical_backend == 'gee':
+            # --- MISSION DECISION LOGIC ---
+            if sensor == 'sentinel-2':
+                if optical_level.lower() == 'sr':
+                    s2_collection = 'COPERNICUS/S2_SR_HARMONIZED'
+                elif optical_level.lower() == 'toa':
+                    s2_collection = 'COPERNICUS/S2_HARMONIZED'
+                else:
+                    print("  [Warning] Sentinel-2 does not support 'raw'. Defaulting to 'toa'.")
+                    s2_collection = 'COPERNICUS/S2_HARMONIZED'
+                    optical_level = 'toa'
+                print(f"  [Sentinel-2 Setup] Level: {optical_level.upper()} | Collection: {s2_collection} | Band: B8")
+            
+            elif sensor == 'landsat':
                 pre_dt = datetime.strptime(pre_start, '%Y-%m-%d')
                 post_dt = datetime.strptime(post_end, '%Y-%m-%d')
                 
@@ -2546,18 +2561,22 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 else:
                     mission = 'L7'
 
-                # Force handling of raw vs standard TOA levels
-                if landsat_level.lower() == 'raw':
+                if optical_level.lower() == 'raw':
                     if mission == 'L5': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LT05/C02/T1', 'B2', 30
                     if mission == 'L7': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LE07/C02/T1', 'B8', 15
                     if mission == 'L8': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LC08/C02/T1', 'B8', 15
+                elif optical_level.lower() == 'sr':
+                    # SR doesn't have Pan. Switching to Red Band (30m). AutoRIFT will dynamically adjust to 30m.
+                    if mission == 'L5': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LT05/C02/T1_L2', 'SR_B3', 30
+                    if mission == 'L7': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LE07/C02/T1_L2', 'SR_B3', 30
+                    if mission == 'L8': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LC08/C02/T1_L2', 'SR_B4', 30
                 else:
-                    landsat_level = 'toa'
+                    optical_level = 'toa'
                     if mission == 'L5': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LT05/C02/T1_TOA', 'B2', 30
                     if mission == 'L7': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LE07/C02/T1_TOA', 'B8', 15
                     if mission == 'L8': landsat_collection, landsat_band, landsat_scale = 'LANDSAT/LC08/C02/T1_TOA', 'B8', 15
                 
-                print(f"  [Landsat Setup] Level: {landsat_level.upper()} | Collection: {landsat_collection} | Band: {landsat_band}")
+                print(f"  [Landsat Setup] Level: {optical_level.upper()} | Collection: {landsat_collection} | Band: {landsat_band}")
 
             # Create job_list, if applicable
             if job_list:
@@ -2574,16 +2593,16 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                         "post_start": post_start,
                         "post_end": post_end,
                         # Inject Landsat parameters if applicable
-                        "landsat_collection": landsat_collection,
-                        "landsat_band": landsat_band,
-                        "landsat_scale": landsat_scale
+                        "landsat_collection": landsat_collection if sensor == 'landsat' else None,
+                        "landsat_band": landsat_band if sensor == 'landsat' else None,
+                        "landsat_scale": landsat_scale if sensor == 'landsat' else None
                     }
                 }
                 return [[gee_job]], [{"type": "Feature", "geometry": mapping(aoi), "properties": {"title": title, "crs": target_crs}}]
 
             # Execution logic
             local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
-            manifest_path = os.path.join(local_dir, f"{title}_{sensor}_autorift_manifest.json")
+            manifest_path = os.path.join(local_dir, f"{title}_{sensor}_{optical_level.lower()}_autorift_manifest.json")
             if os.path.exists(manifest_path):
                 print(f"  Data already downloaded for {title}. Skipping GEE computation.")
                 return [], []
@@ -2594,7 +2613,8 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 return [], []
 
             try:
-                ee.Initialize()
+                print('initializing with coseis-1')
+                ee.Initialize(project='coseis-1')
             except Exception as e:
                 print("Earth Engine not authenticated. Run 'earthengine authenticate --auth_mode=notebook' in your terminal.")
                 raise e
@@ -2602,23 +2622,23 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             if sensor == 'sentinel-2':
                 print(f"Generating Pre-Event Sentinel-2 Composites...")
                 pre_exports, pre_dates = export_gee_sentinel2_composite(
-                    aoi, pre_start, pre_end, title, "PRE", gcs_bucket, crs_epsg=target_crs
+                    aoi, pre_start, pre_end, title, "PRE", gcs_bucket, s2_collection, optical_level, crs_epsg=target_crs
                 )
                 print(f"Generating Post-Event Sentinel-2 Composites...")
                 post_exports, post_dates = export_gee_sentinel2_composite(
-                    aoi, post_start, post_end, title, "POST", gcs_bucket, crs_epsg=target_crs
+                    aoi, post_start, post_end, title, "POST", gcs_bucket, s2_collection, optical_level, crs_epsg=target_crs
                 )
             
             elif sensor == 'landsat':
                 print(f"Generating Pre-Event Landsat Composites...")
                 pre_exports, pre_dates = export_gee_landsat_composite(
                     aoi, pre_start, pre_end, title, "PRE", gcs_bucket, landsat_collection,
-                    landsat_band, landsat_scale, crs_epsg=target_crs
+                    landsat_band, landsat_scale, optical_level, crs_epsg=target_crs
                 )
                 print(f"Generating Post-Event Landsat Composites...")
                 post_exports, post_dates = export_gee_landsat_composite(
                     aoi, post_start, post_end, title, "POST", gcs_bucket, landsat_collection,
-                    landsat_band, landsat_scale, crs_epsg=target_crs
+                    landsat_band, landsat_scale, optical_level, crs_epsg=target_crs
                 )
 
             # Extract task objects from the dictionaries to monitor them
@@ -2666,6 +2686,8 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             # Create the local manifest for AutoRIFT
             manifest_payload = {
                 "event_title": title,
+                "sensor": sensor,
+                "optical_level": optical_level,
                 "backend": "Google Earth Engine",
                 "track_pairs": track_pairs,
                 "pre_dates_used": pre_dates,
@@ -2822,7 +2844,7 @@ def parse_custom_eq_list(file_path):
     return earthquakes
 
 
-def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, sensor='sar', optical_backend='copernicus'):
+def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, sensor='sar', optical_backend='copernicus', optical_level='toa'):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
@@ -2832,6 +2854,7 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
     :param send_email_flag: If True, sends an email alert after processing. Default is False.
     :param sensor: 'sar' for SAR processing, 'optical' for optical processing
     :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if sensor is 'optical')
+    :optical_level: 'toa' or 'sr' for the desired optical product level (only applicable if sensor is 'optical')
     """
     import shutil
 
@@ -3038,7 +3061,7 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
             os.remove(lock_file)
 
 
-def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, pairing_mode=None, job_list=False, resolution=90, sensor='sar', optical_backend='copernicus'):
+def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, pairing_mode=None, job_list=False, resolution=90, sensor='sar', optical_backend='copernicus', optical_level='toa'):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -3053,6 +3076,7 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
     :param resolution: Output resolution for the topsApp processing, default is 90m
     :param sensor: 'sar' for SAR processing, 'optical' for optical processing
     :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if sensor is 'optical')
+    :optical_level: 'toa' or 'sr' for the desired optical product level (only applicable if sensor is 'optical')
     """
     # Generate the list of earthquakes
     geojson_data = None
@@ -3090,7 +3114,7 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
 
         for eq in eq_sig:
             try:
-                eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, sensor, optical_backend)
+                eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, sensor, optical_backend, optical_level)
 
                 if eq_features:
                     master_scene_features.extend(eq_features)
@@ -3174,12 +3198,13 @@ if __name__ == "__main__":
     parser.add_argument("--do_processing", action="store_true", help="Execute local topsApp processing.")
     parser.add_argument("--send_email", action="store_true", help="Send email notifications.")
     parser.add_argument("--optical_backend", choices=["copernicus", "element84", "gee"], default="copernicus", help="Specify the optical data provider if sensor is optical. Default is copernicus.")
+    parser.add_argument("--optical_level", choices=["raw", "toa", "sr"], default="toa", help="Specify the optical data level ('raw', 'toa', 'sr'). Default is 'toa'. Sentinel-2 does not support 'raw'.")
 
     args = parser.parse_args()
 
     # Global constraint check
-    if args.sensor == 'sar' and '--optical_backend' in sys.argv:
-        print("Error: --optical_backend can only be used when --sensor is 'sentinel-2' or 'landsat'.")
+    if args.sensor == 'sar' and ('--optical_backend' in sys.argv or '--optical_level' in sys.argv):
+        print("Error: --optical_backend and --optical_level can only be used when --sensor is 'sentinel-2' or 'landsat'.")
         parser.print_help()
         exit(1)
         
@@ -3202,7 +3227,17 @@ if __name__ == "__main__":
 
         start_date = args.dates[0]
         end_date = args.dates[1] if len(args.dates) == 2 else None
-        main_historic(start_date=start_date, end_date=end_date, aoi=args.aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, sensor=args.sensor, optical_backend=args.optical_backend)
+        main_historic(
+            start_date=start_date, 
+            end_date=end_date, 
+            aoi=args.aoi, 
+            pairing_mode=args.pairing, 
+            job_list=args.job_list, 
+            resolution=args.resolution, 
+            sensor=args.sensor, 
+            optical_backend=args.optical_backend,
+            optical_level=args.optical_level
+        )
 
     elif args.eq_list:
         if args.send_email or args.do_processing:
@@ -3212,7 +3247,16 @@ if __name__ == "__main__":
             print("Error: --dates cannot be used with --eq_list. The dates are defined in the file.")
             exit(1)
             
-        main_historic(eq_list_path=args.eq_list, aoi=args.aoi, pairing_mode=args.pairing, job_list=args.job_list, resolution=args.resolution, sensor=args.sensor, optical_backend=args.optical_backend)
+        main_historic(
+            eq_list_path=args.eq_list, 
+            aoi=args.aoi, 
+            pairing_mode=args.pairing, 
+            job_list=args.job_list, 
+            resolution=args.resolution, 
+            sensor=args.sensor, 
+            optical_backend=args.optical_backend,
+            optical_level=args.optical_level
+        )
 
     elif args.forward:
         if args.job_list or args.dates or args.aoi:
@@ -3245,4 +3289,12 @@ if __name__ == "__main__":
         if not args.do_processing and not args.send_email:
             print("Warning: Running --forward without --do_processing or --send_email. The script will only update tracking files.")
 
-        main_forward(args.pairing, args.resolution, args.do_processing, args.send_email, sensor=args.sensor, optical_backend=args.optical_backend)
+        main_forward(
+            pairing_mode=args.pairing, 
+            resolution=args.resolution, 
+            do_processing=args.do_processing, 
+            send_email_flag=args.send_email, 
+            sensor=args.sensor, 
+            optical_backend=args.optical_backend,
+            optical_level=args.optical_level
+        )
