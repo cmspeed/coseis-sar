@@ -145,7 +145,7 @@ def add_to_tracker(eq, aoi, resolution=90):
         job_filename = f"job_{title}_{track_key}_partial.json"
         
         # Create the standard HYP3 structure
-        job_json = make_job_json(title, flight_direction, path_number, [], pre_slcs, resolution)
+        job_json = make_job_json(title, event_id, flight_direction, path_number, [], pre_slcs, resolution)
         
         # Save Partial File
         with open(job_filename, "w") as f:
@@ -1343,10 +1343,11 @@ def get_utm_zone(granule_id):
     return match.group(1) if match else "Unknown"
 
 
-def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, secondary_ids, pre_cc=None, post_cc=None, status="COMPLETE", zone_suffix=None):
+def make_optical_job_json(title, event_id, orbit_id, pre_date, post_date, reference_ids, secondary_ids, pre_cc=None, post_cc=None, status="COMPLETE", zone_suffix=None):
     """
     Helper function to create a JSON object for an AUTORIFT job. Matches the schema defined in ARIA_AUTORIFT.yml.
     :param title: Title of the job (usually the earthquake event name)
+    :param event_id: The earthquake event ID (e.g., "us7000dflf")
     :param orbit_id: The orbit number (e.g., "047")
     :param pre_date: Date of the Pre-Event image (YYYY-MM-DD)
     :param post_date: Date of the Post-Event image (YYYY-MM-DD)
@@ -1366,6 +1367,7 @@ def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, s
     job_json = {
         "name": job_name,
         "job_type": "AUTORIFT",
+        "event_id": event_id,
         "pre_cloud_cover": round(pre_cc, 2) if pre_cc is not None else None,    # Temporary debug field
         "post_cloud_cover": round(post_cc, 2) if post_cc is not None else None,  # Temporary debug field
         "job_parameters": {
@@ -1383,7 +1385,7 @@ def make_optical_job_json(title, orbit_id, pre_date, post_date, reference_ids, s
     return job_json
 
 
-def find_optical_pairs_copernicus(optical_scenes, rupture_time, title, aoi_polygon, job_list=True):
+def find_optical_pairs_copernicus(optical_scenes, rupture_time, title, event_id, aoi_polygon, job_list=True):
     """
     Generate Optical Pairs grouped by Relative Orbit.
     Prioritizes: 1. True Coverage Area %, 2. Cloud Cover, 3. Time.
@@ -1500,7 +1502,7 @@ def find_optical_pairs_copernicus(optical_scenes, rupture_time, title, aoi_polyg
             # Generate the partial job and add to list
             if job_list:
                 job = make_optical_job_json(
-                    title, orbit_id, pre_date_str, post_date_str, 
+                    title, event_id, orbit_id, pre_date_str, post_date_str, 
                     primary_ids, secondary_ids, status="PARTIAL"
                 )
                 jobs.append(job)
@@ -1539,9 +1541,8 @@ def find_optical_pairs_copernicus(optical_scenes, rupture_time, title, aoi_polyg
             primary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_pre['scenes']]
             secondary_ids = [s['granule_id'].replace('.SAFE', '') for s in best_post['scenes']]
             
-            # CALL THE HELPER FUNCTION HERE
             job = make_optical_job_json(
-                title, orbit_id, best_pre['date'], best_post['date'], 
+                title, event_id, orbit_id, best_pre['date'], best_post['date'], 
                 primary_ids, secondary_ids
             )
             jobs.append(job)
@@ -1549,7 +1550,7 @@ def find_optical_pairs_copernicus(optical_scenes, rupture_time, title, aoi_polyg
     return jobs, scene_features
 
 
-def process_candidate_group(orbit_key, dates_dict, rupture_dt, aoi_polygon, title, aoi_area, strategy_name, role=None):
+def process_candidate_group(orbit_key, dates_dict, rupture_dt, aoi_polygon, title, event_id, aoi_area, strategy_name, role=None):
     """
     Generic logic to select best Pre/Post pair from a grouped dictionary of candidates. Used by both 'Dominant' and 'Split' strategies.
     :param orbit_key: The key representing the group (e.g., "047" for Orbit-based, "047_Z46" for Orbit_Zone-based)
@@ -1557,6 +1558,7 @@ def process_candidate_group(orbit_key, dates_dict, rupture_dt, aoi_polygon, titl
     :param rupture_dt: Datetime object representing the earthquake's origin time
     :param aoi_polygon: Shapely Polygon representing the Area of Interest (used for coverage calculation)
     :param title: Title of the earthquake event (used for job naming)
+    :param event_id: The earthquake event ID (e.g., "us7000dflf") for job naming
     :param aoi_area: Area of the AOI polygon (used for coverage calculation)
     :param strategy_name: Name of the strategy ("Dominant" or "Split") for logging purposes
     :param role: Optional parameter to indicate if this group is 'dominant' or 'minority' in the context of mixed zones (used for logging and feature properties)
@@ -1642,7 +1644,7 @@ def process_candidate_group(orbit_key, dates_dict, rupture_dt, aoi_polygon, titl
         orbit_id = parts[0]
         zone_suffix = parts[1]
 
-    job = make_optical_job_json(title, orbit_id, best_pre['date'], best_post['date'], primary_ids, secondary_ids, pre_cc=best_pre['cc'], post_cc=best_post['cc'], zone_suffix=zone_suffix)
+    job = make_optical_job_json(title, event_id, orbit_id, best_pre['date'], best_post['date'], primary_ids, secondary_ids, pre_cc=best_pre['cc'], post_cc=best_post['cc'], zone_suffix=zone_suffix)
     jobs.append(job)
 
     # Generate GeoJSON Features for Visualization
@@ -1682,7 +1684,7 @@ def check_mixed_zones_in_group(dates_dict):
     return False
 
 
-def find_optical_pairs_element84(optical_scenes, rupture_time, title, aoi_polygon):
+def find_optical_pairs_element84(optical_scenes, rupture_time, title, event_id, aoi_polygon):
     """
     Generates optical pairs using two strategies concurrently for comparison:
     1. DOMINANT: Enforces one UTM zone per Orbit (drops minority tiles).
@@ -1729,7 +1731,7 @@ def find_optical_pairs_element84(optical_scenes, rupture_time, title, aoi_polygo
                 dom_dates_dict[d] = [s for s in scenes if get_utm_zone(s['granule_id']) == winner]
         
         # Generate Dominant Jobs (Always added to production list)
-        j_dom, f_dom = process_candidate_group(orbit_id, dom_dates_dict, rupture_dt, aoi_polygon, title, aoi_area, "DOMINANT", role="dominant")
+        j_dom, f_dom = process_candidate_group(orbit_id, dom_dates_dict, rupture_dt, aoi_polygon, title, event_id, aoi_area, "DOMINANT", role="dominant")
         all_prod_jobs.extend(j_dom)
 
         # If this was a Mixed case, add to our specific debug lists
@@ -1760,7 +1762,7 @@ def find_optical_pairs_element84(optical_scenes, rupture_time, title, aoi_polygo
                 z_str = key.split('_Z')[-1]
                 role = 'dominant' if z_str == global_winner else 'minority'
 
-                _, f_split = process_candidate_group(key, z_dates_dict, rupture_dt, aoi_polygon, title, aoi_area, "SPLIT", role=role)
+                _, f_split = process_candidate_group(key, z_dates_dict, rupture_dt, aoi_polygon, title, event_id, aoi_area, "SPLIT", role=role)
                 mixed_split_feats.extend(f_split)
 
     return all_prod_jobs, mixed_dom_feats, mixed_split_feats
@@ -1782,7 +1784,7 @@ def generate_pairs(pairs, mode):
         return []
 
 
-def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, pairing_mode='sequential', job_list = False, resolution=90):
+def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, event_id, pairing_mode='sequential', job_list = False, resolution=90):
     """
     Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, 
     and determine whether each pair is pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
@@ -1791,6 +1793,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     :param flight_direction: 'ASCENDING' or 'DESCENDING'
     :param path_number: Sentinel-1 path number
     :param title: USGS title of the earthquake event, used for file organization
+    :param event_id: USGS event ID of the earthquake, used for file organization
     :param pairing_mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'coseismic' for pairs bounding the rupture date only
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
     :param resolution: Output resolution for the topsApp processing, default is 90m
@@ -1851,7 +1854,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             reference_scenes_ids = [slc['fileID'].removesuffix("-SLC") for slc in reference_scenes]
             secondary_scenes_ids = [slc['fileID'].removesuffix("-SLC") for slc in secondary_scenes]
             if job_list:
-                json_output = make_job_json(title, flight_direction, path_number, reference_scenes_ids, secondary_scenes_ids, resolution)
+                json_output = make_job_json(title, event_id, flight_direction, path_number, reference_scenes_ids, secondary_scenes_ids, resolution)
             else:
                 json_output = make_json(title, timing, flight_direction, path_number, list(frame_numbers), 
                                         {'date': reference_date.strftime('%Y-%m-%d')}, 
@@ -1901,10 +1904,11 @@ def make_json(title, timing, flight_direction, path_number, frame_numbers, refer
     return isce_json
 
 
-def make_job_json(title, flight_direction, path_number, reference_scenes, secondary_scenes, resolution):
+def make_job_json(title, event_id, flight_direction, path_number, reference_scenes, secondary_scenes, resolution):
     """
     Create a JSON object containing parameters for dockerized topsApp on HYP3.
     :param title: USGS title of the earthquake event
+    :param event_id: USGS event ID of the earthquake event
     :param flight_direction: 'A' or 'D' for ascending or descending
     :param path_number: Sentinel-1 path number
     :param reference_scenes: List of reference SLC fileIDs
@@ -1916,6 +1920,7 @@ def make_job_json(title, flight_direction, path_number, reference_scenes, second
     job_json = {
         "name": f"{title}-{flight_direction}{path_number}",
         "job_type": "ARIA_S1_COSEIS",
+        "event_id": event_id,
         "job_parameters": {
             "granules": reference_scenes,
             "secondary_granules": secondary_scenes,
@@ -1927,7 +1932,7 @@ def make_job_json(title, flight_direction, path_number, reference_scenes, second
             "unfiltered_coherence": True,
             "dense_offsets": True,
             "output_resolution": resolution
-            }
+        }
     }
     return job_json
 
@@ -2499,7 +2504,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
             frame_numbers = list(set(fn[0] for fn in frame_numbers))
             SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
             isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, 
-                                                           title, pairing_mode, job_list, resolution)
+                                                           title, event_id, pairing_mode, job_list, resolution)
             all_jobs.append(isce_jobs)
 
     elif sensor in ['sentinel-2', 'landsat']:
@@ -2512,12 +2517,12 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
         if optical_backend == 'copernicus':
             print("Routing to Copernicus Public OData backend...")
             s2_scenes = search_copernicus_public(aoi, start_search, end_search)
-            s2_jobs, s2_features = find_optical_pairs_copernicus(s2_scenes, rupture_time, title, aoi, job_list)
+            s2_jobs, s2_features = find_optical_pairs_copernicus(s2_scenes, rupture_time, title, event_id, aoi, job_list)
             
         elif optical_backend == 'element84':
             print("Routing to Element84 STAC backend...")
             s2_scenes = search_element84_stac(aoi, start_search, end_search)
-            s2_jobs, f_dom, f_split = find_optical_pairs_element84(s2_scenes, rupture_time, title, aoi)
+            s2_jobs, f_dom, f_split = find_optical_pairs_element84(s2_scenes, rupture_time, title, event_id, aoi)
             s2_features = f_dom + f_split
             
         elif optical_backend == 'gee':
@@ -2584,6 +2589,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 gee_job = {
                     "name": f"{title}-GEE_{sensor.upper()}",
                     "job_type": "GEE_OPTICAL_COSEIS",
+                    "event_id": event_id,
                     "job_parameters": {
                         "event_title": title,
                         "sensor": sensor,
