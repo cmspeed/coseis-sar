@@ -2340,22 +2340,38 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
     return path_exports, sorted(list(set(all_unique_dates)))
 
 
-def wait_for_gee_tasks(tasks):
+def wait_for_gee_tasks(tasks, timeout_mins=60):
     """
     Polls GEE until all provided tasks are either COMPLETED or FAILED.
+    Includes a timeout to prevent infinite hangs on stuck GEE backend tasks.
     :param tasks: List of GEE export task objects to monitor
+    :param timeout_mins: Maximum minutes to wait before canceling tasks.
     """
-    print("Waiting for Google Earth Engine exports to complete...")
+    print(f"Waiting for Google Earth Engine exports to complete (Timeout: {timeout_mins} mins)...")
+    start_time = time.time()
+    timeout_seconds = timeout_mins * 60
+
     for task in tasks:
         while task.active():
+            elapsed = time.time() - start_time
+            if elapsed > timeout_seconds:
+                print(f"  Task {task.id} TIMED OUT after {timeout_mins} minutes. Canceling task.")
+                try:
+                    task.cancel()
+                except Exception as e:
+                    print(f"  Could not cancel task {task.id}: {e}")
+                break
+                
             print(f"  Task {task.id} is {task.status()['state']}... waiting 30 seconds.")
             time.sleep(30)
         
         status = task.status()
         if status['state'] == 'COMPLETED':
             print(f"  Task {task.id} COMPLETED.")
+        elif status['state'] in ['CANCELLED', 'CANCELED']:
+            print(f"  Task {task.id} CANCELLED due to timeout.")
         else:
-            print(f"  Task {task.id} FAILED: {status.get('error_message')}")
+            print(f"  Task {task.id} FAILED: {status.get('error_message', 'Unknown error')}")
 
 
 def download_from_gcs(bucket_name, prefix, local_dir):
