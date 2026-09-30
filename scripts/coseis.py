@@ -1964,10 +1964,10 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     if next_pass_dir not in sys.path:
         sys.path.append(next_pass_dir)
     try:
-        from utils import plot_maps
+        from next_pass import plot_maps
     except ImportError as e:
         print(f"Could not import plot_maps: {e}")
-        return None, None, None, None
+        return None, None, None
     
     from datetime import date
 
@@ -1984,7 +1984,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
         result = next_pass.find_next_overpass(args, timestamp_dir)
     except Exception as e:
         print(f"Next pass error: {e}")
-        return None, None, None, None
+        return None, None, None
     
     result_s1 = result.get("sentinel-1") 
     result_nisar = result.get("nisar")
