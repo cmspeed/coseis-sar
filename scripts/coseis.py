@@ -2697,6 +2697,13 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 elif len(post_local_paths) == 1:
                     os.rename(post_local_paths[0], final_post_path)
                 
+                # --- NEW VALIDATION LOGIC ---
+                # Verify files exist before assigning nodata or adding to manifest
+                if not os.path.exists(final_pre_path) or not os.path.exists(final_post_path):
+                    print(f"  Warning: Missing data for track {track}. Skipping pair in manifest.")
+                    continue
+                # ----------------------------
+
                 assign_nodata(final_pre_path, nodata_val=0)
                 assign_nodata(final_post_path, nodata_val=0)
                 
@@ -2704,6 +2711,12 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                     "pre_image": final_pre_path,
                     "post_image": final_post_path
                 }
+
+            # --- PREVENT EMPTY MANIFEST CREATION ---
+            if not track_pairs:
+                print(f"\n  No successful tracks downloaded for {title}. Manifest will not be created.")
+                return [], []
+            # ---------------------------------------
 
             # Create the local manifest for AutoRIFT
             manifest_payload = {
