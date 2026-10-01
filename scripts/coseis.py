@@ -770,16 +770,16 @@ def get_event_rake(event_id):
 
 def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mode='historic'):
     """
-    Check the significance of each earthquake based on its 
-    (1) magnitude (>=6.0), (2) USGS alert level (['green','yellow','orange','red]),
-    (3) depth (<=40.0 km), (4) distance from land (within 0.5 degrees, ~55 km of the coastline),
-    and (5) if sensor is 'optical', rake angle (must be strike-slip: ~0 or ~180 degrees).
+    Check the significance of each earthquake based on its
+    (1) magnitude and (2) depth (historic: M>=6.0 and <=40 km; forward: M>=5.5 and <=15 km or M>=6.0 and <=40 km),
+    (3) distance from land (within 0.5 degrees, ~55 km of the coastline),
+    and (4) if sensor is optical, rake angle (must be strike-slip: ~0 or ~180 degrees).
     
     :param earthquakes: list of dictionaries containing earthquake data
     :param start_date: start date in the format 'YYYY-MM-DD'
     :param end_date: end date in the format 'YYYY-MM-DD' (optional)
     :param sensor: determines if rake filter will be applied ('sar' or 'optical')
-    :param mode: 'historic' or 'forward' - determines the alert criteria used for filtering.
+    :param mode: 'historic' or 'forward' - determines the magnitude/depth criteria used for filtering.
     :return: List of dictionaries containing significant earthquakes
     """
     print('=========================================')
@@ -787,7 +787,6 @@ def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mod
     print('=========================================')
 
     significant_earthquakes = []
-    alert_list = ['green', 'yellow', 'orange', 'red']
     coastline = get_coastline(coastline_api)
     
     # Rake tolerance (degrees)
@@ -795,7 +794,6 @@ def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mod
 
     for earthquake in earthquakes:
         magnitude = earthquake.get('mag')
-        alert = earthquake.get('alert')
         depth = earthquake.get('coordinates', [])[2] if earthquake.get('coordinates') else None
         
         # Filters applicable to both sensors
@@ -805,7 +803,7 @@ def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mod
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             
             if mode == 'historic':
-                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
+                if (magnitude >= 6.0) and (depth <= 40.0) and within_Coastline_buffer:
                     is_candidate = True
             elif mode == 'forward':
                 # Catch M>=5.5 & <=15km OR M>=6.0 & <=40km
