@@ -730,7 +730,7 @@ def get_event_rake(event_id):
 
     print(f'Fetching rake for event_id: {event_id}')
     try:
-        response = requests.get(detail_url, params=params)
+        response = requests.get(detail_url, params=params, timeout=30)
         response.raise_for_status()
         data = response.json()
 
@@ -815,43 +815,37 @@ def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mod
         if not is_candidate:
             continue
 
-        # Fetch Rake
+        # SAR: no rake requirement
+        if sensor not in ['sentinel-2', 'landsat']:
+            significant_earthquakes.append(earthquake)
+            continue
+
+        # Optical: require strike-slip rake
         title = earthquake.get('title', 'Unknown Event')
         print(f"  Fetching rake for candidate: {title}...")
-        
+
         rakes = get_event_rake(earthquake.get('id'))
-        earthquake['rakes'] = rakes 
+        earthquake['rakes'] = rakes
 
-        # Sensor-Specific Filtering
-        if sensor in ['sentinel-2', 'landsat']:
-            if not rakes:
-                print(f"    -> Skipped (Optical mode requires rake data, none found)")
-                continue
+        if not rakes:
+            print(f"    -> Skipped (Optical mode requires rake data, none found)")
+            continue
 
-            # Check if ANY available rake satisfies the condition
-            is_strike_slip = False
-            accepted_rake_val = None
+        # Check if ANY available rake satisfies the condition
+        is_strike_slip = False
+        accepted_rake_val = None
 
-            for r in rakes:
-                if (abs(r) <= RAKE_TOLERANCE) or (abs(r) >= (180.0 - RAKE_TOLERANCE)):
-                    is_strike_slip = True
-                    accepted_rake_val = r
-                    break
-            
-            if is_strike_slip:
-                 print(f"    -> Accepted (Rake {accepted_rake_val}° fits strike-slip criteria)")
-                 significant_earthquakes.append(earthquake)
-            else:
-                 print(f"    -> Skipped (Rakes {rakes} indicate dip-slip/oblique motion)")
-                 
-        else:
-            # SAR mode: Accept even if rake is missing or "bad"
-            if rakes:
-                print(f"    -> Accepted (SAR mode; Rakes found: {rakes})")
-            else:
-                print(f"    -> Accepted (SAR mode; No rake data found)")
-            
+        for r in rakes:
+            if (abs(r) <= RAKE_TOLERANCE) or (abs(r) >= (180.0 - RAKE_TOLERANCE)):
+                is_strike_slip = True
+                accepted_rake_val = r
+                break
+
+        if is_strike_slip:
+            print(f"    -> Accepted (Rake {accepted_rake_val}° fits strike-slip criteria)")
             significant_earthquakes.append(earthquake)
+        else:
+            print(f"    -> Skipped (Rakes {rakes} indicate dip-slip/oblique motion)")
 
     # Output / Logging
     if len(significant_earthquakes) > 0:
