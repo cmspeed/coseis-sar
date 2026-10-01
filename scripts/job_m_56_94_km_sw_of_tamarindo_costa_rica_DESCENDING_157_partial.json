@@ -1,11 +1,11 @@
 [
     {
-        "name": "m_58_11_km_se_of_ierapetra_greece-ASCENDING29",
+        "name": "m_56_94_km_sw_of_tamarindo_costa_rica-DESCENDING157",
         "job_type": "ARIA_S1_COSEIS",
         "job_parameters": {
             "granules": [],
             "secondary_granules": [
-                "S1A_IW_SLC__1SDV_20260419T161448_20260419T161515_064151_0812EB_80DD"
+                "S1D_IW_SLC__1SDV_20260926T113028_20260926T113055_004748_008E3F_6800"
             ],
             "frame_id": -1,
             "estimate_ionosphere_delay": true,
@@ -14,7 +14,7 @@
             "goldstein_filter_power": 0.5,
             "unfiltered_coherence": true,
             "dense_offsets": true,
-            "output_resolution": 90
+            "output_resolution": 30
         }
     }
 ]

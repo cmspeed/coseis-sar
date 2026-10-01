@@ -568,20 +568,16 @@ def process_event(manifest_path, enable_filtering=False):
 def main():
     parser = argparse.ArgumentParser(description="Run autoRIFT batch processing on GEE optical downloads.")
     parser.add_argument("--filter", action="store_true", help="Enable FFT/Wallis pre-filtering for optical imagery.")
+    parser.add_argument("--data_dir", type=Path, default=Path(__file__).resolve().parent / "data",
+                        help="coseis.py data directory containing GEE_Optical_Downloads/. "
+                             "Default: scripts/data (where coseis.py writes when run from scripts/).")
     args = parser.parse_args()
 
     # Start timer
     script_start_time = time.time()
-    
-    # Gets the absolute path to the project root (one level up from /scripts)
-    root_dir = Path(__file__).resolve().parent.parent 
-    
+
     # Search for all manifest files in the GEE_Optical_Downloads directory
-    # search_pattern = root_dir / "data" / "GEE_Optical_Downloads" / "**" / "*_autorift_manifest.json"
-    
-    # START DELETE THESE LINES AFTER TESTING
-    search_pattern = root_dir / "coseis-earthquake-data" / "data" / "GEE_Optical_Downloads" / "test_autorift" / "**" / "*_autorift_manifest.json"
-    # END DELETE THESE LINES AFTER TESTING
+    search_pattern = args.data_dir.resolve() / "GEE_Optical_Downloads" / "**" / "*_autorift_manifest.json"
 
     manifest_files = glob.glob(str(search_pattern), recursive=True)
     
