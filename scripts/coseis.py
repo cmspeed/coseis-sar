@@ -1,14 +1,11 @@
 import re
 import unicodedata
 import os
-from osgeo import gdal
 import argparse
 import asf_search as asf
 from dateutil import parser as dateparser
 from dateutil.parser import isoparse
-import ee
 from pathlib import Path
-from pystac_client import Client
 import requests
 import json
 import folium
@@ -28,7 +25,6 @@ from itertools import combinations
 import logging
 import yagmail
 import time
-from google.cloud import storage
 from time import sleep
 from types import SimpleNamespace
 from urllib.parse import urlparse
@@ -1385,6 +1381,8 @@ def search_element84_stac(aoi_polygon, start_date, end_date):
     """
     Searches Element84 Earth Search STAC API v1 for Sentinel-2 L2A COGs using pystac_client.
     """
+    from pystac_client import Client
+
     print("Searching Element84 Earth Search for Sentinel-2 L2A...")
     
     # Connect to the API endpoint
@@ -2289,6 +2287,8 @@ def export_gee_sentinel2_composite(aoi_polygon, start_date, end_date, title, sta
     :param crs_epsg: EPSG code for the coordinate reference system to use in the export (default is 'EPSG:4326')
     :return: The GEE export task object
     """
+    import ee
+
     # Convert Shapely polygon to GEE Geometry
     bounds = aoi_polygon.bounds
     ee_roi = ee.Geometry.Rectangle([bounds[0], bounds[1], bounds[2], bounds[3]])
@@ -2382,6 +2382,8 @@ def export_gee_landsat_composite(aoi_polygon, start_date, end_date, title, stage
     :param crs_epsg: EPSG code for the coordinate reference system to use in the export (default is 'EPSG:4326')
     :return: The GEE export task object and a list of unique acquisition dates
     """
+    import ee
+
     bounds = aoi_polygon.bounds
     ee_roi = ee.Geometry.Rectangle([bounds[0], bounds[1], bounds[2], bounds[3]])
 
@@ -2528,6 +2530,8 @@ def download_from_gcs(bucket_name, prefix, local_dir):
     :param prefix: Prefix of the blob in the GCS bucket (including path) to identify the file(s) to download
     :param local_dir: Local directory where the file(s) should be downloaded
     """
+    from google.cloud import storage
+
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix)
@@ -2589,6 +2593,8 @@ def assign_nodata(filepath, nodata_val=0):
     Opens the specified GeoTIFF and explicitly writes the NoData 
     value into the metadata header.
     """
+    from osgeo import gdal
+
     # Open the file in update mode, explicitly passing the open option to break COG layout
     ds = gdal.OpenEx(filepath, gdal.OF_UPDATE, open_options=["IGNORE_COG_LAYOUT_BREAK=YES"])
     
@@ -2783,6 +2789,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 print("Error: COSEIS_GCS_BUCKET environment variable is not set.")
                 return [], []
 
+            import ee
             try:
                 print('initializing with coseis-1')
                 ee.Initialize(project='coseis-1')
