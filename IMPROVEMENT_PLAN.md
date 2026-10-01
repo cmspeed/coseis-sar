@@ -13,7 +13,7 @@
 ## Status
 | Phase | State | Branch / PR |
 |---|---|---|
-| 1. Reconcile `develop` with `main` | in review | `phase1-reconcile` (rename to issue #) → PR into `develop` |
+| 1. Reconcile `develop` with `main` | in review | issue #27, branch `27` → PR into `develop` |
 | 2. Tests + modularize | not started | — |
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | not started | — |
@@ -47,7 +47,8 @@ Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixe
 - [x] Equivalence check: historic SAR `--job_list` for 2025-01-07 (Tibet, M7.1) on `main` vs this branch. Job list, AOI, significance CSV/GeoJSON and earthquake info are identical; the only difference is the new `event_id` field on each job. **DONE 2026-10-01**
 - [ ] Forward-mode equivalence is still unverified offline: it needs either the Phase 2a fixtures or the Phase 5 shadow run.
   - Expected difference: `_partial.json` jobs now include `event_id`.
-- [ ] Open the Phase 1 issue, rename the branch to the issue number, push, and open the PR into `develop`.
+- [x] Open the Phase 1 issue (#27), rename the branch to `27`, and push. **DONE 2026-10-01**
+- [ ] Open the PR from `27` into `develop`.
 
 ## Phase 2: Safety net, then modularize `coseis.py`
 **2a. Characterization tests (before any refactor).** Pin down current behavior so the refactor can be checked against it. This is the minimum needed to refactor safely; it is not the full test suite (that's Phase 4).
