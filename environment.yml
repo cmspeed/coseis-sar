@@ -15,3 +15,12 @@ dependencies:
   - shapely
   - tabulate
   - yagmail
+  # Optical (--sensor sentinel-2/landsat); imported lazily, not needed for SAR-only runs
+  - earthengine-api
+  - google-cloud-storage
+  - pystac-client
+  - gdal
+  # scripts/batch_autorift.py additionally requires hyp3_autorift
+  - pip
+  - pip:
+      - git+https://github.com/OPERA-Cal-Val/next_pass.git
