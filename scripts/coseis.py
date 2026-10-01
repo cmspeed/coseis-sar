@@ -2712,15 +2712,30 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                     "post_image": final_post_path
                 }
 
-            # --- PREVENT EMPTY MANIFEST CREATION ---
-            if not track_pairs:
-                print(f"\n  No successful tracks downloaded for {title}. Manifest will not be created.")
-                return [], []
-            # ---------------------------------------
+            # Ensure the directory exists (in case download_from_gcs was never triggered)
+            os.makedirs(local_dir, exist_ok=True)
 
-            # Create the local manifest for AutoRIFT
+            # --- HANDLE NO DATA SCENARIO ---
+            if not track_pairs:
+                print(f"\n  No valid tracks downloaded for {title}. Writing failed manifest to prevent retries.")
+                manifest_payload = {
+                    "event_title": title,
+                    "event_id": event_id,
+                    "sensor": sensor,
+                    "optical_level": optical_level,
+                    "backend": "Google Earth Engine",
+                    "track_pairs": {},
+                    "status": "FAILED_NO_DATA"
+                }
+                with open(manifest_path, 'w') as f:
+                    json.dump(manifest_payload, f, indent=4)
+                return [], []
+            # -------------------------------
+
+            # Create the local manifest for AutoRIFT (Success Case)
             manifest_payload = {
                 "event_title": title,
+                "event_id": event_id,
                 "sensor": sensor,
                 "optical_level": optical_level,
                 "backend": "Google Earth Engine",
