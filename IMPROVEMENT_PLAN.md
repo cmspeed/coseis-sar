@@ -8,7 +8,8 @@
 3. **Hotfix flow:** fix on `main` in a small PR, then merge `main` into `develop` right away so the fix isn't lost.
 4. **Sync `main` into `develop` regularly** (at least before starting each phase) to pick up hotfixes. Bot data files will conflict; resolve them by taking `main`'s version.
 5. **Commits within a PR are small and single-purpose.** In refactor PRs, a commit that moves code never also changes behavior.
-6. **Keep the external interface stable.** Cron and GitHub Actions call `cd scripts && python coseis.py --forward ...`. That command, its flags, the `active_jobs/` format and the email env vars must keep working through every phase.
+6. **For SAR and shared code, `main` wins.** `main` is the stable reference for SAR and for logic both modes share. `develop` may add optical-only behavior but must not change SAR results. *(decided 2026-10-01)*
+7. **Keep the external interface stable.** Cron and GitHub Actions call `cd scripts && python coseis.py --forward ...`. That command, its flags, the `active_jobs/` format and the email env vars must keep working through every phase.
 
 ## Status
 | Phase | State | Branch / PR |
@@ -39,12 +40,12 @@ Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixe
 - [x] Significance criteria *(decided 2026-10-01)*. **DONE 2026-10-01 (c167d73)**
   - historic: M≥6.0, depth ≤40 km, ≤0.5° from coast. The USGS alert-level requirement was removed *(decided 2026-10-01; 7af333d)*
   - forward: keep the M5.5 rule for now, i.e. (M≥5.5 and ≤15 km) or (M≥6.0 and ≤40 km)
-  - optical (historic): additionally requires a strike-slip rake (within 45° of 0°/180°)
+  - optical (historic): additionally requires a strike-slip rake (within 45° of 0°/180°). The rake is fetched for optical only, so SAR makes no extra USGS requests (with a 30 s request timeout).
 - [x] **Lazy-import optical dependencies** (`ee`, `pystac_client`, `google.cloud.storage`, `osgeo.gdal`). Verified `import coseis` works in the SAR-only `coseis-sar` env. **DONE 2026-10-01 (d4bd3a7)**
 - [x] `batch_autorift.py`: hardcoded test path replaced by `--data_dir` (default `scripts/data`, where `coseis.py` writes when run from `scripts/`). **DONE 2026-10-01 (adbb0a5)**
 - [x] `environment.yml`: added `earthengine-api`, `google-cloud-storage`, `pystac-client`, `gdal`, and `next_pass` (pip). **DONE 2026-10-01 (63112c0)**
   - `hyp3_autorift` is still undocumented. Decide whether `batch_autorift.py` gets its own environment.
-- [x] Equivalence check: historic SAR `--job_list` for 2025-01-07 (Tibet, M7.1) on `main` vs this branch. Job list, AOI, significance CSV/GeoJSON and earthquake info are identical; the only difference is the new `event_id` field on each job. **DONE 2026-10-01**
+- [x] Equivalence check: historic SAR `--job_list` for 2025-01-07 (Tibet, M7.1) on `main` vs this branch. Job list, AOI, significance CSV/GeoJSON and earthquake info are identical; the only difference is the new `event_id` field on each job (kept for SAR and optical, decided 2026-10-01). Re-verified after the rake change. **DONE 2026-10-01**
 - [ ] Forward-mode equivalence is still unverified offline: it needs either the Phase 2a fixtures or the Phase 5 shadow run.
   - Expected difference: `_partial.json` jobs now include `event_id`.
 - [x] Open the Phase 1 issue (#27), rename the branch to `27`, and push. **DONE 2026-10-01**
