@@ -10,7 +10,7 @@ jobs:
   run-coseis-notifications:
     runs-on: ubuntu-latest
     
-    timeout-minutes: 15 
+    timeout-minutes: 45 
 
     steps:
       - name: Checkout repository
@@ -35,7 +35,6 @@ jobs:
         env:
           COSEIS_PRIMARY_RECIPIENTS: ${{ secrets.COSEIS_PRIMARY_RECIPIENTS }}
           COSEIS_SECONDARY_RECIPIENTS: ${{ secrets.COSEIS_SECONDARY_RECIPIENTS }}
-          COSEIS_TERTIARY_RECIPIENTS: ${{ secrets.COSEIS_TERTIARY_RECIPIENTS }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PSWD: ${{ secrets.GMAIL_APP_PSWD }}
         run: |
@@ -50,8 +49,8 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          # Stage the JSON file, the new partial jobs, and the maps directory
-          git add scripts/active_job_tracking.json || true
+          # Stage the tracking directory (catches additions, edits, and deletions), partial jobs, and maps
+          git add scripts/active_jobs/ || true
           git add scripts/*_partial.json || true
           git add docs/maps/*.html || true          
           

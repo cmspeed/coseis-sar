@@ -1,11 +1,12 @@
 [
     {
-        "name": "m_59_168_km_se_of_khovd_mongolia-DESCENDING150",
+        "name": "m_56_94_km_sw_of_tamarindo_costa_rica-ASCENDING165",
         "job_type": "ARIA_S1_COSEIS",
         "job_parameters": {
             "granules": [],
             "secondary_granules": [
-                "S1C_IW_SLC__1SDV_20260421T234857_20260421T234925_007321_00ED91_E2F9"
+                "S1D_IW_SLC__1SDV_20260926T235613_20260926T235640_004756_008E85_4D6F",
+                "S1D_IW_SLC__1SDV_20260926T235545_20260926T235615_004756_008E85_20A5"
             ],
             "frame_id": -1,
             "estimate_ionosphere_delay": true,
@@ -14,7 +15,7 @@
             "goldstein_filter_power": 0.5,
             "unfiltered_coherence": true,
             "dense_offsets": true,
-            "output_resolution": 90
+            "output_resolution": 30
         }
     }
 ]

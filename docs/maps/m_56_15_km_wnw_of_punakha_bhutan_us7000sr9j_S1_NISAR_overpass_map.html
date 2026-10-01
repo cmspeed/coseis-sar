@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_46729d3bcc9455c78b5904fc49e303b1 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_46729d3bcc9455c78b5904fc49e303b1" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_46729d3bcc9455c78b5904fc49e303b1 = L.map(
+                "map_46729d3bcc9455c78b5904fc49e303b1",
+                {
+                    center: [27.6243, 89.72359999999999],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 5,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_9fe705100575773c7a802f8b086f27fd = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_9fe705100575773c7a802f8b086f27fd.addTo(map_46729d3bcc9455c78b5904fc49e303b1);
+        
+    
+            var feature_group_e80b93ffd7c5e8752f9187b436c18ea0 = L.featureGroup(
+                {
+}
+            );
+        
+    
+        function geo_json_953afbf3a37ea4d5823ca23ce026ce25_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "#9b2626", "fillOpacity": 0.3, "weight": 2};
+            }
+        }
+
+        function geo_json_953afbf3a37ea4d5823ca23ce026ce25_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_953afbf3a37ea4d5823ca23ce026ce25 = L.geoJson(null, {
+                onEachFeature: geo_json_953afbf3a37ea4d5823ca23ce026ce25_onEachFeature,
+            
+                style: geo_json_953afbf3a37ea4d5823ca23ce026ce25_styler,
+            ...{
+}
+        });
+
+        function geo_json_953afbf3a37ea4d5823ca23ce026ce25_add (data) {
+            geo_json_953afbf3a37ea4d5823ca23ce026ce25
+                .addData(data);
+        }
+            geo_json_953afbf3a37ea4d5823ca23ce026ce25_add({"bbox": [82.87311, 19.03373, 92.45661, 49.64293], "features": [{"bbox": [82.87311, 19.03373, 92.45661, 49.64293], "geometry": {"coordinates": [[[90.10378, 19.03373], [88.81595, 25.14681], [84.58607, 43.21071], [82.87311, 49.25187], [86.29934, 49.64293], [87.65218, 43.60058], [91.27637, 25.55982], [92.45661, 19.45952], [90.10378, 19.03373]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+        var popup_28896bb44a632ad8efb3c4fbfafde57d = L.popup({
+  "maxWidth": 350,
+});
+
+        
+            
+                var html_0e73e083dd97682265b1263a150aa721 = $(`<div id="html_0e73e083dd97682265b1263a150aa721" style="width: 100.0%; height: 100.0%;"><b>Sentinel-1</b><br>Platform: S1A<br>Relative Orbit: 114<br>Collection Date & UTC Time (P = past):<br>2026-05-31 12:03:36 (P), 2026-06-12 12:03:36, 2026-06-24 12:03:36<br>AOI % Overlap: 100.00</div>`)[0];
+                popup_28896bb44a632ad8efb3c4fbfafde57d.setContent(html_0e73e083dd97682265b1263a150aa721);
+            
+        
+
+        geo_json_953afbf3a37ea4d5823ca23ce026ce25.bindPopup(popup_28896bb44a632ad8efb3c4fbfafde57d)
+        ;
+
+        
+    
+    
+            geo_json_953afbf3a37ea4d5823ca23ce026ce25.addTo(feature_group_e80b93ffd7c5e8752f9187b436c18ea0);
+        
+    
+        function geo_json_d9ce3ea8dc30aee5306fa3fee7da898b_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "#609e22", "fillOpacity": 0.3, "weight": 2};
+            }
+        }
+
+        function geo_json_d9ce3ea8dc30aee5306fa3fee7da898b_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_d9ce3ea8dc30aee5306fa3fee7da898b = L.geoJson(null, {
+                onEachFeature: geo_json_d9ce3ea8dc30aee5306fa3fee7da898b_onEachFeature,
+            
+                style: geo_json_d9ce3ea8dc30aee5306fa3fee7da898b_styler,
+            ...{
+}
+        });
+
+        function geo_json_d9ce3ea8dc30aee5306fa3fee7da898b_add (data) {
+            geo_json_d9ce3ea8dc30aee5306fa3fee7da898b
+                .addData(data);
+        }
+            geo_json_d9ce3ea8dc30aee5306fa3fee7da898b_add({"bbox": [87.84688, 18.99758, 93.29695, 33.7124], "features": [{"bbox": [87.84688, 18.99758, 93.29695, 33.7124], "geometry": {"coordinates": [[[93.29695, 33.31328], [92.4242, 29.42976], [90.19919, 18.99758], [87.84688, 19.42345], [89.86463, 29.83495], [90.62727, 33.7124], [93.29695, 33.31328]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+        var popup_a4422b17be84c0e3930dc3018cb0a3b1 = L.popup({
+  "maxWidth": 350,
+});
+
+        
+            
+                var html_2c5836d2f5993639db7849870ee31a21 = $(`<div id="html_2c5836d2f5993639db7849870ee31a21" style="width: 100.0%; height: 100.0%;"><b>Sentinel-1</b><br>Platform: S1A<br>Relative Orbit: 150<br>Collection Date & UTC Time (P = past):<br>2026-06-02 23:53:35 (P), 2026-06-14 23:53:35<br>AOI % Overlap: 82.37</div>`)[0];
+                popup_a4422b17be84c0e3930dc3018cb0a3b1.setContent(html_2c5836d2f5993639db7849870ee31a21);
+            
+        
+
+        geo_json_d9ce3ea8dc30aee5306fa3fee7da898b.bindPopup(popup_a4422b17be84c0e3930dc3018cb0a3b1)
+        ;
+
+        
+    
+    
+            geo_json_d9ce3ea8dc30aee5306fa3fee7da898b.addTo(feature_group_e80b93ffd7c5e8752f9187b436c18ea0);
+        
+    
+        function geo_json_d635f5bb2458cc11a5468affb2b299df_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "#1ac0c0", "fillOpacity": 0.3, "weight": 2};
+            }
+        }
+
+        function geo_json_d635f5bb2458cc11a5468affb2b299df_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_d635f5bb2458cc11a5468affb2b299df = L.geoJson(null, {
+                onEachFeature: geo_json_d635f5bb2458cc11a5468affb2b299df_onEachFeature,
+            
+                style: geo_json_d635f5bb2458cc11a5468affb2b299df_styler,
+            ...{
+}
+        });
+
+        function geo_json_d635f5bb2458cc11a5468affb2b299df_add (data) {
+            geo_json_d635f5bb2458cc11a5468affb2b299df
+                .addData(data);
+        }
+            geo_json_d635f5bb2458cc11a5468affb2b299df_add({"bbox": [85.86573, 19.39066, 92.26968, 38.08349], "features": [{"bbox": [85.86573, 19.39066, 92.26968, 38.08349], "geometry": {"coordinates": [[[92.26968, 37.68976], [88.98397, 23.01503], [88.22388, 19.39066], [85.86573, 19.81566], [86.56522, 23.43229], [89.44812, 38.08349], [92.26968, 37.68976]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+        var popup_35b466cd69abc695a1f4df693ce9be47 = L.popup({
+  "maxWidth": 350,
+});
+
+        
+            
+                var html_a45ed0397ab3c955885b3a5ef7c12d99 = $(`<div id="html_a45ed0397ab3c955885b3a5ef7c12d99" style="width: 100.0%; height: 100.0%;"><b>Sentinel-1</b><br>Platform: S1A<br>Relative Orbit: 48<br>Collection Date & UTC Time (P = past):<br>2026-06-08 00:00:36, 2026-06-20 00:00:36, 2026-05-27 00:00:36 (P)<br>AOI % Overlap: 66.56</div>`)[0];
+                popup_35b466cd69abc695a1f4df693ce9be47.setContent(html_a45ed0397ab3c955885b3a5ef7c12d99);
+            
+        
+
+        geo_json_d635f5bb2458cc11a5468affb2b299df.bindPopup(popup_35b466cd69abc695a1f4df693ce9be47)
+        ;
+
+        
+    
+    
+            geo_json_d635f5bb2458cc11a5468affb2b299df.addTo(feature_group_e80b93ffd7c5e8752f9187b436c18ea0);
+        
+    
+        function geo_json_e55a3e61b332459f51e5ca4ff421c5b3_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "#5e2299", "fillOpacity": 0.3, "weight": 2};
+            }
+        }
+
+        function geo_json_e55a3e61b332459f51e5ca4ff421c5b3_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_e55a3e61b332459f51e5ca4ff421c5b3 = L.geoJson(null, {
+                onEachFeature: geo_json_e55a3e61b332459f51e5ca4ff421c5b3_onEachFeature,
+            
+                style: geo_json_e55a3e61b332459f51e5ca4ff421c5b3_styler,
+            ...{
+}
+        });
+
+        function geo_json_e55a3e61b332459f51e5ca4ff421c5b3_add (data) {
+            geo_json_e55a3e61b332459f51e5ca4ff421c5b3
+                .addData(data);
+        }
+            geo_json_e55a3e61b332459f51e5ca4ff421c5b3_add({"bbox": [84.94362, 14.32045, 95.42894, 49.59905], "features": [{"bbox": [84.94362, 14.32045, 95.42894, 49.59905], "geometry": {"coordinates": [[[93.13599, 14.32045], [92.22481, 18.72648], [88.24886, 36.82335], [84.94362, 49.20802], [88.3668, 49.59905], [91.03762, 37.218], [94.57316, 19.15296], [95.42894, 14.75719], [93.13599, 14.32045]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+        var popup_85acd178204cae2b6e79e5b5e79ce3f7 = L.popup({
+  "maxWidth": 350,
+});
+
+        
+            
+                var html_5b3195cc4df452b2f5db625426ab31a5 = $(`<div id="html_5b3195cc4df452b2f5db625426ab31a5" style="width: 100.0%; height: 100.0%;"><b>Sentinel-1</b><br>Platform: S1A<br>Relative Orbit: 41<br>Collection Date & UTC Time (P = past):<br>2026-05-26 11:54:04 (P), 2026-06-07 11:54:04 (P), 2026-06-19 11:54:04<br>AOI % Overlap: 0.00</div>`)[0];
+                popup_85acd178204cae2b6e79e5b5e79ce3f7.setContent(html_5b3195cc4df452b2f5db625426ab31a5);
+            
+        
+
+        geo_json_e55a3e61b332459f51e5ca4ff421c5b3.bindPopup(popup_85acd178204cae2b6e79e5b5e79ce3f7)
+        ;
+
+        
+    
+    
+            geo_json_e55a3e61b332459f51e5ca4ff421c5b3.addTo(feature_group_e80b93ffd7c5e8752f9187b436c18ea0);
+        
+    
+            feature_group_e80b93ffd7c5e8752f9187b436c18ea0.addTo(map_46729d3bcc9455c78b5904fc49e303b1);
+        
+    
+            var feature_group_ce77f6445ae4e90fc1a6057a60dfedba = L.featureGroup(
+                {
+}
+            );
+        
+    
+        function geo_json_e52d5f6199a940b8fb7aead445c8b8e8_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "#8c1616", "fillOpacity": 0.3, "weight": 2};
+            }
+        }
+
+        function geo_json_e52d5f6199a940b8fb7aead445c8b8e8_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_e52d5f6199a940b8fb7aead445c8b8e8 = L.geoJson(null, {
+                onEachFeature: geo_json_e52d5f6199a940b8fb7aead445c8b8e8_onEachFeature,
+            
+                style: geo_json_e52d5f6199a940b8fb7aead445c8b8e8_styler,
+            ...{
+}
+        });
+
+        function geo_json_e52d5f6199a940b8fb7aead445c8b8e8_add (data) {
+            geo_json_e52d5f6199a940b8fb7aead445c8b8e8
+                .addData(data);
+        }
+            geo_json_e52d5f6199a940b8fb7aead445c8b8e8_add({"bbox": [88.32118840158131, 25.384509817998318, 91.39046638796415, 28.085103496385525], "features": [{"bbox": [88.32118840158131, 25.384509817998318, 91.39046638796415, 28.085103496385525], "geometry": {"coordinates": [[[88.95141199981153, 28.085103496385525], [89.72577063283404, 27.897126254759684], [90.19146466966883, 27.781659652358414], [91.39046638796415, 27.475996017192667], [91.21986761753908, 26.953502724016165], [91.05111273182085, 26.430752706680938], [90.8841562021157, 25.90775284455651], [90.71895387672575, 25.384509817998318], [89.539900095836, 25.683183682967925], [89.08213761431844, 25.796183464752335], [88.32118840158131, 25.98036607581656], [88.4764815809436, 26.506838791562682], [88.63325629986952, 27.03312273077617], [88.7915526569532, 27.559212735604486], [88.95141199981153, 28.085103496385525]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+        var popup_f750676b41c0795b71822eecaf982be9 = L.popup({
+  "maxWidth": 350,
+});
+
+        
+            
+                var html_7671b6060d09c98355708aceb8c5d455 = $(`<div id="html_7671b6060d09c98355708aceb8c5d455" style="width: 100.0%; height: 100.0%;"><b>NISAR</b><br>Direction: Descending<br>Track: 19<br>Frame: 75<br>Acquisition Date (P = past):<br>2026-06-03 (P), 2026-06-15, 2026-06-27, 2026-07-09, 2026-07-21<br>2026-08-02, 2026-08-14, 2026-08-26, 2026-09-07, 2026-09-19<br>2026-10-01, 2026-10-13, 2026-10-25, 2026-11-06, 2026-11-18<br>2026-11-30, 2026-12-12, 2026-12-24<br>AOI % Overlap: 77.32</div>`)[0];
+                popup_f750676b41c0795b71822eecaf982be9.setContent(html_7671b6060d09c98355708aceb8c5d455);
+            
+        
+
+        geo_json_e52d5f6199a940b8fb7aead445c8b8e8.bindPopup(popup_f750676b41c0795b71822eecaf982be9)
+        ;
+
+        
+    
+    
+            geo_json_e52d5f6199a940b8fb7aead445c8b8e8.addTo(feature_group_ce77f6445ae4e90fc1a6057a60dfedba);
+        
+    
+        function geo_json_0e8145998e425698a743650f3ebde07e_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "#4c7b1d", "fillOpacity": 0.3, "weight": 2};
+            }
+        }
+
+        function geo_json_0e8145998e425698a743650f3ebde07e_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_0e8145998e425698a743650f3ebde07e = L.geoJson(null, {
+                onEachFeature: geo_json_0e8145998e425698a743650f3ebde07e_onEachFeature,
+            
+                style: geo_json_0e8145998e425698a743650f3ebde07e_styler,
+            ...{
+}
+        });
+
+        function geo_json_0e8145998e425698a743650f3ebde07e_add (data) {
+            geo_json_0e8145998e425698a743650f3ebde07e
+                .addData(data);
+        }
+            geo_json_0e8145998e425698a743650f3ebde07e_add({"bbox": [88.18853542936903, 25.38439423355044, 91.25809303149866, 28.08503410502539], "features": [{"bbox": [88.18853542936903, 25.38439423355044, 91.25809303149866, 28.08503410502539], "geometry": {"coordinates": [[[91.25809303149866, 25.980303367787055], [90.49706293918209, 25.796105609903154], [90.03925081914336, 25.683096021470245], [88.86006502667917, 25.38439423355044], [88.6948583146671, 25.907634787268403], [88.52789747833941, 26.430631972623257], [88.35913836134772, 26.953379108693156], [88.18853542936903, 27.475869317343793], [89.38767698160113, 27.78156326203101], [89.85342363610668, 27.897040486972074], [90.62786804713276, 28.08503410502539], [90.78772758533817, 27.559145284920664], [90.94602423604216, 27.033057041835814], [91.10279935084031, 26.506774683609507], [91.25809303149866, 25.980303367787055]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+        var popup_829b0d82fe5882f745b90326fe4a82e6 = L.popup({
+  "maxWidth": 350,
+});
+
+        
+            
+                var html_46b02b086ddb587ec43c7a2e5936cc29 = $(`<div id="html_46b02b086ddb587ec43c7a2e5936cc29" style="width: 100.0%; height: 100.0%;"><b>NISAR</b><br>Direction: Ascending<br>Track: 69<br>Frame: 15<br>Acquisition Date (P = past):<br>2026-05-25 (P), 2026-06-06 (P), 2026-06-18, 2026-06-30, 2026-07-12<br>2026-07-24, 2026-08-05, 2026-08-17, 2026-08-29, 2026-09-10<br>2026-09-22, 2026-10-04, 2026-10-16, 2026-10-28, 2026-11-09<br>2026-11-21, 2026-12-03, 2026-12-15, 2026-12-27<br>AOI % Overlap: 74.06</div>`)[0];
+                popup_829b0d82fe5882f745b90326fe4a82e6.setContent(html_46b02b086ddb587ec43c7a2e5936cc29);
+            
+        
+
+        geo_json_0e8145998e425698a743650f3ebde07e.bindPopup(popup_829b0d82fe5882f745b90326fe4a82e6)
+        ;
+
+        
+    
+    
+            geo_json_0e8145998e425698a743650f3ebde07e.addTo(feature_group_ce77f6445ae4e90fc1a6057a60dfedba);
+        
+    
+        function geo_json_a0c241f03e5e77ee56d79097e1073d82_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "#1e7f7f", "fillOpacity": 0.3, "weight": 2};
+            }
+        }
+
+        function geo_json_a0c241f03e5e77ee56d79097e1073d82_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_a0c241f03e5e77ee56d79097e1073d82 = L.geoJson(null, {
+                onEachFeature: geo_json_a0c241f03e5e77ee56d79097e1073d82_onEachFeature,
+            
+                style: geo_json_a0c241f03e5e77ee56d79097e1073d82_styler,
+            ...{
+}
+        });
+
+        function geo_json_a0c241f03e5e77ee56d79097e1073d82_add (data) {
+            geo_json_a0c241f03e5e77ee56d79097e1073d82
+                .addData(data);
+        }
+            geo_json_a0c241f03e5e77ee56d79097e1073d82_add({"bbox": [86.83445974944655, 27.35861589629882, 89.97168245208084, 30.0702882262751], "features": [{"bbox": [86.83445974944655, 27.35861589629882, 89.97168245208084, 30.0702882262751], "geometry": {"coordinates": [[[87.48941291770201, 30.0702882262751], [88.27780891127061, 29.878461865412678], [88.75180491051715, 29.76050032540161], [89.97168245208084, 29.44779136781342], [89.79353878497324, 28.925917227948414], [89.61742773013822, 28.40375821672379], [89.44329788328889, 27.88132197025256], [89.27109944661953, 27.35861589629882], [88.07326384864855, 27.663876909221738], [87.60803374614864, 27.779201167605738], [86.83445974944655, 27.966959125203605], [86.9956889943017, 28.493111144042633], [87.15856053637377, 29.019053824795414], [87.32311961011872, 29.544781474503328], [87.48941291770201, 30.0702882262751]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+        var popup_36d9aeb290b127915576387ed79b9e8f = L.popup({
+  "maxWidth": 350,
+});
+
+        
+            
+                var html_8d1180ad57afd63f94dc27c377fd5efd = $(`<div id="html_8d1180ad57afd63f94dc27c377fd5efd" style="width: 100.0%; height: 100.0%;"><b>NISAR</b><br>Direction: Descending<br>Track: 120<br>Frame: 74<br>Acquisition Date (P = past):<br>2026-05-29 (P), 2026-06-10, 2026-06-22, 2026-07-04, 2026-07-16<br>2026-07-28, 2026-08-09, 2026-08-21, 2026-09-02, 2026-09-14<br>2026-09-26, 2026-10-08, 2026-10-20, 2026-11-01, 2026-11-13<br>2026-11-25, 2026-12-07, 2026-12-19<br>AOI % Overlap: 13.25</div>`)[0];
+                popup_36d9aeb290b127915576387ed79b9e8f.setContent(html_8d1180ad57afd63f94dc27c377fd5efd);
+            
+        
+
+        geo_json_a0c241f03e5e77ee56d79097e1073d82.bindPopup(popup_36d9aeb290b127915576387ed79b9e8f)
+        ;
+
+        
+    
+    
+            geo_json_a0c241f03e5e77ee56d79097e1073d82.addTo(feature_group_ce77f6445ae4e90fc1a6057a60dfedba);
+        
+    
+        function geo_json_e6e3feaf2986b6e0c967f3464910e920_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "#701ec2", "fillOpacity": 0.3, "weight": 2};
+            }
+        }
+
+        function geo_json_e6e3feaf2986b6e0c967f3464910e920_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_e6e3feaf2986b6e0c967f3464910e920 = L.geoJson(null, {
+                onEachFeature: geo_json_e6e3feaf2986b6e0c967f3464910e920_onEachFeature,
+            
+                style: geo_json_e6e3feaf2986b6e0c967f3464910e920_styler,
+            ...{
+}
+        });
+
+        function geo_json_e6e3feaf2986b6e0c967f3464910e920_add (data) {
+            geo_json_e6e3feaf2986b6e0c967f3464910e920
+                .addData(data);
+        }
+            geo_json_e6e3feaf2986b6e0c967f3464910e920_add({"bbox": [89.60743353698375, 27.35849703760121, 92.74490633304073, 30.07021604618345], "features": [{"bbox": [89.60743353698375, 27.35849703760121, 92.74490633304073, 30.07021604618345], "geometry": {"coordinates": [[[92.74490633304073, 27.966893302977535], [91.97126225250523, 27.779120000586378], [91.50598916243665, 27.66378587828155], [90.3080393259419, 27.35849703760121], [90.13583514308051, 27.881200759440155], [89.96169958685063, 28.40363446136369], [89.78558285443262, 28.92579073167817], [89.60743353698375, 29.44766193022163], [90.82743231452453, 29.76040097778489], [91.30147397125322, 29.878373160345937], [92.08994444478958, 30.07021604618345], [92.2562398408947, 29.544711146076047], [92.42080106225696, 29.01898517085423], [92.58367481375949, 28.493043991035876], [92.74490633304073, 27.966893302977535]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+        var popup_9aaf50afbb01c94860e63c9cbf7097fd = L.popup({
+  "maxWidth": 350,
+});
+
+        
+            
+                var html_2871aaf055ff2e80d111144cb6c36831 = $(`<div id="html_2871aaf055ff2e80d111144cb6c36831" style="width: 100.0%; height: 100.0%;"><b>NISAR</b><br>Direction: Ascending<br>Track: 141<br>Frame: 16<br>Acquisition Date (P = past):<br>2026-05-30 (P), 2026-06-11, 2026-06-23, 2026-07-05, 2026-07-17<br>2026-07-29, 2026-08-10, 2026-08-22, 2026-09-03, 2026-09-15<br>2026-09-27, 2026-10-09, 2026-10-21, 2026-11-02, 2026-11-14<br>2026-11-26, 2026-12-08, 2026-12-20<br>AOI % Overlap: 4.27</div>`)[0];
+                popup_9aaf50afbb01c94860e63c9cbf7097fd.setContent(html_2871aaf055ff2e80d111144cb6c36831);
+            
+        
+
+        geo_json_e6e3feaf2986b6e0c967f3464910e920.bindPopup(popup_9aaf50afbb01c94860e63c9cbf7097fd)
+        ;
+
+        
+    
+    
+            geo_json_e6e3feaf2986b6e0c967f3464910e920.addTo(feature_group_ce77f6445ae4e90fc1a6057a60dfedba);
+        
+    
+            feature_group_ce77f6445ae4e90fc1a6057a60dfedba.addTo(map_46729d3bcc9455c78b5904fc49e303b1);
+        
+    
+        function geo_json_e2192ea608caf8f83a61bb3cc7a73969_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "black", "fillOpacity": 0.0, "weight": 2};
+            }
+        }
+
+        function geo_json_e2192ea608caf8f83a61bb3cc7a73969_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_e2192ea608caf8f83a61bb3cc7a73969 = L.geoJson(null, {
+                onEachFeature: geo_json_e2192ea608caf8f83a61bb3cc7a73969_onEachFeature,
+            
+                style: geo_json_e2192ea608caf8f83a61bb3cc7a73969_styler,
+            ...{
+}
+        });
+
+        function geo_json_e2192ea608caf8f83a61bb3cc7a73969_add (data) {
+            geo_json_e2192ea608caf8f83a61bb3cc7a73969
+                .addData(data);
+        }
+            geo_json_e2192ea608caf8f83a61bb3cc7a73969_add({"bbox": [89.2236, 27.1243, 90.2236, 28.1243], "features": [{"bbox": [89.2236, 27.1243, 90.2236, 28.1243], "geometry": {"coordinates": [[[90.2236, 27.1243], [90.2236, 28.1243], [89.2236, 28.1243], [89.2236, 27.1243], [90.2236, 27.1243]]], "type": "Polygon"}, "id": "0", "properties": {}, "type": "Feature"}], "type": "FeatureCollection"});
+
+        
+    
+            geo_json_e2192ea608caf8f83a61bb3cc7a73969.addTo(map_46729d3bcc9455c78b5904fc49e303b1);
+        
+    
+            var layer_control_ab6240f099b02e8334c68065db2f9899_layers = {
+                base_layers : {
+                    "openstreetmap" : tile_layer_9fe705100575773c7a802f8b086f27fd,
+                },
+                overlays :  {
+                    "Sentinel-1" : feature_group_e80b93ffd7c5e8752f9187b436c18ea0,
+                    "NISAR" : feature_group_ce77f6445ae4e90fc1a6057a60dfedba,
+                    "AOI" : geo_json_e2192ea608caf8f83a61bb3cc7a73969,
+                },
+            };
+            let layer_control_ab6240f099b02e8334c68065db2f9899 = L.control.layers(
+                layer_control_ab6240f099b02e8334c68065db2f9899_layers.base_layers,
+                layer_control_ab6240f099b02e8334c68065db2f9899_layers.overlays,
+                {
+  "position": "topright",
+  "collapsed": false,
+  "autoZIndex": true,
+}
+            ).addTo(map_46729d3bcc9455c78b5904fc49e303b1);
+
+        
+    
+                    L.Popup.prototype.options.autoClose = false;
+                    L.Popup.prototype.options.closeOnClick = false;
+                    var _lastStationPopup = null;
+                    var _lastOverpassPopup = null;
+                    var _map = figure_2fd633f7a038ed41e253b0c2bd5d454a;
+
+                    _map.on('popupopen', function(e) {
+                        var source = e.layer || e.sourceTarget;
+                        var isMarker = source && source instanceof L.Marker;
+                        if (isMarker) {
+                            if (_lastStationPopup && _lastStationPopup !== e.popup) {
+                                _map.removeLayer(_lastStationPopup);
+                            }
+                            _lastStationPopup = e.popup;
+                        } else {
+                            if (_lastOverpassPopup && _lastOverpassPopup !== e.popup) {
+                                _map.removeLayer(_lastOverpassPopup);
+                            }
+                            _lastOverpassPopup = e.popup;
+                        }
+                    });
+                
+</script>
+</html>

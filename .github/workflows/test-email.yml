@@ -1,0 +1,45 @@
+name: Send Test Email
+
+on: 
+  workflow_dispatch: # Enables manual run button on GitHub
+
+jobs:
+  test-email:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install yagmail
+        run: pip install yagmail
+
+      - name: Send Email
+        env:
+          TEST_RECIPIENTS: ${{ secrets.TEST_RECIPIENTS }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PSWD: ${{ secrets.GMAIL_APP_PSWD }}
+        run: |
+          python -c "
+          import os
+          import yagmail
+          
+          recipients = [e.strip() for e in os.environ.get('TEST_RECIPIENTS', '').split(',') if e.strip()]
+          user = os.environ.get('GMAIL_USER')
+          pswd = os.environ.get('GMAIL_APP_PSWD')
+          
+          if not recipients:
+              print('Error: No recipients found in TEST_RECIPIENTS secret.')
+              exit(1)
+              
+          print(f'Sending to: {recipients}')
+          yag = yagmail.SMTP(user, pswd)
+          yag.send(
+              bcc=recipients,
+              subject='COSEIS Pipeline: Test Email',
+              contents=['<h3>Success!</h3><p>This is a test email confirming that the TEST_RECIPIENTS list and GitHub Actions credentials are working correctly.</p>']
+          )
+          print('Test email sent successfully!')
+          "

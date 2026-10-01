@@ -14,11 +14,12 @@ import json
 import folium
 import geojson
 import geopandas as gpd
+import glob
 import csv
 import math
 from shapely import wkt
 from shapely.geometry import mapping, shape, box, Point, Polygon, LineString, MultiLineString, MultiPolygon
-from shapely.ops import unary_union
+from shapely.ops import unary_union, linemerge
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -49,7 +50,7 @@ root_dir = os.path.join(os.getcwd(), "data")
 # Global variables
 OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
 
-TRACKING_FILE = "active_job_tracking.json"
+TRACKING_DIR = "active_jobs"
 
 def get_recipients_from_env(var_name):
     """
@@ -62,30 +63,51 @@ def get_recipients_from_env(var_name):
 # Load recipients from environment variables
 PRIMARY_RECIPIENTS = get_recipients_from_env('COSEIS_PRIMARY_RECIPIENTS')
 SECONDARY_RECIPIENTS = get_recipients_from_env('COSEIS_SECONDARY_RECIPIENTS')
-TERTIARY_RECIPIENTS = get_recipients_from_env('COSEIS_TERTIARY_RECIPIENTS')
 
 def load_tracker():
-    """Loads the active job tracking file."""
-    if not os.path.exists(TRACKING_FILE):
-        return {}
-    try:
-        with open(TRACKING_FILE, "r") as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        return {}
-
+    """Loads all active jobs from the tracking directory."""
+    tracker = {}
+    if not os.path.exists(TRACKING_DIR):
+        os.makedirs(TRACKING_DIR, exist_ok=True)
+        return tracker
+    
+    for file in glob.glob(os.path.join(TRACKING_DIR, "*.json")):
+        try:
+            with open(file, "r") as f:
+                event_data = json.load(f)
+                # The filename (minus .json) is the event_id
+                event_id = os.path.basename(file).replace('.json', '')
+                tracker[event_id] = event_data
+        except json.JSONDecodeError:
+            continue
+    return tracker
 
 def save_tracker(data):
-    """Saves the active job tracking file."""
-    with open(TRACKING_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    """Saves the tracking data back to individual files."""
+    if not os.path.exists(TRACKING_DIR):
+        os.makedirs(TRACKING_DIR, exist_ok=True)
+        
+    # Save current tracker state to individual files
+    for event_id, event_data in data.items():
+        file_path = os.path.join(TRACKING_DIR, f"{event_id}.json")
+        with open(file_path, "w") as f:
+            json.dump(event_data, f, indent=4)
+            
+    # Remove files for events that are no longer in the tracker dictionary
+    for file in glob.glob(os.path.join(TRACKING_DIR, "*.json")):
+        event_id = os.path.basename(file).replace('.json', '')
+        if event_id not in data:
+            os.remove(file)
 
 
-def add_to_tracker(eq, aoi, resolution=90):
+def add_to_tracker(eq, aoi, resolution=30):
     """
     Initializes tracking for a new earthquake.
     Identifies intersecting tracks, finds pre-seismic SLCs for each track, 
     creates a partial job file (granules=Empty, secondary_granules=Filled), and adds entry to tracking file.
+    :param eq: dictionary containing earthquake data
+    :param aoi: shapely Polygon object representing the area of interest
+    :param resolution: desired output resolution for processing (default=30)
     """
     tracker = load_tracker()
     event_id = eq.get('id')
@@ -111,33 +133,47 @@ def add_to_tracker(eq, aoi, resolution=90):
         # Unique key for this track
         track_key = f"{flight_direction}_{path_number}"
         
-        # Find Pre-seismic SLCs (Historical search relative to event time)
-        # We look back 24 days to ensure we get the latest coverage
-        slcs = get_SLCs(flight_direction, path_number, frame_numbers, event_time, processing_mode='historic')
+        # Fetch SLCs intersecting the AOI (Historical search relative to event time)
+        slcs = get_SLCs(flight_direction, path_number, aoi.wkt, event_time, processing_mode='historic')
         
-        # Filter for pre-seismic only (closest to event)
         rupture_dt = convert_time(event_time).replace(tzinfo=None)
         pre_slcs = []
+        reference_date = None
+        
         if slcs:
-            # Sort by date
-            slcs.sort(key=lambda x: x['date'])
-            # Find the SLCs immediately preceding the rupture
-            # We want the single latest acquisition date before rupture
-            dates = sorted(list(set(s['date'] for s in slcs)))
-            pre_dates = [d for d in dates if datetime.strptime(d[:10], "%Y-%m-%d") < rupture_dt]
-            
-            if pre_dates:
-                reference_date = pre_dates[-1] # The last date before the earthquake
-                pre_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == reference_date]
-            else:
-                print(f"No pre-seismic data found for {track_key}. Skipping track.")
-                continue
-        else:
-             print(f"No SLCs found for {track_key}. Skipping track.")
-             continue
+            # Determine the maximum footprint this specific track has over the AOI
+            scenes_by_date = defaultdict(list)
+            for s in slcs:
+                scenes_by_date[s['date'][:10]].append(s)
+                
+            max_track_area = 0
+            for date_str, scenes in scenes_by_date.items():
+                union_geom = unary_union([s['geometry'] for s in scenes])
+                intersection_area = union_geom.intersection(aoi).area
+                if intersection_area > max_track_area:
+                    max_track_area = intersection_area
 
+            # Filter for pre-seismic scenes and select the closest valid date
+            valid_pre_scenes = [s for s in slcs if datetime.strptime(s['date'], "%Y-%m-%dT%H:%M:%SZ") < rupture_dt]
+            
+            if valid_pre_scenes:
+                # Sort dates newest to oldest (closest to earthquake first)
+                dates = sorted(list(set(s['date'][:10] for s in valid_pre_scenes)), reverse=True)
+                
+                for ref_date in dates:
+                    candidate_scenes = [s for s in valid_pre_scenes if s['date'][:10] == ref_date]
+                    union_geom = unary_union([s['geometry'] for s in candidate_scenes])
+                    intersection_area = union_geom.intersection(aoi).area
+                    
+                    # Ensure coverage is at least 95% of the track's max expected footprint
+                    if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
+                        pre_slcs = [s['fileID'].removesuffix("-SLC") for s in candidate_scenes]
+                        reference_date = ref_date
+                        break # Successfully found valid coverage
+        
         if not pre_slcs:
-            continue
+             print(f"No fully overlapping pre-seismic coverage found for {track_key}. Skipping track.")
+             continue
 
         # Create Partial Job List
         # We leave 'granules' (post-seismic) empty for now
@@ -208,20 +244,47 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
 
                 flight_dir = track_info['flight_direction']
                 path_num = track_info['path_number']
-                frames = track_info['frame_numbers']
                 
-                slcs = get_SLCs(flight_dir, path_num, frames, event_time, processing_mode='forward')
+                # Reconstruct the AOI geometry from the tracker dictionary
+                aoi_geom = shape(event_data['aoi'])
+                
+                slcs = get_SLCs(flight_dir, path_num, aoi_geom.wkt, event_time, processing_mode='forward')
                 
                 rupture_dt = convert_time(event_time).replace(tzinfo=None)
                 post_slcs = []
                 secondary_date = None
 
                 if slcs:
+                    # Determine the maximum footprint this specific track has over the AOI
+                    scenes_by_date = defaultdict(list)
+                    for s in slcs:
+                        scenes_by_date[s['date'][:10]].append(s)
+                        
+                    max_track_area = 0
+                    for date_str, scenes in scenes_by_date.items():
+                        union_geom = unary_union([s['geometry'] for s in scenes])
+                        intersection_area = union_geom.intersection(aoi_geom).area
+                        if intersection_area > max_track_area:
+                            max_track_area = intersection_area
+
+                    # Filter for post-seismic scenes and select the closest valid date
                     slcs.sort(key=lambda x: x['date'])
-                    post_dates = sorted(list(set(s['date'] for s in slcs if datetime.strptime(s['date'][:10], "%Y-%m-%d") > rupture_dt)))                    
-                    if post_dates:
-                        secondary_date = post_dates[0]
-                        post_slcs = [s['fileID'].removesuffix("-SLC") for s in slcs if s['date'] == secondary_date]
+                    valid_post_scenes = [s for s in slcs if datetime.strptime(s['date'], "%Y-%m-%dT%H:%M:%SZ") > rupture_dt]                    
+                    
+                    if valid_post_scenes:
+                        # Sort dates oldest to newest (closest to earthquake first)
+                        post_dates = sorted(list(set(s['date'][:10] for s in valid_post_scenes)))
+                        
+                        for sec_date in post_dates:
+                            candidate_scenes = [s for s in valid_post_scenes if s['date'][:10] == sec_date]
+                            union_geom = unary_union([s['geometry'] for s in candidate_scenes])
+                            intersection_area = union_geom.intersection(aoi_geom).area
+                            
+                            # Ensure coverage is at least 95% of the track's max expected footprint
+                            if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
+                                post_slcs = [s['fileID'].removesuffix("-SLC") for s in candidate_scenes]
+                                secondary_date = sec_date
+                                break # Successfully found valid coverage
                 
                 if post_slcs:
                     pre_seismic_date = track_info['reference_date']
@@ -246,6 +309,33 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
                         try:
                             run_dockerized_topsApp(job, processing_dir)
                             track_info['processing_status'] = "Success"
+
+                            # Delete raw SLCs and intermediate files if final .nc product exists
+                            nc_files = glob.glob(os.path.join(processing_dir, "**", "*.nc"), recursive=True)
+                            
+                            if nc_files:
+                                print(f"    Output .nc file found. Cleaning up SLCs and heavy intermediate files in {pair_folder_name}...")
+                                import shutil
+                                
+                                # Delete raw .zip and .SAFE files
+                                for slc_zip in glob.glob(os.path.join(processing_dir, "S1[A-D]*.zip")):
+                                    os.remove(slc_zip)
+                                for slc_safe in glob.glob(os.path.join(processing_dir, "S1[A-D]*.SAFE")):
+                                    shutil.rmtree(slc_safe, ignore_errors=True)
+                                    
+                                # Delete intermediate ISCE2 folders
+                                intermediate_dirs = [
+                                    "geom_reference", "ion", "fine_interferogram", 
+                                    "fine_offsets", "fine_coreg", "mask", 
+                                    "reference", "secondary", "PICKLE", "aux_cal", "orbits"
+                                ]
+                                for idir in intermediate_dirs:
+                                    dir_path = os.path.join(processing_dir, idir)
+                                    if os.path.exists(dir_path):
+                                        shutil.rmtree(dir_path, ignore_errors=True)
+                            else:
+                                print(f"    WARNING: No final .nc product found in {pair_folder_name}. Retaining raw and intermediate files for debugging.")
+
                         except Exception as e:
                             print(f"    Processing failed for {pair_folder_name}: {e}")
                             track_info['processing_status'] = f"Failed: {str(e)}"
@@ -369,7 +459,7 @@ def get_historic_earthquake_data_single_date(eq_api, input_date):
             "starttime": input_date + "00:00:00",
             "endtime": input_date + "23:59:59",
             "minmagnitude": 6.0,
-            "maxdepth": 30.0
+            "maxdepth": 40.0
         }
 
         # Fetch data from the USGS Earthquake API
@@ -411,7 +501,7 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
             "format": "geojson",
             "starttime": start_date,
             "endtime": end_date,
-            "minmagnitude": 5.0,
+            "minmagnitude": 6.0,
             "maxdepth": 40.0
         }
 
@@ -497,68 +587,83 @@ def check_for_new_data(eq_api):
         return None
 
 
-def get_coastline(coastline_api):
-    """
-    Fetch coastline data from OSGEO/PROJ Github repo and return it as a GeoJSON object.
-    The data returned will be in the form of a MultiPolygon. The data are also written to a file: "coastline_buffered.geojson".
-    :param coastline_api: API endpoint for the coastline data (https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson)
-    :return: GeoJSON object containing coastline data
-    """
-    try:
-        # Fetch data from the specified API
-        response = requests.get(coastline_api)
-        response.raise_for_status()  # Raise error if request fails
-        
-        # Parse the response as GeoJSON
-        coastline = geojson.loads(response.text)
-        
-        # Extract the LineString features from the GeoJSON data
-        features = []
-        for feature in coastline["features"]:
-            if feature["geometry"]["type"] == "LineString":
-                features.append(LineString(feature["geometry"]["coordinates"]))
-            else: 
-                print("Coastline data is not in LineString format.") # Ensure each feature is a LineString
-        
-        # Convert LineStrings to Polygons
-        polygons = []
-        for line in features:
-            if line.is_ring:  # Check if the LineString is closed
-                polygons.append(Polygon(line))
-            else:
-                # Close the LineString and create a Polygon
-                closed_line = LineString(list(line.coords) + [line.coords[0]])
-                polygons.append(Polygon(closed_line))
-
-        # Combine all polygons into a MultiPolygon
-        coastline = MultiPolygon(polygons)
-
-        # Buffer the coastline by 0.5 degrees        
-        coastline = coastline.buffer(0.5)
-
-        # Convert the MultiLineString to GeoJSON format
-        geojson_data = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "geometry": mapping(coastline),
-                    "properties": {}
-                }
-            ]
-        }
-
-        # Save to a GeoJSON file
-        output_file = "coastline_buffered.geojson"
-        with open(output_file, "w") as f:
-            json.dump(geojson_data, f, indent=2)
-        return coastline
+def get_coastline(coastline_api): 
+    """ 
+    Fetch coastline data from OSGEO/PROJ Github repo and return it as a GeoJSON object. 
+    The data returned will be in the form of a MultiPolygon covering the landmass interiors 
+    and a 0.5 degree ocean buffer. The data are also written to "coastline_buffered.geojson". 
     
-    except requests.RequestException as e:
-        print(f"Error accessing coastline API: {e}")
-        return None
-    except geojson.GeoJSONDecodeError as e:
-        print(f"Error parsing GeoJSON data: {e}")
+    :param coastline_api: API endpoint for the coastline data 
+    :return: GeoJSON object containing coastline data 
+    """
+    try: 
+        # Fetch data from the specified API 
+        response = requests.get(coastline_api) 
+        response.raise_for_status() 
+        
+        # Parse the response as GeoJSON 
+        coastline_data = geojson.loads(response.text) 
+        
+        # Extract the LineString features from the GeoJSON data 
+        features = [] 
+        for feature in coastline_data["features"]: 
+            if feature["geometry"]["type"] == "LineString": 
+                features.append(LineString(feature["geometry"]["coordinates"])) 
+            else: 
+                print("Coastline data is not in LineString format.") 
+                
+        # Merge contiguous line segments together to form complete coastlines
+        merged_lines = linemerge(features)
+        
+        # Ensure merged_lines is iterable (handles cases where linemerge returns a single LineString)
+        if isinstance(merged_lines, LineString):
+            merged_lines = [merged_lines]
+        else:
+            merged_lines = merged_lines.geoms
+
+        # Convert merged LineStrings to Polygons 
+        polygons = [] 
+        for line in merged_lines: 
+            if len(line.coords) < 3:
+                continue
+                
+            if line.is_ring:
+                polygons.append(Polygon(line)) 
+            else: 
+                # Close the LineString and create a Polygon 
+                closed_line = LineString(list(line.coords) + [line.coords[0]]) 
+                polygons.append(Polygon(closed_line)) 
+
+        # Combine all polygons into a MultiPolygon 
+        coastline_polys = MultiPolygon(polygons) 
+
+        # Buffer the entire MultiPolygon by 0.5 degrees 
+        coastline_buffered = coastline_polys.buffer(0.5) 
+
+        # Convert the MultiPolygon to GeoJSON format 
+        geojson_data = { 
+            "type": "FeatureCollection", 
+            "features": [ 
+                { 
+                    "type": "Feature", 
+                    "geometry": mapping(coastline_buffered), 
+                    "properties": {} 
+                } 
+            ] 
+        } 
+
+        # Save to a GeoJSON file 
+        output_file = "coastline_buffered.geojson" 
+        with open(output_file, "w") as f: 
+            json.dump(geojson_data, f, indent=2) 
+            
+        return coastline_buffered 
+        
+    except requests.RequestException as e: 
+        print(f"Error accessing coastline API: {e}") 
+        return None 
+    except json.JSONDecodeError as e: 
+        print(f"Error parsing GeoJSON data: {e}") 
         return None
     
 
@@ -671,7 +776,7 @@ def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mod
     """
     Check the significance of each earthquake based on its 
     (1) magnitude (>=6.0), (2) USGS alert level (['green','yellow','orange','red]),
-    (3) depth (<=30.0 km), (4) distance from land (within 0.5 degrees, ~55 km of the coastline),
+    (3) depth (<=40.0 km), (4) distance from land (within 0.5 degrees, ~55 km of the coastline),
     and (5) if sensor is 'optical', rake angle (must be strike-slip: ~0 or ~180 degrees).
     
     :param earthquakes: list of dictionaries containing earthquake data
@@ -704,12 +809,13 @@ def check_significance(earthquakes, start_date, end_date=None, sensor='sar', mod
             within_Coastline_buffer = withinCoastline(earthquake, coastline)
             
             if mode == 'historic':
-                # if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 30.0) and within_Coastline_buffer:
-                #     is_candidate = True
-                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
+                if (magnitude >= 6.0) and (alert in alert_list) and (depth <= 40.0) and within_Coastline_buffer:
                     is_candidate = True
             elif mode == 'forward':
-                if (magnitude >= 6.0) and (depth <= 30.0) and within_Coastline_buffer:
+                # Catch M>=5.5 & <=15km OR M>=6.0 & <=40km
+                is_shallow_moderate = (magnitude >= 5.5) and (depth <= 15.0)
+                is_deeper_larger = (magnitude >= 6.0) and (depth <= 40.0)
+                if within_Coastline_buffer and (is_shallow_moderate or is_deeper_larger):
                     is_candidate = True
         
         if not is_candidate:
@@ -967,17 +1073,21 @@ def make_interactive_map(frame_dataframe, title, coords, url):
 
 def get_path_and_frame_numbers(AOI, time):
     """
-    Query the ASF DAAC API for SLC data intersecting the Area of Interest (AOI) over the previous 24 days.
-    This ensures all possible intersecting SLC fileIDs are returned for the given AOI.
+    Query the ASF DAAC API for SLC data intersecting the Area of Interest (AOI) over a +/- 90 day window.
+    This ensures all possible intersecting tracks are returned for the given AOI, avoiding data gap omissions.
     :param AOI: Shapely Polygon object representing the Area of Interest
     :param time: Unix timestamp representing the earthquake's origin time
     :return: Dictionary containing the path and frame numbers for each *unique* intersecting SLC.
     """
     # Establish the date range for the query
     rupture_date = convert_time(time)
-    start_date = rupture_date - timedelta(days=24) # 24 days before the earthquake
+    
+    # Widen search to +/- 90 days to capture ALL intersecting tracks
+    start_date = rupture_date - timedelta(days=90) 
     start_date = start_date.replace(hour=0, minute=0, second=0)
-    end_date = rupture_date.replace(hour=23, minute=59, second=59) # the day of the earthquake
+    
+    end_date = rupture_date + timedelta(days=90) 
+    end_date = end_date.replace(hour=23, minute=59, second=59)
 
     # Format the datetime object into a string
     start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -1068,23 +1178,23 @@ def get_path_and_frame_numbers(AOI, time):
     return {}, gpd.GeoDataFrame()
 
 
-def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode):
+def get_SLCs(flight_direction, path_number, aoi_wkt, time, processing_mode):
     """
-    Query the ASF DAAC API for SLC data based on the given path and frame numbers.
-    The data are organized by flight direction, path number, and frame numbers.
+    Query the ASF DAAC API for SLC data based on the given path and AOI.
+    The data are organized by flight direction and path number.
     :param processing_mode: 'historic', 'forward'
     :param flight_direction: 'ASCENDING' or 'DESCENDING'
     :param path_number: Sentinel-1 path number
-    :param frame_numbers: List of Sentinel-1 frame numbers
+    :param aoi_wkt: WKT string representation of the Area of Interest
     :param time: Unix timestamp representing the earthquake's origin time
-    :return: List of dictionaries containing SLC fileIDs and their respective dates
+    :return: List of dictionaries containing SLC fileIDs, dates, and geometries
     """
     # Establish the date range for the query
     rupture_date = convert_time(time)
     
     if processing_mode == 'historic':
         start_date = rupture_date - timedelta(days=90)  # 90 days before the earthquake
-        start_date= start_date.replace(hour=0, minute=0, second=0)
+        start_date = start_date.replace(hour=0, minute=0, second=0)
         end_date = rupture_date + timedelta(days=30)    # 30 days after the earthquake
         end_date = end_date.replace(hour=23, minute=59, second=59)
     elif processing_mode == 'forward':
@@ -1100,59 +1210,64 @@ def get_SLCs(flight_direction, path_number, frame_numbers, time, processing_mode
     # Define the query parameters
     params = {
         'flightDirection': flight_direction,
-        'frame': ','.join(str(f) for f in frame_numbers),
         'relativeOrbit': path_number,
-        'dataset':'SENTINEL-1',
+        'intersectsWith': aoi_wkt,
+        'dataset': 'SENTINEL-1',
         'processingLevel': 'SLC',
         'beamSwath': 'IW',
-        'start':start_date,
-        'end':end_date,
+        'start': start_date,
+        'end': end_date,
         'output': 'geojson'
     }
 
-    print('Performing ASF DAAC API query to return SLCs for the given path and frame numbers...')
+    print(f'Performing ASF DAAC API query to return SLCs for {flight_direction} path {path_number} intersecting the AOI...')
     
-    # Sometimes the request to ASF DAAC times out for various reasons. This logic is meant to reduce that.
     MAX_RETRIES = 10
     WAIT_SECONDS = 30
+    
+    # Specify cutoff date for filtering S1C and S1D granules based on the acquisition date (DockerizedTopsApp requirement)
+    S1C_CUTOFF = datetime(2025, 5, 19, tzinfo=timezone.utc)
+    S1D_CUTOFF = datetime(2026, 6, 24, tzinfo=timezone.utc)
 
     for attempt in range(MAX_RETRIES):
         try:
-            # Fetch data from the ASF DAAC API
-            print(f"Attempt {attempt + 1} of {MAX_RETRIES}")
             response = requests.get(ASF_DAAC_API, params=params, timeout=160)
             response.raise_for_status()
-            # Parse the response as GeoJSON
             data = geojson.loads(response.text)
 
-            # Extract the file IDs from the GeoJSON data
             SLCs = []
             for feature in data['features']:
                 start_time = feature['properties']['startTime']
                 path = feature['properties']['pathNumber']
                 frame = feature['properties']['frameNumber']
+                file_id = feature['properties']['fileID']
 
                 try:
-                    date = isoparse(start_time).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    dt_obj = isoparse(start_time)
+                    date = dt_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
                 except Exception:
                     print(f"Warning: Unexpected date format in startTime: {start_time}")
                     date = None
+                    dt_obj = None
                 
+                # Apply S1C and S1D filters
+                if file_id.startswith("S1C") and dt_obj and dt_obj < S1C_CUTOFF:
+                    continue
+                if file_id.startswith("S1D") and dt_obj and dt_obj < S1D_CUTOFF:
+                    continue
+
                 SLC = {
-                    'fileID': feature['properties']['fileID'],
+                    'fileID': file_id,
                     'date': date,
                     'pathNumber': path,
-                    'frameNumber': frame
+                    'frameNumber': frame,
+                    'geometry': shape(feature['geometry'])
                 }
-
                 SLCs.append(SLC)
 
-            # Print the SLCs
             print('=========================================')
-            print(f"Found {len(SLCs)} SLCs for the {flight_direction} path {path_number} and frame numbers {frame_numbers}.")
+            print(f"Found {len(SLCs)} valid SLCs for the {flight_direction} path {path_number} intersecting the AOI.")
             print('=========================================')
-            for SLC in SLCs:
-                print(f"FileID: {SLC['fileID']}, Date: {SLC['date']}")
             return SLCs
         
         except requests.exceptions.RequestException as e:
@@ -1784,7 +1899,7 @@ def generate_pairs(pairs, mode):
         return []
 
 
-def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, event_id, pairing_mode='sequential', job_list = False, resolution=90):
+def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number, title, aoi, event_id, pairing_mode='sequential', job_list = False, resolution=90):
     """
     Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp, 
     and determine whether each pair is pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
@@ -1793,6 +1908,7 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     :param flight_direction: 'ASCENDING' or 'DESCENDING'
     :param path_number: Sentinel-1 path number
     :param title: USGS title of the earthquake event, used for file organization
+    :param aoi: Shapely Polygon object representing the Area of Interest
     :param event_id: USGS event ID of the earthquake, used for file organization
     :param pairing_mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'coseismic' for pairs bounding the rupture date only
     :param job_list: True if the JSON objects are for HYP3 job submission, False otherwise
@@ -1819,19 +1935,47 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
     
     sorted_dates = sorted(slc_by_date.keys())
     initial_pairs = []
+    
+    # Determine the maximum footprint this specific track has over the AOI
+    max_track_area = 0
     for date in sorted_dates:
         frames = slc_by_date[date]
-        frame_numbers = {slc['frameNumber'] for slc in frames}
-        if len(frames) == len(frame_numbers):
+        union_geom = unary_union([slc['geometry'] for slc in frames])
+        intersection_area = union_geom.intersection(aoi).area
+        if intersection_area > max_track_area:
+            max_track_area = intersection_area
+
+    # Filter dates based on coverage
+    for date in sorted_dates:
+        frames = slc_by_date[date]
+        union_geom = unary_union([slc['geometry'] for slc in frames])
+        intersection_area = union_geom.intersection(aoi).area
+        
+        # Only accept dates where the available data covers >95% of the track's max expected footprint
+        if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
             initial_pairs.append((date, frames))
     
-    # Split the pairs into pre-seismic, co-seismic, and post-seismic
-    pre_seismic = [pair for pair in initial_pairs if pair[0] < rupture_date_dt]
-    post_seismic = [pair for pair in initial_pairs if pair[0] > rupture_date_dt]
+    pre_seismic = []
+    post_seismic = []
+    
+    for pair in initial_pairs:
+        # pair[1] is the list of frames. Take the exact datetime of the first frame.
+        exact_time = datetime.strptime(pair[1][0]['date'], "%Y-%m-%dT%H:%M:%SZ")
+        
+        if exact_time < rupture_date_dt:
+            pre_seismic.append(pair)
+        elif exact_time > rupture_date_dt:
+            post_seismic.append(pair)
+            
     co_seismic = []
     
     for i in range(len(initial_pairs) - 1):
-        if initial_pairs[i][0] < rupture_date_dt < initial_pairs[i + 1][0]:
+        # Extract the exact datetime for the first slice in each track pass
+        exact_time_1 = datetime.strptime(initial_pairs[i][1][0]['date'], "%Y-%m-%dT%H:%M:%SZ")
+        exact_time_2 = datetime.strptime(initial_pairs[i + 1][1][0]['date'], "%Y-%m-%dT%H:%M:%SZ")
+        
+        # Safely evaluate using precise hour/minute/second boundaries
+        if exact_time_1 < rupture_date_dt < exact_time_2:
             co_seismic = [(initial_pairs[i], initial_pairs[i + 1])]
             break
     
@@ -1853,10 +1997,14 @@ def find_reference_and_secondary_pairs(SLCs, time, flight_direction, path_number
             secondary_date, secondary_scenes = secondary
             reference_scenes_ids = [slc['fileID'].removesuffix("-SLC") for slc in reference_scenes]
             secondary_scenes_ids = [slc['fileID'].removesuffix("-SLC") for slc in secondary_scenes]
+
+            # Dynamically pull frame numbers for the JSON
+            current_frame_numbers = list(set(slc['frameNumber'] for slc in reference_scenes))
+
             if job_list:
                 json_output = make_job_json(title, event_id, flight_direction, path_number, reference_scenes_ids, secondary_scenes_ids, resolution)
             else:
-                json_output = make_json(title, timing, flight_direction, path_number, list(frame_numbers), 
+                json_output = make_json(title, timing, flight_direction, path_number, current_frame_numbers, 
                                         {'date': reference_date.strftime('%Y-%m-%d')}, 
                                         {'date': secondary_date.strftime('%Y-%m-%d')}, 
                                         reference_scenes_ids, secondary_scenes_ids)
@@ -2482,11 +2630,12 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
         # Load the FFM geometry
         aoi = load_aoi_from_json(ffm_url)
         
-        # Buffer the FFM to capture the full deformation field 
-        # 0.5 degrees adds ~55km to all sides. .envelope forces it back to a clean rectangle.
-        buffer_deg = 0.15
-        aoi = aoi.buffer(buffer_deg).envelope
-        print(f"  -> Buffered FFM bounds by {buffer_deg} degrees to ensure coverage.")
+        # Buffer the FFM to capture the full deformation field (optical only; SAR frame
+        # selection on main is tuned to the unbuffered FFM). .envelope forces a clean rectangle.
+        if sensor != 'sar':
+            buffer_deg = 0.15
+            aoi = aoi.buffer(buffer_deg).envelope
+            print(f"  -> Buffered FFM bounds by {buffer_deg} degrees to ensure coverage.")
 
     elif aoi:
         print("AOI provided. Using the provided AOI...")
@@ -2518,9 +2667,9 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
 
         for (flight_direction, path_number), frame_numbers in path_frame_numbers.items():
             frame_numbers = list(set(fn[0] for fn in frame_numbers))
-            SLCs = get_SLCs(flight_direction, path_number, frame_numbers, eq.get('time'), processing_mode='historic')
+            SLCs = get_SLCs(flight_direction, path_number, aoi.wkt, eq.get('time'), processing_mode='historic')
             isce_jobs = find_reference_and_secondary_pairs(SLCs, eq.get('time'), flight_direction, path_number, 
-                                                           title, event_id, pairing_mode, job_list, resolution)
+                                                           title, aoi, event_id, pairing_mode, job_list, resolution)
             all_jobs.append(isce_jobs)
 
     elif sensor in ['sentinel-2', 'landsat']:
@@ -2784,10 +2933,12 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     if next_pass_dir not in sys.path:
         sys.path.append(next_pass_dir)
     try:
-        from utils import plot_maps
+        from next_pass import plot_maps
     except ImportError as e:
         print(f"Could not import plot_maps: {e}")
-        return None, None, None, None
+        return None, None, None
+    
+    from datetime import date
 
     min_lon, min_lat, max_lon, max_lat = AOI.bounds
     bbox = [str(min_lat), str(max_lat), str(min_lon), str(max_lon)]
@@ -2802,7 +2953,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
         result = next_pass.find_next_overpass(args, timestamp_dir)
     except Exception as e:
         print(f"Next pass error: {e}")
-        return None, None, None, None
+        return None, None, None
     
     result_s1 = result.get("sentinel-1") 
     result_nisar = result.get("nisar")
@@ -2812,29 +2963,17 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     
     default_map_file = timestamp_dir / "satellite_overpasses_map.html"
     
-    # Generate S1-Only Map
-    s1_map_path = timestamp_dir / "S1_overpass_map.html"
+    # Generate Joint S1 + NISAR Map
+    map_path = timestamp_dir / "overpass_map.html"
     try:
-        # Pass None for NISAR
-        plot_maps.make_overpasses_map(result_s1, None, None, None, args.bbox, timestamp_dir)
-        if default_map_file.exists():
-            os.rename(default_map_file, s1_map_path)
-    except Exception as e:
-        print(f"Could not generate S1-only map: {e}")
-        s1_map_path = None
-
-    # Generate S1 + NISAR Map
-    nisar_map_path = timestamp_dir / "S1_NISAR_overpass_map.html"
-    try:
-        # Pass result_nisar into your plot_maps signature
         plot_maps.make_overpasses_map(result_s1, None, None, result_nisar, args.bbox, timestamp_dir)
         if default_map_file.exists():
-            os.rename(default_map_file, nisar_map_path)
+            os.rename(default_map_file, map_path)
     except Exception as e:
-        print(f"Could not generate S1+NISAR map: {e}")
-        nisar_map_path = None
+        print(f"Could not generate overpass map: {e}")
+        map_path = None
 
-    return s1_info, nisar_info, s1_map_path, nisar_map_path
+    return s1_info, nisar_info, map_path
 
 
 def parse_custom_eq_list(file_path):
@@ -2894,17 +3033,15 @@ def parse_custom_eq_list(file_path):
     return earthquakes
 
 
-def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_email_flag=False, sensor='sar', optical_backend='copernicus', optical_level='toa'):
+def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_email_flag=False, process_only=False):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
     :param pairing_mode: 'all', 'sequential', or 'coseismic' for specifying desired SLC pairing
-    :param resolution: Output resolution for the topsApp processing, default is 90m
+    :param resolution: Output resolution for the topsApp processing, default is 30m
     :param do_processing: If True, runs the dockerized topsApp processing workflow after generating the JSONs. Default is False.
     :param send_email_flag: If True, sends an email alert after processing. Default is False.
-    :param sensor: 'sar' for SAR processing, 'optical' for optical processing
-    :optical_backend: 'copernicus', 'element84' for source data file nomenclature (only applicable if sensor is 'optical')
-    :optical_level: 'toa' or 'sr' for the desired optical product level (only applicable if sensor is 'optical')
+    :param process_only: If True, only runs the processing workflow without generating new JSONs or sending emails. Default is False.
     """
     import shutil
 
@@ -2922,187 +3059,174 @@ def main_forward(pairing_mode=None, resolution=90, do_processing=False, send_ema
         print("Running cronjob to check for new earthquakes...")
         print('=========================================')
         
-        # Initialize the tracking file if it doesn't exist
-        if not os.path.exists(TRACKING_FILE):
-            with open(TRACKING_FILE, 'w') as f:
-                json.dump({}, f)
+        # Initialize the tracking directory if it doesn't exist
+        if not os.path.exists(TRACKING_DIR):
+            os.makedirs(TRACKING_DIR, exist_ok=True)
 
-        # Check for New Earthquakes over 48-hour window to ensre no events are missed due to API delays
-        two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%S')
-        
-        # Define parameters for a custom search on the USGS 'alltime' endpoint
-        params = {
-            "format": "geojson",
-            "starttime": two_days_ago,
-            "minmagnitude": 5.5
-        }
-        print(f"Checking for earthquakes since {two_days_ago}...")
+        if not process_only:
+            # Check for New Earthquakes over 48-hour window to ensre no events are missed due to API delays
+            two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%S')
+            
+            # Define parameters for a custom search on the USGS 'alltime' endpoint
+            params = {
+                "format": "geojson",
+                "starttime": two_days_ago,
+                "minmagnitude": 5.5
+            }
+            print(f"Checking for earthquakes since {two_days_ago}...")
 
-        # Use the query endpoint instead of the static summary feeds
-        response = requests.get(USGS_api_alltime, params=params)
-        response.raise_for_status()
-        geojson_data = response.json()
+            # Use the query endpoint instead of the static summary feeds
+            response = requests.get(USGS_api_alltime, params=params)
+            response.raise_for_status()
+            geojson_data = response.json()
 
-        start_date = datetime.now().strftime('%Y-%m-%d')
-        current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
+            start_date = datetime.now().strftime('%Y-%m-%d')
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
 
-        if geojson_data:
-            # Parse GeoJSON and create variables for each feature's properties
-            earthquakes = parse_geojson(geojson_data)
-            eq_sig = check_significance(earthquakes, start_date, end_date=None, mode = 'forward')
+            if geojson_data:
+                # Parse GeoJSON and create variables for each feature's properties
+                earthquakes = parse_geojson(geojson_data)
+                eq_sig = check_significance(earthquakes, start_date, end_date=None, mode = 'forward')
 
-            if eq_sig is not None:
-                for eq in eq_sig:
-                    # Check for duplicate entry in the pending queue
-                    tracker = load_tracker()
-                    if eq.get('id') in tracker:
-                        print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
-                        continue
+                if eq_sig is not None:
+                    for eq in eq_sig:
+                        # Check for duplicate entry in the pending queue
+                        tracker = load_tracker()
+                        if eq.get('id') in tracker:
+                            print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
+                            continue
 
-                    title = eq.get('title', '')
-                    title_snake = to_snake_case(title)
-                    print(f"title: {title_snake}")
-                    coords = eq.get('coordinates', [])
-                    
-                    # Initial AOI creation (a 1-degree box)
-                    aoi = make_aoi(coords)
+                        title = eq.get('title', '')
+                        title_snake = to_snake_case(title)
+                        print(f"title: {title_snake}")
+                        coords = eq.get('coordinates', [])
+                        
+                        # Initial AOI creation (a 1-degree box)
+                        aoi = make_aoi(coords)
 
-                    # Write AOI to a geojson file
-                    with open(f'{title}_AOI.geojson', 'w') as f:
-                        geojson.dump(aoi, f, indent=2)
+                        # Write AOI to a geojson file
+                        with open(f'{title}_AOI.geojson', 'w') as f:
+                            geojson.dump(aoi, f, indent=2)
 
-                    # Get path/frame numbers for the initial AOI
-                    path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
-                    
-                    # Create a timestamp string
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        # Get path/frame numbers for the initial AOI
+                        path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
+                        
+                        # Create a timestamp string
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-                    # Create the output directory
-                    timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
-                    timestamp_dir.mkdir(parents=True, exist_ok=True)
+                        # Create the output directory
+                        timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
+                        timestamp_dir.mkdir(parents=True, exist_ok=True)
 
-                    # Run next_pass to get the next S1 overpasses
-                    s1_info, nisar_info, s1_map, nisar_map = get_next_pass(aoi, timestamp_dir)
-                    
-                    # Setup Github pages directory
-                    docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
-                    docs_maps_dir.mkdir(parents=True, exist_ok=True)
-                    GITHUB_PAGES_BASE_URL = "https://cmspeed.github.io/coseis-sar"
-                    
-                    # Create a unique ID for the filenames so they aren't overwritten
-                    unique_id = eq.get('id', datetime.now().strftime('%Y%m%d%H%M%S'))
+                        # Run next_pass to get the next overpasses
+                        s1_info, nisar_info, overpass_map = get_next_pass(aoi, timestamp_dir)
+                        
+                        # Setup Github pages directory
+                        docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
+                        docs_maps_dir.mkdir(parents=True, exist_ok=True)
+                        GITHUB_PAGES_BASE_URL = "https://cmspeed.github.io/coseis-sar"
+                        
+                        # Create a unique ID for the filenames so they aren't overwritten
+                        unique_id = eq.get('id', datetime.now().strftime('%Y%m%d%H%M%S'))
 
-                    # Route S1 Map
-                    s1_map_url = ""
-                    if s1_map and os.path.exists(s1_map):
-                        new_s1_name = f"{title_snake}_{unique_id}_S1_overpass_map.html"
-                        shutil.copy(s1_map, docs_maps_dir / new_s1_name)
-                        s1_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_s1_name}"
+                        # Route Joint Map
+                        map_url = ""
+                        if overpass_map and os.path.exists(overpass_map):
+                            new_map_name = f"{title_snake}_{unique_id}_overpass_map.html"
+                            shutil.copy(overpass_map, docs_maps_dir / new_map_name)
+                            map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_map_name}"
 
-                    # Route NISAR Map
-                    nisar_map_url = ""
-                    if nisar_map and os.path.exists(nisar_map):
-                        new_nisar_name = f"{title_snake}_{unique_id}_S1_NISAR_overpass_map.html"
-                        shutil.copy(nisar_map, docs_maps_dir / new_nisar_name)
-                        nisar_map_url = f"{GITHUB_PAGES_BASE_URL}/maps/{new_nisar_name}"
+                        # Construct and send the initial email alert
+                        message_dict = {
+                            "title": eq.get('title', ''),
+                            "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
+                            "coordinates": [round(coord, 3) for coord in eq.get('coordinates', [])],
+                            "magnitude": eq.get('mag', ''),
+                            "depth": round(eq.get('coordinates', [])[2], 1),
+                            "alert": eq.get('alert', ''),
+                            "url": eq.get('url', '')
+                        }
 
-                    # Construct and send the initial email alert
-                    message_dict = {
-                        "title": eq.get('title', ''),
-                        "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
-                        "coordinates": [round(coord, 3) for coord in eq.get('coordinates', [])],
-                        "magnitude": eq.get('mag', ''),
-                        "depth": round(eq.get('coordinates', [])[2], 1),
-                        "alert": eq.get('alert', ''),
-                        "url": eq.get('url', '')
-                    }
+                        # Convert the raw text table to an HTML table
+                        html_s1_table = ascii_table_to_html(s1_info)
+                        html_nisar_table = ascii_table_to_html(nisar_info)
 
-                    # Convert the raw text table to an HTML table
-                    html_s1_table = ascii_table_to_html(s1_info)
-                    html_nisar_table = ascii_table_to_html(nisar_info)
+                        # Construct and send the email
+                        header_html = f"""
+                        <div style="font-family: Arial, sans-serif; color: #333; max-width: 850px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                            <div style="background-color: #003366; color: white; padding: 20px;">
+                                <h2 style="margin: 0; font-size: 22px;">{message_dict['title']}</h2>
+                                <p style="margin: 5px 0 0; font-size: 14px; color: #b3d4fc;">{message_dict['time']} UTC</p>
+                            </div>
+                            <div style="padding: 20px;">
+                                <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Event Details</h3>
+                                <table style="width: 100%; text-align: left; margin-bottom: 25px; border-collapse: collapse;">
+                                    <tr>
+                                        <th style="width: 150px; padding: 4px 0;">Epicenter (Lat, Lon):</th>
+                                        <td style="padding: 4px 0;">{message_dict['coordinates'][1]}, {message_dict['coordinates'][0]}</td>
+                                    </tr>
+                                    <tr>
+                                        <th style="padding: 4px 0;">Depth:</th>
+                                        <td style="padding: 4px 0;">{message_dict['depth']} km</td>
+                                    </tr>
+                                </table>
+                                <a href="{message_dict['url']}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
+                        """
+                        
+                        s1_section = f"""
+                                <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Acquisitions</h3>
+                                {html_s1_table}
+                        """
+                        
+                        nisar_section = f"""
+                                <h3 style="margin: 25px 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">NISAR Acquisitions</h3>
+                                {html_nisar_table}
+                        """
 
-                    # Construct and send the email
-                    header_html = f"""
-                    <div style="font-family: Arial, sans-serif; color: #333; max-width: 850px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-                        <div style="background-color: #003366; color: white; padding: 20px;">
-                            <h2 style="margin: 0; font-size: 22px;">{message_dict['title']}</h2>
-                            <p style="margin: 5px 0 0; font-size: 14px; color: #b3d4fc;">{message_dict['time']} UTC</p>
-                        </div>
-                        <div style="padding: 20px;">
-                            <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Event Details</h3>
-                            <table style="width: 100%; text-align: left; margin-bottom: 25px; border-collapse: collapse;">
-                                <tr>
-                                    <th style="width: 150px; padding: 4px 0;">Epicenter (Lat, Lon):</th>
-                                    <td style="padding: 4px 0;">{message_dict['coordinates'][1]}, {message_dict['coordinates'][0]}</td>
-                                </tr>
-                                <tr>
-                                    <th style="padding: 4px 0;">Depth:</th>
-                                    <td style="padding: 4px 0;">{message_dict['depth']} km</td>
-                                </tr>
-                            </table>
-                            <a href="{message_dict['url']}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
-                    """
-                    
-                    s1_section = f"""
-                            <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Acquisitions</h3>
-                            {html_s1_table}
-                    """
-                    
-                    nisar_section = f"""
-                            <h3 style="margin: 25px 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">NISAR Acquisitions</h3>
-                            {html_nisar_table}
-                    """
-
-                    footer_html = """
-                        </div>
-                        <div style="background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #e0e0e0;">
-                            This is an automated message. Please do not reply.<br>
-                            For product-specific inquiries, contact Dr. Cole Speed (<a href="mailto:cole.speed@jpl.nasa.gov">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href="mailto:bato@jpl.nasa.gov">bato@jpl.nasa.gov</a>).
-                        </div>
-                    </div>
-                    """
-
-                    # Helper function to generate the clickable button to route to HTML map
-                    def get_button_html(url):
-                        if not url: return ""
-                        return f"""
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="{url}" style="background-color: #003366; color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-family: Arial, sans-serif; font-size: 18px;">
-                                Click here for interactive overpass map
-                            </a>
+                        footer_html = """
+                            </div>
+                            <div style="background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #e0e0e0;">
+                                This is an automated message. Please do not reply.<br>
+                                For product-specific inquiries, contact Dr. Cole Speed (<a href="mailto:cole.speed@jpl.nasa.gov">cole.speed@jpl.nasa.gov</a>) and Dr. Grace Bato (<a href="mailto:bato@jpl.nasa.gov">bato@jpl.nasa.gov</a>).
+                            </div>
                         </div>
                         """
 
-                    if send_email_flag:
-                        subject_text = f"New Event: {message_dict['title']}"
+                        # Helper function to generate the clickable button to route to HTML map
+                        def get_button_html(url):
+                            if not url: return ""
+                            return f"""
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="{url}" style="background-color: #003366; color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-family: Arial, sans-serif; font-size: 18px;">
+                                    Click here for interactive overpass map
+                                </a>
+                            </div>
+                            """
+
+                        if send_email_flag:
+                            subject_text = f"New Event: {message_dict['title']}"
+                            
+                            # Send joint S1 + NISAR email to PRIMARY_RECIPIENTS
+                            if PRIMARY_RECIPIENTS:
+                                primary_body = (header_html + s1_section + nisar_section + get_button_html(map_url) + footer_html).replace('\n', '')
+                                send_email(subject=subject_text, body=primary_body, recipients=PRIMARY_RECIPIENTS)
+                                print('=========================================')
+                                print('Joint S1 and NISAR email sent to primary recipients.')
+                                print('=========================================')
+                        else:
+                            print('=========================================')
+                            print('Email sending is disabled (--send_email not provided).')
+                            print('=========================================')
+
+                        # START TRACKING FOR THIS EVENT
+                        # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
+                        add_to_tracker(eq, aoi, resolution)
                         
-                        # Send S1-only to PRIMARY_RECIPIENTS
-                        if PRIMARY_RECIPIENTS:
-                            primary_body = (header_html + s1_section + get_button_html(s1_map_url) + footer_html).replace('\n', '')
-                            send_email(subject=subject_text, body=primary_body, recipients=PRIMARY_RECIPIENTS)
-                            print('=========================================')
-                            print('S1-only email sent.')
-                            print('=========================================')
-
-                        # Send S1 + NISAR to TERTIARY_RECIPIENTS
-                        if TERTIARY_RECIPIENTS:
-                            tertiary_body = (header_html + s1_section + nisar_section + get_button_html(nisar_map_url) + footer_html).replace('\n', '')
-                            send_email(subject=subject_text, body=tertiary_body, recipients=TERTIARY_RECIPIENTS)
-                            print('=========================================')
-                            print('S1+NISAR email sent.')
-                            print('=========================================')
-                    else:
-                        print('=========================================')
-                        print('Email sending is disabled (--send_email not provided).')
-                        print('=========================================')
-
-                    # START TRACKING FOR THIS EVENT
-                    # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
-                    add_to_tracker(eq, aoi, resolution)
-                    
-            else:
-                print(f"No new significant earthquakes found as of {current_time}.")
-
+                else:
+                    print(f"No new significant earthquakes found as of {current_time}.")
+        else:
+            print("Running in --process_only mode. Skipping USGS earthquake discovery.")
+        
         # Check ASF DAAC for available SLCs for pending earthquakes
         check_tracker_for_updates(do_processing, send_email_flag)
         
@@ -3242,11 +3366,12 @@ if __name__ == "__main__":
     parser.add_argument("--aoi", help="Specify a path to a json file representing the area of interest (AOI).")
     parser.add_argument("--pairing", choices=["all", "sequential", "coseismic"], help="Specify the SLC pairing mode. Required for SAR processing.")
     parser.add_argument("--job_list", action="store_true", help="Create a list of jobs in HYP3 format for cloud processing.")
-    parser.add_argument("--resolution", type=int, default=90, help="Output resolution for topsApp processing in meters. Default is 90m.")
+    parser.add_argument("--resolution", type=int, default=30, help="Output resolution for topsApp processing in meters. Default is 30m.")
     parser.add_argument("--sensor", choices=["sar", "sentinel-2", "landsat"], default="sar", 
                         help="Sensor: 'sar' (Sentinel-1), 'sentinel-2', or 'landsat'. Default is sar.")
     parser.add_argument("--do_processing", action="store_true", help="Execute local topsApp processing.")
     parser.add_argument("--send_email", action="store_true", help="Send email notifications.")
+    parser.add_argument("--process_only", action="store_true", help="Skip discovery; only process existing jobs in the tracker.")
     parser.add_argument("--optical_backend", choices=["copernicus", "element84", "gee"], default="copernicus", help="Specify the optical data provider if sensor is optical. Default is copernicus.")
     parser.add_argument("--optical_level", choices=["raw", "toa", "sr"], default="toa", help="Specify the optical data level ('raw', 'toa', 'sr'). Default is 'toa'. Sentinel-2 does not support 'raw'.")
 
@@ -3309,6 +3434,10 @@ if __name__ == "__main__":
         )
 
     elif args.forward:
+        if args.sensor != 'sar':
+            print("Error: --forward currently supports only --sensor sar.")
+            exit(1)
+
         if args.job_list or args.dates or args.aoi:
             print("Error: --job_list, --dates, and --aoi cannot be used with --forward mode.")
             exit(1)
@@ -3344,7 +3473,5 @@ if __name__ == "__main__":
             resolution=args.resolution, 
             do_processing=args.do_processing, 
             send_email_flag=args.send_email, 
-            sensor=args.sensor, 
-            optical_backend=args.optical_backend,
-            optical_level=args.optical_level
+            process_only=args.process_only
         )
