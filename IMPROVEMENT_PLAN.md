@@ -29,20 +29,20 @@ Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
 ## Phase 1: Reconcile `develop` with `main`
 Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixes plus the optical work) before doing anything else. Refactoring two diverged codebases is much harder than refactoring one.
 
-- [x] Merge `main` into `develop`. For `coseis.py`, keep all of `main`'s SAR and forward logic and layer `develop`'s optical additions on top. **DONE 2026-10-01 (5fb2d9d)**
+- [x] Merge `main` into `develop`. For `coseis.py`, keep all of `main`'s SAR and forward logic and layer `develop`'s optical additions on top. **DONE 2026-10-01 (c167d73)**
   - `coseis.py` was rebuilt from `main`'s version, not by hand-resolving markers. Every function is byte-identical to `main` or `develop` except seven deliberately merged ones: `add_to_tracker`, `check_significance`, `find_reference_and_secondary_pairs`, `process_earthquake`, `main_forward`, CLI, imports.
   - FFM AOI buffer (0.15°, from `develop` e30e7e9) is applied to **optical only**, so SAR frame selection is unchanged from `main`. *(confirmed 2026-10-01)*
   - `--forward` rejects `--sensor` other than `sar` until Phase 3.
-- [x] Adopt `main`'s versions of: the `scripts/active_jobs/` tracker directory, `--process_only`, `run_coseis_forward.sh`, `coseis-cron.yml`, `test-email.yml`, and the 30 m forward default. Remove the stale `scripts/active_job_tracking.json`. **DONE 2026-10-01 (5fb2d9d)**
+- [x] Adopt `main`'s versions of: the `scripts/active_jobs/` tracker directory, `--process_only`, `run_coseis_forward.sh`, `coseis-cron.yml`, `test-email.yml`, and the 30 m forward default. Remove the stale `scripts/active_job_tracking.json`. **DONE 2026-10-01 (c167d73)**
   - The `--resolution` default is now 30 m for all modes (`develop` had 90). Revisit if optical products can't be generated at 30 m.
-- [x] Email tiers: primary and secondary only. Remove TERTIARY (`COSEIS_TERTIARY_RECIPIENTS`) everywhere. *(decided 2026-10-01)* **DONE 2026-10-01 (5fb2d9d)**
-- [x] Significance criteria *(decided 2026-10-01)*. **DONE 2026-10-01 (5fb2d9d)**
-  - historic: M≥6.0, depth ≤40 km, ≤0.5° from coast. The USGS alert-level requirement was removed *(decided 2026-10-01)*
+- [x] Email tiers: primary and secondary only. Remove TERTIARY (`COSEIS_TERTIARY_RECIPIENTS`) everywhere. *(decided 2026-10-01)* **DONE 2026-10-01 (c167d73)**
+- [x] Significance criteria *(decided 2026-10-01)*. **DONE 2026-10-01 (c167d73)**
+  - historic: M≥6.0, depth ≤40 km, ≤0.5° from coast. The USGS alert-level requirement was removed *(decided 2026-10-01; 7af333d)*
   - forward: keep the M5.5 rule for now, i.e. (M≥5.5 and ≤15 km) or (M≥6.0 and ≤40 km)
   - optical (historic): additionally requires a strike-slip rake (within 45° of 0°/180°)
-- [x] **Lazy-import optical dependencies** (`ee`, `pystac_client`, `google.cloud.storage`, `osgeo.gdal`). Verified `import coseis` works in the SAR-only `coseis-sar` env. **DONE 2026-10-01 (53375a5)**
-- [x] `batch_autorift.py`: hardcoded test path replaced by `--data_dir` (default `scripts/data`, where `coseis.py` writes when run from `scripts/`). **DONE 2026-10-01 (168294c)**
-- [x] `environment.yml`: added `earthengine-api`, `google-cloud-storage`, `pystac-client`, `gdal`, and `next_pass` (pip). **DONE 2026-10-01 (caba737)**
+- [x] **Lazy-import optical dependencies** (`ee`, `pystac_client`, `google.cloud.storage`, `osgeo.gdal`). Verified `import coseis` works in the SAR-only `coseis-sar` env. **DONE 2026-10-01 (d4bd3a7)**
+- [x] `batch_autorift.py`: hardcoded test path replaced by `--data_dir` (default `scripts/data`, where `coseis.py` writes when run from `scripts/`). **DONE 2026-10-01 (adbb0a5)**
+- [x] `environment.yml`: added `earthengine-api`, `google-cloud-storage`, `pystac-client`, `gdal`, and `next_pass` (pip). **DONE 2026-10-01 (63112c0)**
   - `hyp3_autorift` is still undocumented. Decide whether `batch_autorift.py` gets its own environment.
 - [x] Equivalence check: historic SAR `--job_list` for 2025-01-07 (Tibet, M7.1) on `main` vs this branch. Job list, AOI, significance CSV/GeoJSON and earthquake info are identical; the only difference is the new `event_id` field on each job. **DONE 2026-10-01**
 - [ ] Forward-mode equivalence is still unverified offline: it needs either the Phase 2a fixtures or the Phase 5 shadow run.
