@@ -38,7 +38,10 @@
             ],
             "partial_job_file": "job_m_77_68_km_nnw_of_ende_indonesia_DESCENDING_61_partial.json",
             "reference_date": "2026-08-02",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-08-02 (Pre) - 2026-08-20 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_77_68_km_nnw_of_ende_indonesia/DESCENDING061/coseismic/DESCENDING061_20260802_20260820"
         }
     }
 }
