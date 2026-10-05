@@ -15,6 +15,9 @@ from aria_coseis import cli  # noqa: E402
 
 # --- code under test (generated; keep sorted by module) ---
 from aria_coseis import config as settings  # noqa: E402  (holds root_dir, TRACKING_DIR, recipients)
+from aria_coseis.aoi import (  # noqa: E402
+    make_aoi,
+)
 from aria_coseis.legacy import (  # noqa: E402
     add_to_tracker,
     check_significance,
@@ -23,7 +26,6 @@ from aria_coseis.legacy import (  # noqa: E402
     load_tracker,
     main_forward,
     main_historic,
-    make_aoi,
     make_job_json,
     make_optical_job_json,
     process_earthquake,
