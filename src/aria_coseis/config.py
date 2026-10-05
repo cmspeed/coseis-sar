@@ -16,12 +16,17 @@ CMR_API_URL = "https://cmr.earthdata.nasa.gov/search/granules.json" # NASA CMR A
 
 # Published overpass maps (docs/maps/ on GitHub Pages). Pages URLs do not redirect if the repo is renamed.
 GITHUB_PAGES_BASE_URL = "https://cmspeed.github.io/coseis-sar"
-root_dir = os.path.join(os.getcwd(), "data")
+# Processing outputs. Override with COSEIS_DATA_DIR (e.g. for a shadow run on the processing machine).
+root_dir = os.environ.get("COSEIS_DATA_DIR") or os.path.join(os.getcwd(), "data")
 
 # Global variables
 OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
 
-TRACKING_DIR = "active_jobs"
+# Forward-mode tracker directory (relative to the working directory unless absolute)
+TRACKING_DIR = os.environ.get("COSEIS_TRACKING_DIR") or "active_jobs"
+
+# Prevents overlapping forward runs; run_coseis_forward.sh checks the default path too
+LOCK_FILE = os.environ.get("COSEIS_LOCK_FILE") or "/tmp/coseis_processing.lock"
 
 def get_recipients_from_env(var_name):
     """
