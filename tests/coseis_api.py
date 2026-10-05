@@ -20,7 +20,6 @@ from aria_coseis.legacy import (  # noqa: E402
     ascii_table_to_html,
     check_significance,
     check_tracker_for_updates,
-    convert_time,
     generate_pairs,
     load_tracker,
     main_forward,
@@ -30,6 +29,9 @@ from aria_coseis.legacy import (  # noqa: E402
     make_optical_job_json,
     parse_custom_eq_list,
     process_earthquake,
+)
+from aria_coseis.utils import (  # noqa: E402
+    convert_time,
     to_snake_case,
 )
 # --- end code under test ---

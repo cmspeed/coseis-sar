@@ -37,6 +37,7 @@ from aria_coseis.config import (
     USGS_api_alltime,
     coastline_api,
 )
+from aria_coseis.utils import convert_time, to_snake_case
 
 def load_tracker():
     """Loads all active jobs from the tracking directory."""
@@ -990,18 +991,6 @@ def load_aoi_from_json(aoi_path_or_url):
     except Exception as e:
         print(f"Error loading AOI from JSON: {e}")
         exit(1)
-
-
-def convert_time(time):
-    """
-    Convert the given Unix timestamp in milliseconds to a UTC datetime object.
-    :param time_ms: Unix timestamp in milliseconds (int or float)
-    :return: Datetime object in UTC in this format: 'YYYY-MM-DDTHH:MM:SS'
-    """
-    timestamp_s = time / 1000 # Convert to milliseconds
-    dt = datetime.fromtimestamp(timestamp_s, tz=timezone.utc) # Convert to datetime object in UTC
-    dt = dt.replace(microsecond=0) # Remove microseconds
-    return dt
 
 
 def make_interactive_map(frame_dataframe, title, coords, url):
@@ -2165,23 +2154,6 @@ def run_dockerized_topsApp(json_data, working_dir):
         with open(os.path.join(working_dir, "topsapp_error.log"), "w") as log:
             log.write(e.stderr)
         raise e  # Re-raise to handle it in the calling function if needed
-
-
-def to_snake_case(input_string):
-    """
-    Convert the given string to snake_case with ASCII-safe characters.
-    Strips accents and transliterates Unicode to closest ASCII.
-    """
-    # Normalize and transliterate Unicode characters to closest ASCII equivalent
-    normalized = unicodedata.normalize('NFKD', input_string).encode('ascii', 'ignore').decode('ascii')
-
-    # Replace non-alphanumeric characters with spaces
-    cleaned_string = re.sub(r'[^\w\s]', '', normalized)
-
-    # Replace spaces with underscores and convert to lowercase
-    snake_case_string = re.sub(r'\s+', '_', cleaned_string.strip()).lower()
-
-    return snake_case_string
 
 
 def ascii_table_to_html(ascii_table):
