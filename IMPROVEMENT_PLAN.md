@@ -14,8 +14,8 @@
 ## Status
 | Phase | State | Branch / PR |
 |---|---|---|
-| 1. Reconcile `develop` with `main` | in review | issue #27, branch `27` → PR into `develop` |
-| 2. Tests + modularize | not started | — |
+| 1. Reconcile `develop` with `main` | **done** 2026-10-01 | issue #27 → PR #28 |
+| 2. Tests + modularize | in progress (2a) | 2a: branch `phase2a` (rename to issue #); 2b: not started |
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | not started | — |
 | 5. Validation + cutover | not started | — |
@@ -46,39 +46,56 @@ Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixe
 - [x] `environment.yml`: added `earthengine-api`, `google-cloud-storage`, `pystac-client`, `gdal`, and `next_pass` (pip). **DONE 2026-10-01 (63112c0)**
   - `hyp3_autorift` is still undocumented. Decide whether `batch_autorift.py` gets its own environment.
 - [x] Equivalence check: historic SAR `--job_list` for 2025-01-07 (Tibet, M7.1) on `main` vs this branch. Job list, AOI, significance CSV/GeoJSON and earthquake info are identical; the only difference is the new `event_id` field on each job (kept for SAR and optical, decided 2026-10-01). Re-verified after the rake change. **DONE 2026-10-01**
-- [ ] Forward-mode equivalence is still unverified offline: it needs either the Phase 2a fixtures or the Phase 5 shadow run.
+- [ ] Forward-mode equivalence is still unverified offline. **Moved to Phase 2a**, which checks it with the recorded fixtures.
   - Expected difference: `_partial.json` jobs now include `event_id`.
 - [x] Open the Phase 1 issue (#27), rename the branch to `27`, and push. **DONE 2026-10-01**
-- [ ] Open the PR from `27` into `develop`.
+- [x] Open the PR from `27` into `develop`. **DONE 2026-10-01 (PR #28, merge commit 2cbf4ea)**
 
 ## Phase 2: Safety net, then modularize `coseis.py`
-**2a. Characterization tests (before any refactor).** Pin down current behavior so the refactor can be checked against it. This is the minimum needed to refactor safely; it is not the full test suite (that's Phase 4).
-- [ ] Add a `pytest` scaffold and a GitHub workflow that runs it on `pull_request` (it never runs on a schedule, so it can't interfere with cron).
-- [ ] Record USGS/ASF/coastline responses for 2–3 known events (e.g. Ierapetra, Khovd, one Japan event) as JSON fixtures, with the network mocked.
-- [ ] Add golden-output tests:
-  - `check_significance`
-  - AOI construction
-  - SAR frame selection and pairing (job JSON for HyP3, `_partial.json` for forward)
-  - optical pair and manifest generation
-  - CLI argument validation
+Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 
-**2b. Refactor into a package** (one PR per extraction, each passing the 2a tests):
+**2a. Characterization tests (no changes to `coseis.py`).** Pin down current behavior so the refactor can be checked against it. This is the minimum needed to refactor safely, not the full test suite (that's Phase 4).
+- [ ] `pytest` scaffold and a GitHub workflow that runs it on `pull_request` and on pushes to `develop` (never on a schedule).
+- [ ] **Record HTTP once, replay forever** (`pytest-recording` / vcrpy cassettes in `tests/cassettes/`). Almost every external call is `requests.get` (USGS, FFM/rake, coastline, ASF, Copernicus, Element84). Mocking at the HTTP layer means the tests survive functions moving between modules in 2b.
+- [ ] Stub only at the outer boundaries:
+  - `subprocess.run` (topsApp)
+  - `yagmail.SMTP`
+  - the `next_pass` module
+  - GEE/GCS
+- [ ] Tests reach `coseis` code only through one adapter (`tests/coseis_api.py`), so 2b updates the adapter, not the tests.
+- [ ] Events:
+  - Tibet 2025 (`us6000pi9w`)
+  - Ende M7.7 (`us6000tkt2`)
+  - Tamarindo M5.6 (`us6000tymj`, the forward M5.5 rule)
+  - a strike-slip optical event
+  - synthetic events that should be rejected
+- [ ] Golden-output tests:
+  - pure helpers
+  - `check_significance` (SAR never fetches rake)
+  - historic SAR job list and AOI
+  - forward tracker and `_partial.json`
+  - the tracker state machine (success, failure, email)
+  - CLI routing, including the two exact cron command lines
+- [ ] One-off check (not committed) that `main`'s `coseis.py` produces the same forward tracker output from the same fixtures, apart from `event_id`. This closes the open Phase 1 item.
+
+**2b. Refactor into a package** (one PR, one commit per moved module, 2a tests green after every commit). Use the standard **src layout** with import name `aria_coseis`. This is independent of any GitHub repo rename (see backlog). Don't put a `coseis/` package next to `scripts/coseis.py`: the two would collide on `import coseis`.
 ```
-scripts/
-  coseis.py              # thin CLI shim: same flags, same invocation
-  coseis/
-    config.py            # constants, env vars, paths (tracking dir, data root)
-    events.py            # USGS queries, coastline, significance, rake
-    aoi.py               # AOI / FFM geometry
-    sar/                 # ASF search, frame selection, pairing, job JSON, topsApp
-    optical/             # copernicus.py, element84.py, gee.py, manifest
-    tracking.py          # active_jobs state machine
-    notify.py            # email, HTML, maps, next_pass
-    modes/               # historic.py, forward.py
+<repo root>/
+  pyproject.toml            # name = "aria-coseis"
+  src/aria_coseis/
+    config.py               # URLs, thresholds, paths, env/recipients, GitHub Pages base URL
+    usgs.py  significance.py  aoi.py
+    sar/      search.py  pairing.py  topsapp.py
+    optical/  copernicus.py  element84.py  gee.py  jobs.py
+    tracking.py  notify.py  pipeline.py  modes.py  cli.py
+  tests/
+  scripts/coseis.py         # ~10-line shim: add src/ to sys.path, call aria_coseis.cli.main()
 ```
-- [ ] Suggested order, from fewest to most dependencies: config → notify → events/aoi → sar → optical → tracking → modes/CLI.
-- [ ] Make the tracking dir and data root configurable (env var or flag). This enables the Phase 5 shadow runs.
-- [ ] Remove dead code (`coseis_sar.py`, commented-out blocks) and fix stale docstrings in separate commits.
+- `cd scripts && python coseis.py ...` stays unchanged, so cron, GitHub Actions and the `coseis-sar` env need no edits and nothing is installed in production. Tests and CI use `pip install -e .`.
+- [ ] Order, from fewest to most dependencies: skeleton + shim (everything in `legacy.py`) → config → notify → usgs/aoi → significance → sar → optical → tracking → pipeline/modes → delete `legacy.py`.
+- [ ] Move commits are verbatim relocations: explicit imports only, read settings as `config.X` at call time. Type hints, PEP 8 / `ruff format` and docstring fixes come in separate commits at the end.
+- [ ] Make the tracking dir and data root configurable (`COSEIS_TRACKING_DIR`, `COSEIS_DATA_DIR`; defaults unchanged). This enables the Phase 5 shadow runs.
+- [ ] Remove dead code (`coseis_sar.py`, commented-out blocks) and fix stale docstrings, in separate commits.
 
 ## Phase 3: Optical in forward mode
 Open design questions to settle in the issue before writing code:
@@ -128,6 +145,8 @@ Open design questions to settle in the issue before writing code:
 Proposed along the way and not yet scheduled. Move items into a phase when picked up.
 
 **Operations / reliability**
+- [ ] **topsApp failures are recorded as "Success".** `run_dockerized_topsApp` catches `CalledProcessError` and doesn't re-raise it, so `check_tracker_for_updates` sets `processing_status = "Success"`. A failed run then never reaches `FAILED_NEEDS_ATTENTION` and is emailed as a success; only the missing `.nc` warning hints at it. Fix after 2b, updating the characterization test that currently pins this behavior.
+- [ ] The forward lock file path is hardcoded (`/tmp/coseis_processing.lock`) in both `main_forward` and `run_coseis_forward.sh`. Make it configurable alongside the tracking dir.
 - [ ] **Pin GitHub Actions dependencies.** The email workflow installs unpinned packages and `next_pass` from git HEAD; an upstream change already broke it once (`main` e71d3d0 "Fix next_pass import path"). Use a `requirements-actions.txt` with versions and a `next_pass` commit SHA.
 - [ ] **Stale-lock detection.** If the local run is killed (SIGKILL, reboot), `/tmp/coseis_processing.lock` survives and both the bash script and Python silently skip every later run. Store the PID and timestamp in the lock and clear it if the process is gone or the lock is older than N hours.
 - [ ] **Alert on `FAILED_NEEDS_ATTENTION`** and on repeated cron failures (e.g. an email to secondary recipients), instead of relying on someone reading `log_tracking.txt`.
@@ -136,11 +155,19 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 - [ ] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes.
 
 **Code quality**
+- [x] Untrack `scripts/__pycache__/` (a tracked `.pyc` made every local import dirty the tree). **DONE 2026-10-05 (Phase 2a branch)**
 - [ ] Replace `print` with `logging` (levels, timestamps), especially for cron logs.
 - [ ] Move tunables (magnitude/depth thresholds, coastline buffer, date windows, rake tolerance, cloud threshold) into one config module or file. Today they're scattered literals, and docstrings already disagree with the code.
 - [ ] CLI cleanup: the forward branch repeats `--job_list`, `--dates` and `--aoi` checks twice, and `--pairing` is required for forward even though only `coseismic` is used.
 - [ ] SAR historic AOI output is named `<title>_sar_toa_AOI.geojson` (an optical level in a SAR filename). Name it by sensor only.
 - [ ] Package with `pyproject.toml` (installable `coseis`, console entry point) once Phase 2 lands.
+
+**Repo**
+- [ ] Rename the GitHub repo to `aria-coseis` (from `cmspeed/coseis-sar`).
+  - Pages URLs **don't redirect**, so the same day: hotfix `GITHUB_PAGES_BASE_URL` on `main` (it's in `config.py` after 2b), merge `main` into `develop`, and update `origin` on both machines.
+  - Links in already-sent emails break unless a stub `coseis-sar` Pages site redirects.
+  - Keep the `coseis-sar` mamba env name and the processing machine's clone folder, which cron and `run_coseis_forward.sh` reference.
+- [ ] `.gitignore` lists `scripts/run_coseis_forward.sh`, but the file is tracked. Remove the stale entry or decide whether it should be per-machine.
 
 **Science / products**
 - [ ] Record per-product provenance (`coseis.py` commit SHA, parameters, scene IDs) in the outputs and HyP3 job metadata.

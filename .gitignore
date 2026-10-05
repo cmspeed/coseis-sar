@@ -1,1 +1,5 @@
 scripts/run_coseis_forward.sh
+
+# Python bytecode
+__pycache__/
+*.pyc
