@@ -1,4 +1,5 @@
 """check_significance: magnitude/depth/land filters by mode, and the optical-only rake filter."""
+
 from typing import Any, Dict, List
 
 import pytest
@@ -6,11 +7,13 @@ import pytest
 import coseis_api as api
 
 # Synthetic events. "land" points are on or near land; "ocean" is mid-Atlantic, far from any coast.
-LAND = (-85.9, 10.1)    # Nicoya Peninsula, Costa Rica
+LAND = (-85.9, 10.1)  # Nicoya Peninsula, Costa Rica
 OCEAN = (-30.0, 0.0)
 
 
-def make_event(event_id: str, mag: float, depth: float, where=LAND, alert: str = None) -> Dict[str, Any]:
+def make_event(
+    event_id: str, mag: float, depth: float, where=LAND, alert: str = None
+) -> Dict[str, Any]:
     return {
         "id": event_id,
         "title": f"M {mag} - synthetic {event_id}",
@@ -48,7 +51,9 @@ def assert_only_coastline_requests(urls: List[str]) -> None:
 
 @pytest.mark.vcr
 def test_historic_sar(workdir, http_log) -> None:
-    result = api.check_significance([dict(e) for e in SYNTHETIC], "2025-01-01", sensor="sar", mode="historic")
+    result = api.check_significance(
+        [dict(e) for e in SYNTHETIC], "2025-01-01", sensor="sar", mode="historic"
+    )
     # M>=6.0, depth <=40 km, near land; USGS alert level is not required
     assert accepted_ids(result) == ["m60_d40", "m65_d10", "m65_d10_alert_green"]
     assert_only_coastline_requests(http_log)
@@ -56,15 +61,25 @@ def test_historic_sar(workdir, http_log) -> None:
 
 @pytest.mark.vcr
 def test_forward_sar(workdir, http_log) -> None:
-    result = api.check_significance([dict(e) for e in SYNTHETIC], "2025-01-01", sensor="sar", mode="forward")
+    result = api.check_significance(
+        [dict(e) for e in SYNTHETIC], "2025-01-01", sensor="sar", mode="forward"
+    )
     # (M>=5.5 and <=15 km) or (M>=6.0 and <=40 km), near land
-    assert accepted_ids(result) == ["m55_d15", "m59_d10", "m60_d40", "m65_d10", "m65_d10_alert_green"]
+    assert accepted_ids(result) == [
+        "m55_d15",
+        "m59_d10",
+        "m60_d40",
+        "m65_d10",
+        "m65_d10_alert_green",
+    ]
     assert_only_coastline_requests(http_log)
 
 
 @pytest.mark.vcr
 def test_historic_sar_writes_csv_and_geojson(workdir) -> None:
-    api.check_significance([make_event("m65_d10", 6.5, 10.0)], "2025-01-01", sensor="sar", mode="historic")
+    api.check_significance(
+        [make_event("m65_d10", 6.5, 10.0)], "2025-01-01", sensor="sar", mode="historic"
+    )
     assert (workdir / "significant_earthquakes_2025-01-01.csv").exists()
     assert (workdir / "significant_earthquakes_2025-01-01.geojson").exists()
 
@@ -80,6 +95,8 @@ def test_optical_requires_strike_slip_rake(workdir) -> None:
         make_event("us0000none", 7.0, 10.0),
     ]
     for sensor in ("sentinel-2", "landsat"):
-        result = api.check_significance([dict(e) for e in events], "2025-01-01", sensor=sensor, mode="historic")
+        result = api.check_significance(
+            [dict(e) for e in events], "2025-01-01", sensor=sensor, mode="historic"
+        )
         assert accepted_ids(result) == ["us6000jllz"]
         assert result[0]["rakes"]

@@ -1,4 +1,5 @@
 """Historic and forward processing modes."""
+
 import os
 from pathlib import Path
 import requests
@@ -23,7 +24,18 @@ from aria_coseis.usgs import (
 from aria_coseis.utils import convert_time, to_snake_case
 
 
-def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, pairing_mode=None, job_list=False, resolution=90, sensor='sar', optical_backend='copernicus', optical_level='toa'):
+def main_historic(
+    start_date=None,
+    end_date=None,
+    eq_list_path=None,
+    aoi=None,
+    pairing_mode=None,
+    job_list=False,
+    resolution=90,
+    sensor="sar",
+    optical_backend="copernicus",
+    optical_level="toa",
+):
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -42,56 +54,73 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
     """
     # Generate the list of earthquakes
     geojson_data = None
-    
+
     # If a custom earthquake list is provided, use that instead of querying the USGS API, else use the provided dates to query the USGS API for earthquakes in that time range
     if eq_list_path:
         eq_sig = parse_custom_eq_list(eq_list_path)
         if not eq_sig:
             print("No valid earthquakes found in the provided list.")
             return
-    else:    
+    else:
         if start_date and not end_date:
-            print('=========================================')
+            print("=========================================")
             print(f"Running historic processing in single-date mode for date: {start_date}")
-            print('=========================================')
-            geojson_data = get_historic_earthquake_data_single_date(USGS_api_alltime, str(start_date))
+            print("=========================================")
+            geojson_data = get_historic_earthquake_data_single_date(
+                USGS_api_alltime, str(start_date)
+            )
 
         elif start_date and end_date:
-            print('=========================================')
-            print(f"Running historic processing in date range mode for dates: {start_date} to {end_date}")
-            print('=========================================')
-            geojson_data = get_historic_earthquake_data_date_range(USGS_api_alltime, str(start_date), str(end_date))
+            print("=========================================")
+            print(
+                f"Running historic processing in date range mode for dates: {start_date} to {end_date}"
+            )
+            print("=========================================")
+            geojson_data = get_historic_earthquake_data_date_range(
+                USGS_api_alltime, str(start_date), str(end_date)
+            )
 
         if geojson_data:
             earthquakes = parse_geojson(geojson_data)
-            eq_sig = check_significance(earthquakes, start_date, end_date, sensor=sensor, mode='historic')
+            eq_sig = check_significance(
+                earthquakes, start_date, end_date, sensor=sensor, mode="historic"
+            )
         else:
             eq_sig = None
-            
+
     # Process the list of earthquakes
     if eq_sig is not None:
         jobs_dict = []
         master_scene_features = []
-        earthquake_infos = [] 
+        earthquake_infos = []
 
         for eq in eq_sig:
             try:
-                eq_jsons, eq_features = process_earthquake(eq, aoi, pairing_mode, job_list, resolution, sensor, optical_backend, optical_level)
+                eq_jsons, eq_features = process_earthquake(
+                    eq,
+                    aoi,
+                    pairing_mode,
+                    job_list,
+                    resolution,
+                    sensor,
+                    optical_backend,
+                    optical_level,
+                )
 
                 if eq_features:
                     master_scene_features.extend(eq_features)
-                
-                if eq_jsons: 
-                    event_dt = convert_time(eq['time'])
+
+                if eq_jsons:
+                    event_dt = convert_time(eq["time"])
                     eq_info = {
-                        "title": eq.get('title'),
+                        "title": eq.get("title"),
                         "epicenter": {
-                            "latitude": eq['coordinates'][1],
-                            "longitude": eq['coordinates'][0],
-                            "depth_km": eq['coordinates'][2],
-                            "usgs_event_url": eq.get('url', '')
+                            "latitude": eq["coordinates"][1],
+                            "longitude": eq["coordinates"][0],
+                            "depth_km": eq["coordinates"][2],
+                            "usgs_event_url": eq.get("url", ""),
                         },
-                        "time": event_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                        "time": event_dt.strftime("%Y-%m-%d %H:%M:%S UTC"),
                     }
                     earthquake_infos.append(eq_info)
 
@@ -106,18 +135,20 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
 
         if jobs_dict:
             current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
-            
-            with open(f'jobs_list_{current_time}.json', 'w') as f:
+
+            with open(f"jobs_list_{current_time}.json", "w") as f:
                 json.dump(jobs_dict, f, indent=4)
-            
-            with open(f'earthquake_info_{current_time}.json', 'w', encoding='utf-8') as f:
+
+            with open(f"earthquake_info_{current_time}.json", "w", encoding="utf-8") as f:
                 json.dump(earthquake_infos, f, indent=4, ensure_ascii=False)
 
         if master_scene_features:
             current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
-            feature_filename = f'all_selected_scenes_{sensor}_{optical_backend}_{current_time}.geojson'
+            feature_filename = (
+                f"all_selected_scenes_{sensor}_{optical_backend}_{current_time}.geojson"
+            )
             fc = {"type": "FeatureCollection", "features": master_scene_features}
-            with open(feature_filename, 'w') as f:
+            with open(feature_filename, "w") as f:
                 json.dump(fc, f, indent=2)
             print(f"Saved master scene footprints to {feature_filename}")
     else:
@@ -127,7 +158,13 @@ def main_historic(start_date=None, end_date=None, eq_list_path=None, aoi=None, p
             print(f"No significant earthquakes found between {start_date} and {end_date}.")
 
 
-def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_email_flag=False, process_only=False):
+def main_forward(
+    pairing_mode=None,
+    resolution=30,
+    do_processing=False,
+    send_email_flag=False,
+    process_only=False,
+):
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.
@@ -146,27 +183,25 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
         print("Previous processing run still active. Exiting.")
         return
     try:
-        with open(lock_file, 'w') as f:
+        with open(lock_file, "w") as f:
             f.write("running")
 
-        print('=========================================')
+        print("=========================================")
         print("Running cronjob to check for new earthquakes...")
-        print('=========================================')
-        
+        print("=========================================")
+
         # Initialize the tracking directory if it doesn't exist
         if not os.path.exists(config.TRACKING_DIR):
             os.makedirs(config.TRACKING_DIR, exist_ok=True)
 
         if not process_only:
             # Check for New Earthquakes over 48-hour window to ensre no events are missed due to API delays
-            two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%S')
-            
+            two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            )
+
             # Define parameters for a custom search on the USGS 'alltime' endpoint
-            params = {
-                "format": "geojson",
-                "starttime": two_days_ago,
-                "minmagnitude": 5.5
-            }
+            params = {"format": "geojson", "starttime": two_days_ago, "minmagnitude": 5.5}
             print(f"Checking for earthquakes since {two_days_ago}...")
 
             # Use the query endpoint instead of the static summary feeds
@@ -174,37 +209,41 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
             response.raise_for_status()
             geojson_data = response.json()
 
-            start_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = datetime.now().strftime("%Y-%m-%d")
             current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d at %H:%M:%S UTC")
 
             if geojson_data:
                 # Parse GeoJSON and create variables for each feature's properties
                 earthquakes = parse_geojson(geojson_data)
-                eq_sig = check_significance(earthquakes, start_date, end_date=None, mode = 'forward')
+                eq_sig = check_significance(earthquakes, start_date, end_date=None, mode="forward")
 
                 if eq_sig is not None:
                     for eq in eq_sig:
                         # Check for duplicate entry in the pending queue
                         tracker = load_tracker()
-                        if eq.get('id') in tracker:
-                            print(f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping.")
+                        if eq.get("id") in tracker:
+                            print(
+                                f"Earthquake with ID {eq.get('id')} is already in the pending queue. Skipping."
+                            )
                             continue
 
-                        title = eq.get('title', '')
+                        title = eq.get("title", "")
                         title_snake = to_snake_case(title)
                         print(f"title: {title_snake}")
-                        coords = eq.get('coordinates', [])
-                        
+                        coords = eq.get("coordinates", [])
+
                         # Initial AOI creation (a 1-degree box)
                         aoi = make_aoi(coords)
 
                         # Write AOI to a geojson file
-                        with open(f'{title}_AOI.geojson', 'w') as f:
+                        with open(f"{title}_AOI.geojson", "w") as f:
                             geojson.dump(aoi, f, indent=2)
 
                         # Get path/frame numbers for the initial AOI
-                        path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(aoi, eq.get('time'))
-                        
+                        path_frame_numbers, frame_dataframe = get_path_and_frame_numbers(
+                            aoi, eq.get("time")
+                        )
+
                         # Create a timestamp string
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -214,13 +253,13 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
 
                         # Run next_pass to get the next overpasses
                         s1_info, nisar_info, overpass_map = get_next_pass(aoi, timestamp_dir)
-                        
+
                         # Setup Github pages directory
                         docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
                         docs_maps_dir.mkdir(parents=True, exist_ok=True)
-                        
+
                         # Create a unique ID for the filenames so they aren't overwritten
-                        unique_id = eq.get('id', datetime.now().strftime('%Y%m%d%H%M%S'))
+                        unique_id = eq.get("id", datetime.now().strftime("%Y%m%d%H%M%S"))
 
                         # Route Joint Map
                         map_url = ""
@@ -231,13 +270,15 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
 
                         # Construct and send the initial email alert
                         message_dict = {
-                            "title": eq.get('title', ''),
-                            "time": convert_time(eq['time']).strftime('%Y-%m-%d %H:%M:%S'),
-                            "coordinates": [round(coord, 3) for coord in eq.get('coordinates', [])],
-                            "magnitude": eq.get('mag', ''),
-                            "depth": round(eq.get('coordinates', [])[2], 1),
-                            "alert": eq.get('alert', ''),
-                            "url": eq.get('url', '')
+                            "title": eq.get("title", ""),
+                            "time": convert_time(eq["time"]).strftime("%Y-%m-%d %H:%M:%S"),
+                            "coordinates": [
+                                round(coord, 3) for coord in eq.get("coordinates", [])
+                            ],
+                            "magnitude": eq.get("mag", ""),
+                            "depth": round(eq.get("coordinates", [])[2], 1),
+                            "alert": eq.get("alert", ""),
+                            "url": eq.get("url", ""),
                         }
 
                         # Convert the raw text table to an HTML table
@@ -248,29 +289,29 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
                         header_html = f"""
                         <div style="font-family: Arial, sans-serif; color: #333; max-width: 850px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
                             <div style="background-color: #003366; color: white; padding: 20px;">
-                                <h2 style="margin: 0; font-size: 22px;">{message_dict['title']}</h2>
-                                <p style="margin: 5px 0 0; font-size: 14px; color: #b3d4fc;">{message_dict['time']} UTC</p>
+                                <h2 style="margin: 0; font-size: 22px;">{message_dict["title"]}</h2>
+                                <p style="margin: 5px 0 0; font-size: 14px; color: #b3d4fc;">{message_dict["time"]} UTC</p>
                             </div>
                             <div style="padding: 20px;">
                                 <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Event Details</h3>
                                 <table style="width: 100%; text-align: left; margin-bottom: 25px; border-collapse: collapse;">
                                     <tr>
                                         <th style="width: 150px; padding: 4px 0;">Epicenter (Lat, Lon):</th>
-                                        <td style="padding: 4px 0;">{message_dict['coordinates'][1]}, {message_dict['coordinates'][0]}</td>
+                                        <td style="padding: 4px 0;">{message_dict["coordinates"][1]}, {message_dict["coordinates"][0]}</td>
                                     </tr>
                                     <tr>
                                         <th style="padding: 4px 0;">Depth:</th>
-                                        <td style="padding: 4px 0;">{message_dict['depth']} km</td>
+                                        <td style="padding: 4px 0;">{message_dict["depth"]} km</td>
                                     </tr>
                                 </table>
-                                <a href="{message_dict['url']}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
+                                <a href="{message_dict["url"]}" style="display: inline-block; padding: 10px 18px; background-color: #0055a4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 30px;">View on USGS Hazard Portal</a>
                         """
-                        
+
                         s1_section = f"""
                                 <h3 style="margin: 0 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">Sentinel-1 Acquisitions</h3>
                                 {html_s1_table}
                         """
-                        
+
                         nisar_section = f"""
                                 <h3 style="margin: 25px 0 10px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; color: #003366;">NISAR Acquisitions</h3>
                                 {html_nisar_table}
@@ -287,7 +328,8 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
 
                         # Helper function to generate the clickable button to route to HTML map
                         def get_button_html(url):
-                            if not url: return ""
+                            if not url:
+                                return ""
                             return f"""
                             <div style="text-align: center; margin: 30px 0;">
                                 <a href="{url}" style="background-color: #003366; color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-family: Arial, sans-serif; font-size: 18px;">
@@ -298,31 +340,41 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
 
                         if send_email_flag:
                             subject_text = f"New Event: {message_dict['title']}"
-                            
+
                             # Send joint S1 + NISAR email to PRIMARY_RECIPIENTS
                             if config.PRIMARY_RECIPIENTS:
-                                primary_body = (header_html + s1_section + nisar_section + get_button_html(map_url) + footer_html).replace('\n', '')
-                                send_email(subject=subject_text, body=primary_body, recipients=config.PRIMARY_RECIPIENTS)
-                                print('=========================================')
-                                print('Joint S1 and NISAR email sent to primary recipients.')
-                                print('=========================================')
+                                primary_body = (
+                                    header_html
+                                    + s1_section
+                                    + nisar_section
+                                    + get_button_html(map_url)
+                                    + footer_html
+                                ).replace("\n", "")
+                                send_email(
+                                    subject=subject_text,
+                                    body=primary_body,
+                                    recipients=config.PRIMARY_RECIPIENTS,
+                                )
+                                print("=========================================")
+                                print("Joint S1 and NISAR email sent to primary recipients.")
+                                print("=========================================")
                         else:
-                            print('=========================================')
-                            print('Email sending is disabled (--send_email not provided).')
-                            print('=========================================')
+                            print("=========================================")
+                            print("Email sending is disabled (--send_email not provided).")
+                            print("=========================================")
 
                         # START TRACKING FOR THIS EVENT
                         # Finds pre-seismic SLCs, creates partial job list, and saves to tracking file
                         add_to_tracker(eq, aoi, resolution)
-                        
+
                 else:
                     print(f"No new significant earthquakes found as of {current_time}.")
         else:
             print("Running in --process_only mode. Skipping USGS earthquake discovery.")
-        
+
         # Check ASF DAAC for available SLCs for pending earthquakes
         check_tracker_for_updates(do_processing, send_email_flag)
-        
+
     finally:
         if os.path.exists(lock_file):
             os.remove(lock_file)

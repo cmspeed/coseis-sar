@@ -4,6 +4,7 @@ The single place the tests import code under test from.
 As functions move between modules of the aria_coseis package, update the imports here
 and leave the tests unchanged.
 """
+
 import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -64,6 +65,7 @@ def run_cli(argv: List[str]) -> List[Dict[str, Any]]:
     def recorder(name: str) -> Callable[..., None]:
         def record(*args: Any, **kwargs: Any) -> None:
             calls.append({"func": name, "args": list(args), "kwargs": kwargs})
+
         return record
 
     real = (cli.main_forward, cli.main_historic, sys.argv)

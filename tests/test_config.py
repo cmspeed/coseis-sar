@@ -1,4 +1,5 @@
 """Settings defaults and environment overrides (aria_coseis.config is read at import)."""
+
 import importlib
 import os
 from pathlib import Path
@@ -37,18 +38,21 @@ def test_defaults(reload_config, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
 
 def test_environment_overrides(reload_config, tmp_path: Path) -> None:
-    config = reload_config({
-        "COSEIS_DATA_DIR": str(tmp_path / "shadow_data"),
-        "COSEIS_TRACKING_DIR": str(tmp_path / "shadow_jobs"),
-        "COSEIS_LOCK_FILE": str(tmp_path / "shadow.lock"),
-    })
+    config = reload_config(
+        {
+            "COSEIS_DATA_DIR": str(tmp_path / "shadow_data"),
+            "COSEIS_TRACKING_DIR": str(tmp_path / "shadow_jobs"),
+            "COSEIS_LOCK_FILE": str(tmp_path / "shadow.lock"),
+        }
+    )
     assert config.root_dir == str(tmp_path / "shadow_data")
     assert config.TRACKING_DIR == str(tmp_path / "shadow_jobs")
     assert config.LOCK_FILE == str(tmp_path / "shadow.lock")
 
 
-def test_forward_run_uses_configured_lock_file(workdir: Path, monkeypatch: pytest.MonkeyPatch,
-                                               http_log: list) -> None:
+def test_forward_run_uses_configured_lock_file(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch, http_log: list
+) -> None:
     lock = workdir / "shadow.lock"
     lock.write_text("running")
     monkeypatch.setattr(api.settings, "LOCK_FILE", str(lock))

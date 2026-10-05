@@ -1,4 +1,5 @@
 """Historic optical mode (USGS + scene catalogs replayed): rake filtering, FFM AOI buffering, pairing."""
+
 import glob
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,26 +13,38 @@ import coseis_api as api
 from conftest import read_json
 
 NOW = datetime(2026, 10, 5, 12, 0, 0, tzinfo=timezone.utc)
-KAHRAMANMARAS_DATE = "2023-02-06"   # M7.8 and M7.5 strike-slip events (us6000jllz, us6000jlqa) plus aftershocks
+KAHRAMANMARAS_DATE = (
+    "2023-02-06"  # M7.8 and M7.5 strike-slip events (us6000jllz, us6000jlqa) plus aftershocks
+)
 
 
 def collect_outputs(workdir: Path) -> Dict[str, Any]:
     def all_json(pattern: str) -> Dict[str, Any]:
-        return {Path(p).name.split("_20")[0] if "jobs_list" in p else Path(p).name: read_json(Path(p))
-                for p in sorted(glob.glob(str(workdir / pattern)))}
+        return {
+            Path(p).name.split("_20")[0] if "jobs_list" in p else Path(p).name: read_json(Path(p))
+            for p in sorted(glob.glob(str(workdir / pattern)))
+        }
 
     return {
         "jobs": all_json("jobs_list_*.json"),
         "aois": all_json("*_AOI.geojson"),
-        "significant": read_json(workdir / f"significant_earthquakes_{KAHRAMANMARAS_DATE}.geojson"),
+        "significant": read_json(
+            workdir / f"significant_earthquakes_{KAHRAMANMARAS_DATE}.geojson"
+        ),
     }
 
 
 @pytest.mark.vcr
 def test_sentinel2_copernicus_job_list(workdir: Path, golden: Callable[[str, Any], None]) -> None:
     with time_machine.travel(NOW, tick=False):
-        api.main_historic(start_date=KAHRAMANMARAS_DATE, job_list=True, resolution=30,
-                          sensor="sentinel-2", optical_backend="copernicus", optical_level="toa")
+        api.main_historic(
+            start_date=KAHRAMANMARAS_DATE,
+            job_list=True,
+            resolution=30,
+            sensor="sentinel-2",
+            optical_backend="copernicus",
+            optical_level="toa",
+        )
     outputs = collect_outputs(workdir)
 
     # Only strike-slip events pass the optical rake filter

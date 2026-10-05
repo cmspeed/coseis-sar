@@ -5,6 +5,7 @@ External boundaries are faked so tests never send email, run topsApp or touch th
 - HTTP is replayed from vcrpy cassettes (tests/cassettes/); unrecorded requests fail.
 - yagmail.SMTP, subprocess.run and the next_pass module are replaced with fakes.
 """
+
 import json
 import os
 import subprocess
@@ -126,7 +127,9 @@ def fake_next_pass(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Dict[str,
     def find_next_overpass(args: Any, timestamp_dir: Path) -> Dict[str, Any]:
         calls["bboxes"].append(list(args.bbox))
         return {
-            "sentinel-1": {"next_collect_info": "+-----+\n| S1 |\n+-----+\n| next S1 pass |\n+-----+"},
+            "sentinel-1": {
+                "next_collect_info": "+-----+\n| S1 |\n+-----+\n| next S1 pass |\n+-----+"
+            },
             "nisar": {"next_collect_info": "No NISAR passes."},
         }
 
@@ -153,6 +156,7 @@ def golden() -> Callable[[str, Any], None]:
     Compare JSON-serializable data with tests/golden/<name>.json.
     Run with UPDATE_GOLDEN=1 to (re)write the golden files, then review the diff.
     """
+
     def check(name: str, data: Any) -> None:
         path = GOLDEN_DIR / f"{name}.json"
         rendered = json.dumps(data, indent=2, sort_keys=True, default=str) + "\n"
@@ -160,7 +164,9 @@ def golden() -> Callable[[str, Any], None]:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(rendered)
             if not UPDATE_GOLDEN:
-                pytest.fail(f"Golden file {path} did not exist; it has been written. Review it and re-run.")
+                pytest.fail(
+                    f"Golden file {path} did not exist; it has been written. Review it and re-run."
+                )
             return
         assert json.loads(rendered) == json.loads(path.read_text()), f"Output differs from {path}"
 
