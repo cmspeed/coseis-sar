@@ -15,7 +15,7 @@
 | Phase | State | Branch / PR |
 |---|---|---|
 | 1. Reconcile `develop` with `main` | **done** 2026-10-01 | issue #27 → PR #28 |
-| 2. Tests + modularize | in progress | 2a: done on branch `phase2a` (rename to issue #) → PR; 2b: next |
+| 2. Tests + modularize | 2a, 2b done; 2c proposed | 2a: branch `phase2a`, 2b: branch `phase2b` (rename both to issue #s) → PRs into `develop`, 2a first |
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | not started | — |
 | 5. Validation + cutover | not started | — |
@@ -76,24 +76,32 @@ Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 - [x] One-off check (not committed): `main`'s `coseis.py` passes the same forward and historic SAR tests once `event_id` and the AOI file name are normalized.
 - Not covered in 2a (moved to Phase 4): the Element84 backend, the GEE export/download/manifest path, `batch_autorift.py`.
 
-**2b. Refactor into a package** (one PR, one commit per moved module, 2a tests green after every commit). Use the standard **src layout** with import name `aria_coseis`. This is independent of any GitHub repo rename (see backlog). Don't put a `coseis/` package next to `scripts/coseis.py`: the two would collide on `import coseis`.
+**2b. Refactor into a package.** **DONE 2026-10-05 (branch `phase2b`, stacked on `phase2a`)**: one PR, one commit per moved module, all tests green after every commit. Uses the standard **src layout** with import name `aria_coseis`, independent of any GitHub repo rename (see backlog).
 ```
 <repo root>/
   pyproject.toml            # name = "aria-coseis"
   src/aria_coseis/
-    config.py               # URLs, thresholds, paths, env/recipients, GitHub Pages base URL
-    usgs.py  significance.py  aoi.py
+    config.py               # URLs, thresholds, paths, lock file, recipients, GitHub Pages base URL
+    utils.py                # to_snake_case, convert_time
+    usgs.py  significance.py  aoi.py  notify.py
     sar/      search.py  pairing.py  topsapp.py
     optical/  copernicus.py  element84.py  gee.py  jobs.py
-    tracking.py  notify.py  pipeline.py  modes.py  cli.py
+    tracking.py  pipeline.py  modes.py  cli.py
   tests/
-  scripts/coseis.py         # ~10-line shim: add src/ to sys.path, call aria_coseis.cli.main()
+  scripts/coseis.py         # shim: adds src/ to sys.path, calls aria_coseis.cli.main()
 ```
-- `cd scripts && python coseis.py ...` stays unchanged, so cron, GitHub Actions and the `coseis-sar` env need no edits and nothing is installed in production. Tests and CI use `pip install -e .`.
-- [ ] Order, from fewest to most dependencies: skeleton + shim (everything in `legacy.py`) → config → notify → usgs/aoi → significance → sar → optical → tracking → pipeline/modes → delete `legacy.py`.
-- [ ] Move commits are verbatim relocations: explicit imports only, read settings as `config.X` at call time. Type hints, PEP 8 / `ruff format` and docstring fixes come in separate commits at the end.
-- [ ] Make the tracking dir and data root configurable (`COSEIS_TRACKING_DIR`, `COSEIS_DATA_DIR`; defaults unchanged). This enables the Phase 5 shadow runs.
-- [ ] Remove dead code (`coseis_sar.py`, commented-out blocks) and fix stale docstrings, in separate commits.
+- [x] `cd scripts && python coseis.py ...` is unchanged: cron, GitHub Actions, `run_coseis_forward.sh` and the `coseis-sar` env need no edits, and nothing is installed in production. A test runs the shim from `scripts/` as a subprocess; a live historic run through it matches the golden output.
+- [x] Moved in this order: skeleton (everything in `legacy.py`) → config → utils → notify → usgs → aoi → significance → sar → optical → tracking → pipeline → modes → delete `legacy.py`.
+- [x] Moves are verbatim. A script checked all 49 functions against the original `coseis.py`; the only edit is reading `root_dir`, `TRACKING_DIR` and the recipients as `config.X`.
+- [x] `GITHUB_PAGES_BASE_URL` moved to `config.py`.
+- [x] `COSEIS_DATA_DIR`, `COSEIS_TRACKING_DIR`, `COSEIS_LOCK_FILE` overrides, with defaults unchanged. This enables the Phase 5 shadow run without sharing production's lock file.
+
+**2c. Cleanup (proposed follow-up PR, behavior-neutral).** Kept out of 2b so its diff stays pure relocation.
+- [ ] `ruff format` + `ruff check` (PEP 8) across `src/`, in one formatting-only commit; add `ruff` to CI.
+- [ ] Type hints on all public functions, one commit per module.
+- [ ] Fix stale docstrings (depth limits, "60-day windows", "AOI.geojson").
+- [ ] Remove dead code: `scripts/coseis_sar.py` (old CLI, still described in `README.md`), `check_for_new_data` (never called), commented-out blocks. Decide separately about `create_directories_from_json` (see backlog).
+- [ ] Rewrite `README.md` for the package layout and current CLI.
 
 ## Phase 3: Optical in forward mode
 Open design questions to settle in the issue before writing code:
@@ -144,7 +152,7 @@ Open design questions to settle in the issue before writing code:
 Proposed along the way and not yet scheduled. Move items into a phase when picked up.
 
 **Operations / reliability**
-- [ ] The forward lock file path is hardcoded (`/tmp/coseis_processing.lock`) in both `main_forward` and `run_coseis_forward.sh`. Make it configurable alongside the tracking dir.
+- [ ] The forward lock file is configurable in Python (`COSEIS_LOCK_FILE`, Phase 2b), but `run_coseis_forward.sh` still checks the hardcoded default. Have the script read the same variable.
 - [ ] **Pin GitHub Actions dependencies.** The email workflow installs unpinned packages and `next_pass` from git HEAD; an upstream change already broke it once (`main` e71d3d0 "Fix next_pass import path"). Use a `requirements-actions.txt` with versions and a `next_pass` commit SHA.
 - [ ] **Stale-lock detection.** If the local run is killed (SIGKILL, reboot), `/tmp/coseis_processing.lock` survives and both the bash script and Python silently skip every later run. Store the PID and timestamp in the lock and clear it if the process is gone or the lock is older than N hours.
 - [ ] **Alert on `FAILED_NEEDS_ATTENTION`** and on repeated cron failures (e.g. an email to secondary recipients), instead of relying on someone reading `log_tracking.txt`.
