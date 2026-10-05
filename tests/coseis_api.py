@@ -20,7 +20,6 @@ from aria_coseis.aoi import (  # noqa: E402
 )
 from aria_coseis.legacy import (  # noqa: E402
     add_to_tracker,
-    check_significance,
     check_tracker_for_updates,
     generate_pairs,
     load_tracker,
@@ -32,6 +31,9 @@ from aria_coseis.legacy import (  # noqa: E402
 )
 from aria_coseis.notify import (  # noqa: E402
     ascii_table_to_html,
+)
+from aria_coseis.significance import (  # noqa: E402
+    check_significance,
 )
 from aria_coseis.usgs import (  # noqa: E402
     parse_custom_eq_list,
