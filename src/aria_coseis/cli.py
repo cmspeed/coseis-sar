@@ -2,7 +2,7 @@
 import argparse
 import sys
 
-from aria_coseis.legacy import main_forward, main_historic
+from aria_coseis.modes import main_forward, main_historic
 
 
 def main() -> None:
