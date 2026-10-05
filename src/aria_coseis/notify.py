@@ -1,7 +1,6 @@
 """Notifications: email, HTML tables, interactive frame maps and satellite overpass predictions."""
 import os
 import folium
-import sys
 import yagmail
 from types import SimpleNamespace
 
