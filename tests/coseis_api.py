@@ -21,16 +21,18 @@ from aria_coseis.aoi import (  # noqa: E402
 from aria_coseis.legacy import (  # noqa: E402
     add_to_tracker,
     check_tracker_for_updates,
-    generate_pairs,
     load_tracker,
     main_forward,
     main_historic,
-    make_job_json,
     make_optical_job_json,
     process_earthquake,
 )
 from aria_coseis.notify import (  # noqa: E402
     ascii_table_to_html,
+)
+from aria_coseis.sar.pairing import (  # noqa: E402
+    generate_pairs,
+    make_job_json,
 )
 from aria_coseis.significance import (  # noqa: E402
     check_significance,
