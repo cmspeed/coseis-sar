@@ -4,20 +4,25 @@
 
 ## Ground rules
 1. **`main` is frozen for code** until the cutover (Phase 5). Only bot commits (`active_jobs/`, maps) and urgent SAR hotfixes go to `main`.
-2. **`develop` is the integration branch.** Every phase is one or more GitHub issues. Each issue gets a branch named by its issue number, cut from `develop`, with a PR back into `develop`. No PR targets `main` until Phase 5.
-3. **Hotfix flow:** fix on `main` in a small PR, then merge `main` into `develop` right away so the fix isn't lost.
+2. **`develop` is the integration branch.** Every phase is one or more GitHub issues. Each issue gets a branch named by its issue number, cut from `develop`, with a PR back into `develop` (merge commit, not squash/rebase). No PR targets `main` until Phase 5.
+3. **Hotfix flow:** fix on `main` in a small PR, then bring it to `develop` right away.
+   - **Since Phase 2b, git can't carry `coseis.py` edits across.** `main` still has the single `scripts/coseis.py`, while `develop`'s code lives in `src/aria_coseis/`.
+   - So merge `main` into `develop` (keeping `develop`'s `scripts/coseis.py` shim), then **port the fix by hand** into the matching `aria_coseis` module, with a test that covers it.
+   - Keep `main` hotfixes rare and small until cutover.
 4. **Sync `main` into `develop` regularly** (at least before starting each phase) to pick up hotfixes. Bot data files will conflict; resolve them by taking `main`'s version.
 5. **Commits within a PR are small and single-purpose.** In refactor PRs, a commit that moves code never also changes behavior.
 6. **For SAR and shared code, `main` wins.** `main` is the stable reference for SAR and for logic both modes share. `develop` may add optical-only behavior but must not change SAR results. *(decided 2026-10-01)*
-7. **Keep the external interface stable.** Cron and GitHub Actions call `cd scripts && python coseis.py --forward ...`. That command, its flags, the `active_jobs/` format and the email env vars must keep working through every phase.
+7. **SAR/forward output changes must be deliberate.** The Phase 2a tests check output against `main`'s production states (`tests/fixtures/production/`) and golden files. A change that alters them must update them in the same PR, with the reason in the commit message.
+8. **Recorded HTTP is a snapshot.** Tests replay USGS/ASF/Copernicus as recorded. Re-recording a cassette (e.g. after USGS revises an event) can change golden files; review those diffs as data updates, not regressions.
+9. **Keep the external interface stable.** Cron and GitHub Actions call `cd scripts && python coseis.py --forward ...`. That command, its flags, the `active_jobs/` format and the email env vars must keep working through every phase.
 
 ## Status
 | Phase | State | Branch / PR |
 |---|---|---|
 | 1. Reconcile `develop` with `main` | **done** 2026-10-01 | issue #27 → PR #28 |
-| 2. Tests + modularize | 2a, 2b done; 2c proposed | 2a: branch `phase2a`, 2b: branch `phase2b` (rename both to issue #s) → PRs into `develop`, 2a first |
+| 2. Tests + modularize | 2a, 2b **done** 2026-10-05; 2c in progress | 2a: issue #29 → PR #31; 2b: issue #30 → PR #32; 2c: branch `2c-cleanup` |
 | 3. Optical forward mode | not started | — |
-| 4. Test suite + CI | not started | — |
+| 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
 | 5. Validation + cutover | not started | — |
 
 Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
@@ -26,6 +31,7 @@ Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
 - Scheduled GitHub Actions only run on the default branch (`main`), so PRs and pushes to `develop` never trigger the email workflow.
 - The local cron runs `git checkout main && git pull` in its own clone, so branch work done in another clone (e.g. this laptop) can't affect it.
 - If optical work must happen on the processing machine, use a separate worktree (`git worktree add ../coseis-dev develop`) so cron's `git checkout main` doesn't switch away from it.
+- CI (`.github/workflows/tests.yml`) runs only on pull requests and pushes to `develop`.
 
 ## Phase 1: Reconcile `develop` with `main`
 Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixes plus the optical work) before doing anything else. Refactoring two diverged codebases is much harder than refactoring one.
@@ -54,7 +60,7 @@ Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixe
 ## Phase 2: Safety net, then modularize `coseis.py`
 Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 
-**2a. Characterization tests (no changes to `coseis.py`).** Pin down current behavior so the refactor can be checked against it. This is the minimum needed to refactor safely, not the full test suite (that's Phase 4). **DONE 2026-10-05 (branch `phase2a`)**: 41 tests, about 3 s offline.
+**2a. Characterization tests (no changes to `coseis.py`).** Issue #29 → PR #31. Pin down current behavior so the refactor can be checked against it. This is the minimum needed to refactor safely, not the full test suite (that's Phase 4). **DONE 2026-10-05 (PR #31)**: 41 tests, about 3 s offline.
 - [x] `pytest` scaffold; `.github/workflows/tests.yml` runs on `pull_request` and on pushes to `develop`, never on a schedule. It uses Python 3.11/3.12 and the same packages as `coseis-cron.yml`.
 - [x] HTTP recorded once and replayed (`pytest-recording` / vcrpy, one cassette per test module in `tests/cassettes/`, ~6 MB). Requests missing from a cassette fail.
   - Record new tests with `pytest --record-mode=new_episodes`.
@@ -76,7 +82,7 @@ Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 - [x] One-off check (not committed): `main`'s `coseis.py` passes the same forward and historic SAR tests once `event_id` and the AOI file name are normalized.
 - Not covered in 2a (moved to Phase 4): the Element84 backend, the GEE export/download/manifest path, `batch_autorift.py`.
 
-**2b. Refactor into a package.** **DONE 2026-10-05 (branch `phase2b`, stacked on `phase2a`)**: one PR, one commit per moved module, all tests green after every commit. Uses the standard **src layout** with import name `aria_coseis`, independent of any GitHub repo rename (see backlog).
+**2b. Refactor into a package.** **DONE 2026-10-05 (issue #30 → PR #32)**: one PR, one commit per moved module, all tests green after every commit. Uses the standard **src layout** with import name `aria_coseis`, independent of any GitHub repo rename (see backlog).
 ```
 <repo root>/
   pyproject.toml            # name = "aria-coseis"
@@ -96,8 +102,8 @@ Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 - [x] `GITHUB_PAGES_BASE_URL` moved to `config.py`.
 - [x] `COSEIS_DATA_DIR`, `COSEIS_TRACKING_DIR`, `COSEIS_LOCK_FILE` overrides, with defaults unchanged. This enables the Phase 5 shadow run without sharing production's lock file.
 
-**2c. Cleanup (proposed follow-up PR, behavior-neutral).** Kept out of 2b so its diff stays pure relocation.
-- [ ] `ruff format` + `ruff check` (PEP 8) across `src/`, in one formatting-only commit; add `ruff` to CI.
+**2c. Cleanup (behavior-neutral).** Kept out of 2b so its diff stays pure relocation. Branch `2c-cleanup`.
+- [ ] `ruff format` + `ruff check` (PEP 8) across `src/`, `tests/` and `scripts/coseis.py`, in one formatting-only commit; add `ruff` to CI. Other scripts (`batch_autorift.py`, the job-list utilities, `s3_upload_aria_share/`) are out of scope.
 - [ ] Type hints on all public functions, one commit per module.
 - [ ] Fix stale docstrings (depth limits, "60-day windows", "AOI.geojson").
 - [ ] Remove dead code: `scripts/coseis_sar.py` (old CLI, still described in `README.md`), `check_for_new_data` (never called), commented-out blocks. Decide separately about `create_directories_from_json` (see backlog).
@@ -113,22 +119,21 @@ Open design questions to settle in the issue before writing code:
 - [ ] Implement behind an opt-in flag (e.g. `--sensors sar,optical`) that defaults to SAR only, so cutover behavior is unchanged unless enabled.
 
 ## Phase 4: Test suite and CI
-- [ ] Tests deferred from 2a: the Element84 backend (needs `pystac-client` in CI), the GEE path with `ee`/GCS faked (composite export → download → manifest), and `batch_autorift.py` on a small raster pair.
-- [ ] Unit tests for pure logic:
-  - date windows
-  - Landsat mission and band selection
-  - rake filter
-  - `to_snake_case`
-  - pairing modes (`all` / `sequential` / `coseismic`)
-  - S1C/S1D date limits
-  - UTM EPSG calculation
-- [ ] Tracker state-machine tests:
-  - `AWAITING_POST_SEISMIC → READY_FOR_EMAIL → removed`
-  - the failure path to `FAILED_NEEDS_ATTENTION`
-  - orphaned partial cleanup
-- [ ] Email rendering tests (HTML builds, no sending; `yagmail` mocked).
+Most of the planned Phase 4 tests were written in 2a:
+- pure helpers, pairing modes, the rake filter
+- the full tracker state machine, including failure → FAILED_NEEDS_ATTENTION
+- email recipients and subjects
+- CLI routing
+- CI on pull requests
+
+Remaining gaps:
+- [ ] Element84 backend (needs `pystac-client` in CI).
+- [ ] GEE path with `ee`/GCS faked: composite export → download → merge → manifest, plus Landsat mission/band selection.
+- [ ] `batch_autorift.py` on a small raster pair.
+- [ ] S1C/S1D acquisition-date limits in `get_SLCs` (a small synthetic ASF response).
+- [ ] Email body rendering (beyond the subject/recipient checks that exist).
 - [ ] An opt-in integration test (marked, skipped in CI) that hits live USGS/ASF for one event.
-- [ ] Lint (`ruff`) in CI.
+- Lint (`ruff`) in CI moved to 2c.
 
 ## Phase 5: Validation and cutover to `main`
 - [ ] **Shadow-run** `develop`'s forward mode on the processing machine for 1–2 weeks:
@@ -166,10 +171,10 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 - [ ] Historic mode without `--job_list` only writes pair JSON and frame maps; `create_directories_from_json` is never called (dead code), and topsApp runs only in forward mode. Remove it, or wire up local historic processing if that's wanted.
 - [x] Untrack `scripts/__pycache__/` (a tracked `.pyc` made every local import dirty the tree). **DONE 2026-10-05 (Phase 2a branch)**
 - [ ] Replace `print` with `logging` (levels, timestamps), especially for cron logs.
-- [ ] Move tunables (magnitude/depth thresholds, coastline buffer, date windows, rake tolerance, cloud threshold) into one config module or file. Today they're scattered literals, and docstrings already disagree with the code.
+- [ ] Move tunables (magnitude/depth thresholds, coastline buffer, date windows, rake tolerance) into `aria_coseis.config` (endpoints, paths, recipients and the cloud threshold are there since 2b). Today they're scattered literals, and docstrings already disagree with the code.
 - [ ] CLI cleanup: the forward branch repeats `--job_list`, `--dates` and `--aoi` checks twice, and `--pairing` is required for forward even though only `coseismic` is used.
 - [ ] SAR historic AOI output is named `<title>_sar_toa_AOI.geojson` (an optical level in a SAR filename). Name it by sensor only.
-- [ ] Package with `pyproject.toml` (installable `coseis`, console entry point) once Phase 2 lands.
+- [ ] Console entry point (`aria-coseis` command). `pyproject.toml` and `pip install -e .` exist since 2b; production still runs through the `scripts/coseis.py` shim.
 
 **Repo**
 - [ ] Rename the GitHub repo to `aria-coseis` (from `cmspeed/coseis-sar`).
