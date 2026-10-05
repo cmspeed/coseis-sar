@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Cassettes are replayed only; re-record with: pytest --record-mode=once (or =rewrite)
+addopts = "--record-mode=none"
