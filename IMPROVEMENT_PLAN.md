@@ -15,7 +15,7 @@
 | Phase | State | Branch / PR |
 |---|---|---|
 | 1. Reconcile `develop` with `main` | **done** 2026-10-01 | issue #27 → PR #28 |
-| 2. Tests + modularize | in progress (2a) | 2a: branch `phase2a` (rename to issue #); 2b: not started |
+| 2. Tests + modularize | in progress | 2a: done on branch `phase2a` (rename to issue #) → PR; 2b: next |
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | not started | — |
 | 5. Validation + cutover | not started | — |
@@ -46,7 +46,7 @@ Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixe
 - [x] `environment.yml`: added `earthengine-api`, `google-cloud-storage`, `pystac-client`, `gdal`, and `next_pass` (pip). **DONE 2026-10-01 (63112c0)**
   - `hyp3_autorift` is still undocumented. Decide whether `batch_autorift.py` gets its own environment.
 - [x] Equivalence check: historic SAR `--job_list` for 2025-01-07 (Tibet, M7.1) on `main` vs this branch. Job list, AOI, significance CSV/GeoJSON and earthquake info are identical; the only difference is the new `event_id` field on each job (kept for SAR and optical, decided 2026-10-01). Re-verified after the rake change. **DONE 2026-10-01**
-- [ ] Forward-mode equivalence is still unverified offline. **Moved to Phase 2a**, which checks it with the recorded fixtures.
+- [x] Forward-mode equivalence: the Phase 2a forward and historic SAR tests pass against `main`'s `coseis.py` (apart from `event_id` and the AOI file name). **DONE 2026-10-05 (Phase 2a)**
   - Expected difference: `_partial.json` jobs now include `event_id`.
 - [x] Open the Phase 1 issue (#27), rename the branch to `27`, and push. **DONE 2026-10-01**
 - [x] Open the PR from `27` into `develop`. **DONE 2026-10-01 (PR #28, merge commit 2cbf4ea)**
@@ -54,29 +54,27 @@ Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixe
 ## Phase 2: Safety net, then modularize `coseis.py`
 Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 
-**2a. Characterization tests (no changes to `coseis.py`).** Pin down current behavior so the refactor can be checked against it. This is the minimum needed to refactor safely, not the full test suite (that's Phase 4).
-- [ ] `pytest` scaffold and a GitHub workflow that runs it on `pull_request` and on pushes to `develop` (never on a schedule).
-- [ ] **Record HTTP once, replay forever** (`pytest-recording` / vcrpy cassettes in `tests/cassettes/`). Almost every external call is `requests.get` (USGS, FFM/rake, coastline, ASF, Copernicus, Element84). Mocking at the HTTP layer means the tests survive functions moving between modules in 2b.
-- [ ] Stub only at the outer boundaries:
-  - `subprocess.run` (topsApp)
-  - `yagmail.SMTP`
-  - the `next_pass` module
-  - GEE/GCS
-- [ ] Tests reach `coseis` code only through one adapter (`tests/coseis_api.py`), so 2b updates the adapter, not the tests.
-- [ ] Events:
-  - Tibet 2025 (`us6000pi9w`)
-  - Ende M7.7 (`us6000tkt2`)
-  - Tamarindo M5.6 (`us6000tymj`, the forward M5.5 rule)
-  - a strike-slip optical event
-  - synthetic events that should be rejected
-- [ ] Golden-output tests:
+**2a. Characterization tests (no changes to `coseis.py`).** Pin down current behavior so the refactor can be checked against it. This is the minimum needed to refactor safely, not the full test suite (that's Phase 4). **DONE 2026-10-05 (branch `phase2a`)**: 41 tests, about 3 s offline.
+- [x] `pytest` scaffold; `.github/workflows/tests.yml` runs on `pull_request` and on pushes to `develop`, never on a schedule. It uses Python 3.11/3.12 and the same packages as `coseis-cron.yml`.
+- [x] HTTP recorded once and replayed (`pytest-recording` / vcrpy, one cassette per test module in `tests/cassettes/`, ~6 MB). Requests missing from a cassette fail.
+  - Record new tests with `pytest --record-mode=new_episodes`.
+  - Re-record a module by deleting its cassette.
+  - Refresh golden files with `UPDATE_GOLDEN=1 pytest`.
+- [x] Fakes at the outer boundaries only: `subprocess.run` (topsApp), `yagmail.SMTP`, the `next_pass` module. Optical deps aren't needed.
+- [x] Tests import code only through `tests/coseis_api.py`; 2b updates that adapter, not the tests.
+- [x] What's covered:
   - pure helpers
-  - `check_significance` (SAR never fetches rake)
-  - historic SAR job list and AOI
-  - forward tracker and `_partial.json`
-  - the tracker state machine (success, failure, email)
+  - `check_significance` (SAR fails the test if any rake request is made)
+  - historic SAR job lists and AOIs (Tibet 2025, Ende 2026, and the non-job-list path)
+  - historic optical: Sentinel-2/Copernicus for Kahramanmaraş 2023 (rake filter, buffered FFM AOI, pairing)
+  - forward mode
   - CLI routing, including the two exact cron command lines
-- [ ] One-off check (not committed) that `main`'s `coseis.py` produces the same forward tracker output from the same fixtures, apart from `event_id`. This closes the open Phase 1 item.
+- [x] Forward tests are seeded from and checked against **real production states** (`tests/fixtures/production/`):
+  - The Tamarindo discovery reproduces production commit ff08a73's tracker entry and partial jobs.
+  - Ende D61 processing reproduces 92edeb3's READY_FOR_EMAIL state.
+  - Also covered: no post-event data yet, topsApp failure → FAILED_NEEDS_ATTENTION, the email run removing the event (as in 595ed24), the runners ignoring each other's states, and the lock file.
+- [x] One-off check (not committed): `main`'s `coseis.py` passes the same forward and historic SAR tests once `event_id` and the AOI file name are normalized.
+- Not covered in 2a (moved to Phase 4): the Element84 backend, the GEE export/download/manifest path, `batch_autorift.py`.
 
 **2b. Refactor into a package** (one PR, one commit per moved module, 2a tests green after every commit). Use the standard **src layout** with import name `aria_coseis`. This is independent of any GitHub repo rename (see backlog). Don't put a `coseis/` package next to `scripts/coseis.py`: the two would collide on `import coseis`.
 ```
@@ -107,6 +105,7 @@ Open design questions to settle in the issue before writing code:
 - [ ] Implement behind an opt-in flag (e.g. `--sensors sar,optical`) that defaults to SAR only, so cutover behavior is unchanged unless enabled.
 
 ## Phase 4: Test suite and CI
+- [ ] Tests deferred from 2a: the Element84 backend (needs `pystac-client` in CI), the GEE path with `ee`/GCS faked (composite export → download → manifest), and `batch_autorift.py` on a small raster pair.
 - [ ] Unit tests for pure logic:
   - date windows
   - Landsat mission and band selection
@@ -145,7 +144,6 @@ Open design questions to settle in the issue before writing code:
 Proposed along the way and not yet scheduled. Move items into a phase when picked up.
 
 **Operations / reliability**
-- [ ] **topsApp failures are recorded as "Success".** `run_dockerized_topsApp` catches `CalledProcessError` and doesn't re-raise it, so `check_tracker_for_updates` sets `processing_status = "Success"`. A failed run then never reaches `FAILED_NEEDS_ATTENTION` and is emailed as a success; only the missing `.nc` warning hints at it. Fix after 2b, updating the characterization test that currently pins this behavior.
 - [ ] The forward lock file path is hardcoded (`/tmp/coseis_processing.lock`) in both `main_forward` and `run_coseis_forward.sh`. Make it configurable alongside the tracking dir.
 - [ ] **Pin GitHub Actions dependencies.** The email workflow installs unpinned packages and `next_pass` from git HEAD; an upstream change already broke it once (`main` e71d3d0 "Fix next_pass import path"). Use a `requirements-actions.txt` with versions and a `next_pass` commit SHA.
 - [ ] **Stale-lock detection.** If the local run is killed (SIGKILL, reboot), `/tmp/coseis_processing.lock` survives and both the bash script and Python silently skip every later run. Store the PID and timestamp in the lock and clear it if the process is gone or the lock is older than N hours.
@@ -155,6 +153,9 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 - [ ] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes.
 
 **Code quality**
+- [ ] **Near-land filter buffers twice.** `get_coastline` buffers the land polygons by 0.5°, then `withinCoastline` buffers that again by 0.5° for every earthquake. So the effective distance is about 1°, not the documented 0.5°, and the repeated buffer is slow. Decide on the intended distance, buffer once, and update the significance tests.
+- [ ] Forward discovery fetches the same ASF frame search twice per event (`main_forward`, then `add_to_tracker`). Pass the result through.
+- [ ] Historic mode without `--job_list` only writes pair JSON and frame maps; `create_directories_from_json` is never called (dead code), and topsApp runs only in forward mode. Remove it, or wire up local historic processing if that's wanted.
 - [x] Untrack `scripts/__pycache__/` (a tracked `.pyc` made every local import dirty the tree). **DONE 2026-10-05 (Phase 2a branch)**
 - [ ] Replace `print` with `logging` (levels, timestamps), especially for cron logs.
 - [ ] Move tunables (magnitude/depth thresholds, coastline buffer, date windows, rake tolerance, cloud threshold) into one config module or file. Today they're scattered literals, and docstrings already disagree with the code.
