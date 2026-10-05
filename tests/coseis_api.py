@@ -17,7 +17,6 @@ from aria_coseis import cli  # noqa: E402
 from aria_coseis import config as settings  # noqa: E402  (holds root_dir, TRACKING_DIR, recipients)
 from aria_coseis.legacy import (  # noqa: E402
     add_to_tracker,
-    ascii_table_to_html,
     check_significance,
     check_tracker_for_updates,
     generate_pairs,
@@ -29,6 +28,9 @@ from aria_coseis.legacy import (  # noqa: E402
     make_optical_job_json,
     parse_custom_eq_list,
     process_earthquake,
+)
+from aria_coseis.notify import (  # noqa: E402
+    ascii_table_to_html,
 )
 from aria_coseis.utils import (  # noqa: E402
     convert_time,
