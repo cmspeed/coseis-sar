@@ -32,7 +32,30 @@ UPDATE_GOLDEN = os.environ.get("UPDATE_GOLDEN") == "1"
 
 @pytest.fixture(scope="module")
 def vcr_config() -> Dict[str, Any]:
-    return {"decode_compressed_response": True}
+    # Repeats allowed: one cassette per module, and e.g. the coastline is fetched on every call
+    return {"decode_compressed_response": True, "allow_playback_repeats": True}
+
+
+@pytest.fixture
+def default_cassette_name(request: pytest.FixtureRequest) -> str:
+    """One cassette per test module (tests/cassettes/<module>/<module>.yaml)."""
+    return request.module.__name__.rsplit(".", 1)[-1]
+
+
+@pytest.fixture
+def http_log(monkeypatch: pytest.MonkeyPatch) -> List[str]:
+    """URLs of every requests.get call, logged before vcrpy replays (or blocks) them."""
+    import requests
+
+    urls: List[str] = []
+    real_get = requests.get
+
+    def logging_get(url: str, params: Any = None, **kwargs: Any) -> Any:
+        urls.append(requests.Request("GET", url, params=params).prepare().url)
+        return real_get(url, params=params, **kwargs)
+
+    monkeypatch.setattr(requests, "get", logging_get)
+    return urls
 
 
 @pytest.fixture
