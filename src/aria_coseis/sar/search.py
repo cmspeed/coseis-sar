@@ -55,7 +55,7 @@ def get_path_and_frame_numbers(
     }
 
     print(
-        "Performing ASF DAAC API query to return path and frame numbers for SLCs intersecting AOI over the preceding 24 days..."
+        "Performing ASF DAAC API query to return path and frame numbers for SLCs intersecting AOI within +/- 90 days of the event..."
     )
 
     # Sometimes the request to ASF DAAC times out for various reasons. This logic is meant to reduce that.

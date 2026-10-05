@@ -29,10 +29,10 @@ def to_snake_case(input_string: str) -> str:
 def convert_time(time: int | float) -> datetime:
     """
     Convert the given Unix timestamp in milliseconds to a UTC datetime object.
-    :param time_ms: Unix timestamp in milliseconds (int or float)
-    :return: Datetime object in UTC in this format: 'YYYY-MM-DDTHH:MM:SS'
+    :param time: Unix timestamp in milliseconds (int or float)
+    :return: timezone-aware UTC datetime, truncated to whole seconds
     """
-    timestamp_s = time / 1000  # Convert to milliseconds
+    timestamp_s = time / 1000  # Convert milliseconds to seconds
     dt = datetime.fromtimestamp(timestamp_s, tz=timezone.utc)  # Convert to datetime object in UTC
     dt = dt.replace(microsecond=0)  # Remove microseconds
     return dt

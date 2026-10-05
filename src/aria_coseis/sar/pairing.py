@@ -16,7 +16,7 @@ def generate_pairs(pairs: list[Any], mode: str) -> list[tuple[Any, Any]]:
     """
     Generate pairs of SLCs based on the selected pairing mode.
     :param pairs: List of SLC pairs sorted by date
-    :param: mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'conseismic' for pairs bounding the rupture date only
+    :param: mode: 'sequential' for temporally consecutive pairs, 'all' for all possible pairs, 'coseismic' for pairs bounding the rupture date only
     :return: List of SLC pairs based on the mode
     """
     if mode == "sequential":

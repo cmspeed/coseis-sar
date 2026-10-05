@@ -148,7 +148,7 @@ def process_earthquake(
         elif optical_backend == "gee":
             print("Routing to Google Earth Engine backend...")
 
-            # Define 60-day temporal windows
+            # Define 90-day pre- and post-event temporal windows
             rupture_dt = convert_time(rupture_time).replace(tzinfo=None)
             pre_start = (rupture_dt - timedelta(days=90)).strftime("%Y-%m-%d")
 

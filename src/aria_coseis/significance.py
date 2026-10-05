@@ -95,11 +95,12 @@ def get_coastline(coastline_api: str) -> BaseGeometry | None:
 
 def withinCoastline(earthquake: dict[str, Any], coastline: BaseGeometry) -> bool | None:
     """
-    Determine if earthquake epicenter is within 0.5 decimal degrees (~55 km) of the coastline.
-    This is one filtering parameter to determine if an earthquake is "significant" within the scope of this project.
+    Determine if the earthquake epicenter is on or near land, which excludes mid-ocean events.
+    `coastline` is the landmass polygons already buffered by 0.5 degrees in get_coastline(); it is
+    buffered by another 0.5 degrees here, so the effective distance from land is about 1 degree.
     :param earthquake: dictionary containing earthquake data
-    :param coastline: shapely Polygon object representing the coastline
-    :return: True if the epicenter is within the coastline, False otherwise
+    :param coastline: buffered landmass (Multi)Polygon from get_coastline()
+    :return: True if the epicenter is inside the buffered landmass, False otherwise (None if no coordinates)
     """
     # Extract the coordinates of the earthquake's epicenter
     coords = earthquake.get("coordinates", [])
@@ -127,7 +128,7 @@ def check_significance(
     """
     Check the significance of each earthquake based on its
     (1) magnitude and (2) depth (historic: M>=6.0 and <=40 km; forward: M>=5.5 and <=15 km or M>=6.0 and <=40 km),
-    (3) distance from land (within 0.5 degrees, ~55 km of the coastline),
+    (3) proximity to land (on land or within about 1 degree; see withinCoastline),
     and (4) if sensor is optical, rake angle (must be strike-slip: ~0 or ~180 degrees).
 
     :param earthquakes: list of dictionaries containing earthquake data

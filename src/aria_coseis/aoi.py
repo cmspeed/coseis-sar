@@ -14,7 +14,6 @@ def make_aoi(coordinates: list[float]) -> Polygon:
     """
     Create an Area of Interest (AOI) polygon based on the given coordinates.
     The AOI is a square with a side length of 1 degree (~111 km) centered on the earthquake's epicenter.
-    The AOI is written to a GeoJSON file, "AOI.geojson".
     :param coordinates: list containing the longitude and latitude of the earthquake's epicenter
     :return: Shapely Polygon object representing the AOI
     """

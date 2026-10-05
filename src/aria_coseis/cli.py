@@ -11,13 +11,15 @@ def main() -> None:
     Run the main function based on the input arguments provided, in either 'historic' or 'forward' processing mode.
     Historic processing can be done for a single date or range of dates, with the option to specify the SLC pairing mode.
     Forward processing is used to generate co-seismic displacement products for new earthquakes.
-    Example usage for historic processing:
-      python coseis_sar.py --historic --dates 2021-08-14 --pairing all
-      python coseis_sar.py --historic --dates 2021-08-14 2021-09-07 --pairing all
-      python coseis_sar.py --historic --dates 2014-06-14 2025-02-12 --pairing coseismic (all coseismic pairs from beginning of S1 data to 2025-02-12)
-      python coseis_sar.py --historic --dates 2014-06-14 2025-02-12 --pairing coseismic --job_list --resolution 30 (only produce the job list for HYP3 processing, don't run any jobs locally)
-    Example usage for forward processing:
-      python coseis.py --forward
+    Run from scripts/ as `python coseis.py ...`. Examples:
+      Historic SAR, HyP3 job list:
+        python coseis.py --historic --dates 2014-10-01 2026-07-31 --pairing coseismic --job_list
+      Historic optical (Google Earth Engine composites):
+        python coseis.py --historic --dates 2023-02-06 --sensor sentinel-2 --optical_backend gee
+      Custom event list:
+        python coseis.py --eq_list events.json --sensor landsat --optical_backend gee
+      Forward mode (GitHub Actions; local cron adds --resolution 30 --do_processing --process_only):
+        python coseis.py --forward --pairing coseismic --send_email
     """
     parser = argparse.ArgumentParser(
         description="Run historic, forward, or custom-list processing based on input arguments."
