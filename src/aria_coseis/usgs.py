@@ -120,39 +120,6 @@ def get_ffm_geojson_url(event_id):
     return None
 
 
-def check_for_new_data(eq_api):
-    """
-    Fetch data from the USGS Earthquake Portal and returns it as a GeoJSON object.
-    The data returned is updated hourly and includes all earthquakes occuring during that period.
-    :param eq_api: USGS API endpoint
-    :return: GeoJSON object containing earthquake data
-    """
-    print('=========================================')
-    print("Checking for new earthquake data...")
-    print('=========================================')
-
-    try:
-        # Fetch data from the USGS Earthquake API
-        response = requests.get(eq_api)
-        response.raise_for_status()  # Raise error if request fails
-        
-        # Parse the response as GeoJSON
-        earthquakes = geojson.loads(response.text)
-    
-        # Save to a GeoJSON file
-        output_file = "earthquakes.geojson"
-        with open(output_file, "w") as f:
-            json.dump(earthquakes, f, indent=2)
-        return earthquakes
-
-    except requests.RequestException as e:
-        print(f"Error accessing primary API: {e}")
-        return None
-    except geojson.GeoJSONDecodeError as e:
-        print(f"Error parsing GeoJSON data: {e}")
-        return None
-
-
 def parse_geojson(geojson_data):
     """
     Parse the features of a GeoJSON object and create a dictionary for each earthquake (feature),

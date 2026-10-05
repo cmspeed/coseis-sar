@@ -75,9 +75,8 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
                         # Remove trailing quote if present
                         clean_wkt = raw_footprint.split(';')[-1].replace("'", "")
                         footprint = wkt.loads(clean_wkt)
-                    except Exception as e:
-                        # print(f"Geometry parse error: {e}") # Optional debug
-                        pass 
+                    except Exception:
+                        pass
 
                 # --- EXTRACT CLOUD COVER ---
                 cloud_cover = 0.0
