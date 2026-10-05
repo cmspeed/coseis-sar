@@ -1,67 +1,90 @@
-# coseis-sar
+# ARIA COSEIS
 
-**coseis-sar** is a Python package designed to generate coseismic Sentinel-1 Single Look Complex synthetic aperture radar (SAR) image pairs for interferometric synthetic aperture radar (InSAR) processing using ISCE2's topsApp. It supports both local processing and cloud-based processing via HYP3.
+Automated coseismic surface displacement for significant earthquakes worldwide.
 
-## Features
-- Generates Sentinel-1 SLC pairs for InSAR processing based on the user-specified `pairing` mode.
-- Supports **historic** and **forward** processing modes
-- Produces a `job_list.json` file for cloud processing via HYP3 (if specified).
-- Runs ISCE2 topsApp locally when `job_list` is not specified.
-- Generates an AOI around an earthquake epicenter dynamically and and automatically identifies intersecting Sentinel-1 SLCs intersecting the AOI and temporally bounding the earthquake event.
+ARIA COSEIS finds significant shallow earthquakes in the USGS catalog. It then finds the Sentinel-1 SAR and Sentinel-2/Landsat optical imagery that brackets each event, and prepares or runs the processing:
+
+- **SAR**: ISCE2 `topsApp` interferograms and offsets, run locally or on [HyP3](https://hyp3-docs.asf.alaska.edu), giving line-of-sight displacement.
+- **Optical**: pre- and post-event composites from Google Earth Engine (GEE), processed with `autoRIFT`, giving 2-D horizontal displacement.
+
+It runs in two modes:
+- **Historic** mode processes past events.
+- **Forward** mode runs on a schedule. It watches for new events, emails alerts with predicted satellite overpasses, and processes SAR pairs once post-event data arrive.
 
 ## Installation
-Clone the repository and install any required dependencies:
-
 ```bash
 git clone https://github.com/cmspeed/coseis-sar.git
 cd coseis-sar
-pip install -r requirements.txt
+mamba env create -f environment.yml    # creates the `coseis-sar` environment
+mamba activate coseis-sar
 ```
+- SAR-only use needs only the core packages. The optical packages (`earthengine-api`, `google-cloud-storage`, `pystac-client`, `gdal`) are imported only when an optical backend runs.
+- `scripts/batch_autorift.py` additionally needs `hyp3_autorift`.
 
 ## Usage
+Run from the `scripts/` directory. Outputs (`data/`, `active_jobs/`, job lists, maps) are written relative to it.
 
 ```bash
-python coseis_sar.py --historic --dates <date1> <date2> --pairing <pairing_mode> [--job_list]
-python coseis_sar.py --forward --pairing <pairing_mode>
+cd scripts
+
+# Historic SAR: HyP3 job list for every significant event in a date range
+python coseis.py --historic --dates 2014-10-01 2026-07-31 --pairing coseismic --job_list
+
+# Historic optical: Sentinel-2 composites from Google Earth Engine, then autoRIFT
+python coseis.py --historic --dates 2023-02-06 --sensor sentinel-2 --optical_backend gee --optical_level toa
+python batch_autorift.py [--filter] [--data_dir DIR]
+
+# A custom list of events instead of a date range
+python coseis.py --eq_list events.json --sensor landsat --optical_backend gee
+
+# Forward mode (see Operations)
+python coseis.py --forward --pairing coseismic --send_email
 ```
 
-#### Arguments
-- `--historic` : Used for processing past earthquakes or generating a job list for cloud processing.
-- `--forward` : Used for detecting Sentinel-1 data for recent earthquakes (within the last hour), typically run as a cron job.
-- `--dates <date1> <date2>` : Specifies the date range for historic processing.
-- `--pairing <mode>` : Defines how SLC pairs are selected. Options:
-  - `coseismic` : Pairs spanning the earthquake event.
-  - `sequential` : Consecutive SLC acquisitions.
-  - `all` : All possible pairs.
-- `--job_list` (optional) : If specified, creates `job_list.json` for HYP3 cloud processing instead of running topsApp locally.
+| Option | Meaning |
+|---|---|
+| `--historic` / `--forward` / `--eq_list FILE` | Run mode (choose one) |
+| `--dates START [END]` | Historic date or date range (`YYYY-MM-DD`) |
+| `--pairing {coseismic,sequential,all}` | SAR pair selection (required for SAR) |
+| `--job_list` | Write HyP3 job JSON instead of local pair JSON |
+| `--resolution M` | topsApp output resolution in meters (default 30) |
+| `--sensor {sar,sentinel-2,landsat}` | Imagery (default `sar`); forward mode is SAR only for now |
+| `--optical_backend {copernicus,element84,gee}`, `--optical_level {raw,toa,sr}` | Optical data source and product level |
+| `--do_processing`, `--send_email`, `--process_only` | Forward mode: run topsApp, send emails, skip discovery |
+| `--aoi FILE` | Use this GeoJSON AOI instead of the automatic one |
 
-## Examples
+**Significance criteria.** Historic mode keeps M ≥ 6.0 events at ≤ 40 km depth. Forward mode keeps (M ≥ 5.5 and ≤ 15 km) or (M ≥ 6.0 and ≤ 40 km). Both modes drop mid-ocean events. Optical runs keep only strike-slip events (rake within 45° of 0°/180°).
 
-### Historic Mode (Local Processing of 2025 Southern Tibetan Plateau Earthquake)
+**AOI.** The AOI is the USGS finite-fault model when one exists (buffered 0.15° for optical runs), otherwise a 1° box around the epicenter.
+
+## Operations (forward mode)
+Two scheduled runners share the tracker files in `scripts/active_jobs/` on the `main` branch:
+
+- **GitHub Actions** (`.github/workflows/coseis-cron.yml`) checks USGS for new events and starts tracking them. It publishes overpass maps to `docs/maps/` (GitHub Pages) and emails alerts and processing results.
+- **The local cron job** on the processing machine (`scripts/run_coseis_forward.sh`) checks ASF for post-event SLCs and runs `topsApp`.
+
+Email settings come from environment variables: `GMAIL_USER`, `GMAIL_APP_PSWD`, `COSEIS_PRIMARY_RECIPIENTS` (new events) and `COSEIS_SECONDARY_RECIPIENTS` (processing results).
+
+`COSEIS_DATA_DIR`, `COSEIS_TRACKING_DIR` and `COSEIS_LOCK_FILE` override the output directory, the tracker directory and the lock file.
+
+## Code layout
+```
+src/aria_coseis/   package: config, usgs, significance, aoi, notify,
+                   sar/ (search, pairing, topsapp), optical/ (copernicus, element84, gee, jobs),
+                   tracking, pipeline, modes, cli
+scripts/coseis.py  command-line entry point (adds src/ to the path and calls aria_coseis.cli)
+tests/             pytest suite; HTTP is replayed from recorded cassettes
+```
+
+## Development
 ```bash
-python coseis_sar.py --historic --dates 2025-01-07 2025-01-07 --pairing coseismic
+pip install -r requirements-test.txt
+pytest                                   # offline: replays tests/cassettes/
+ruff check src tests scripts/coseis.py && ruff format --check src tests scripts/coseis.py
 ```
-
-This will generate `coseis-sar` products for all intersecting Sentinel-1 tracks (ascending and descending) that intersect the automatically defined AOI, which is based on the epicenter coordinates provided by the USGS Earthquake Portal API.
-
-### Historic Mode (HYP3 Cloud Processing)
-```bash
-python coseis_sar.py --historic --dates 2014-01-01 2025-12-31 --pairing coseismic --job_list
-```
-
-This will generate a `job_list.json` with all of the required parameters to deploy InSAR processing in the cloud with HYP3 and generate `coseis-sar` products for each earthquake coseismic pair defined in the `job_list.json`. 
-
-
-### Forward Mode (Real-time Processing)
-```bash
-python coseis_sar.py --forward --pairing coseismic
-```
-
-This will initiate a workflow that requests all earthquakes that have occurred in the last hour from the USGS Earthquake Portal API and determines the intersecting SLCs needed for InSAR processing. Information about the earthquake, as well as information about the corresponding Sentinel-1 data, is distributed automatically via email to a user-defined list of recipients. Currently, `forward` mode is largely applied via a cronjob to notify researchers of new earthquakes and prepare for subsequent InSAR processing workflows.
-
-
-## HYP3 Processing
-For cloud-based processing, `job_list.json` will be generated when `--job_list` is specified. This file contains the parameters necessary for running ISCE2 topsApp via HYP3 for automated processing. [More details on HYP3 processing here.](http://hyp3-docs.asf.alaska.edu)
+- To record a cassette for a new test, run `pytest --record-mode=new_episodes`.
+- To refresh golden files after an intended output change, run `UPDATE_GOLDEN=1 pytest` and review the diff.
+- The development workflow and roadmap (branches, phases, backlog) are in `IMPROVEMENT_PLAN.md`.
 
 ## Contact
-For questions or issues, open an issue in the GitHub repository or contact [cole.speed@jpl.nasa.gov](mailto:cole.speed@jpl.nasa.gov).
+For questions or issues, open an issue in this repository or contact [cole.speed@jpl.nasa.gov](mailto:cole.speed@jpl.nasa.gov).
