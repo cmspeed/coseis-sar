@@ -89,13 +89,18 @@ def sent_emails(monkeypatch: pytest.MonkeyPatch) -> List[Dict[str, Any]]:
 @pytest.fixture(autouse=True)
 def topsapp(monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
     """
-    Replace subprocess.run. Set topsapp["outcome"] to choose the behavior:
-    "success" writes a fake .nc product, "nonzero_exit" raises CalledProcessError,
-    "missing_conda" raises FileNotFoundError. Calls are recorded in topsapp["calls"].
+    Intercept topsApp runs (subprocess.run commands containing "isce2_topsapp"); other commands,
+    e.g. matplotlib's fc-list when building its font cache, run normally.
+    Set topsapp["outcome"] to choose the behavior: "success" writes a fake .nc product,
+    "nonzero_exit" raises CalledProcessError, "missing_conda" raises FileNotFoundError.
+    Calls are recorded in topsapp["calls"].
     """
     state: Dict[str, Any] = {"outcome": "unexpected", "calls": []}
+    real_run = subprocess.run
 
     def fake_run(cmd: List[str], cwd: str = None, **kwargs: Any) -> subprocess.CompletedProcess:
+        if "isce2_topsapp" not in cmd:
+            return real_run(cmd, cwd=cwd, **kwargs)
         state["calls"].append({"cmd": cmd, "cwd": cwd})
         outcome = state["outcome"]
         if outcome == "success":

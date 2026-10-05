@@ -81,3 +81,17 @@ def test_argparse_rejects(argv: List[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
         api.run_cli(argv)
     assert exit_info.value.code == 2
+
+
+def test_entry_point_script_runs_from_scripts_dir() -> None:
+    """Cron and GitHub Actions run `cd scripts && python coseis.py ...`."""
+    import subprocess
+    import sys
+
+    scripts_dir = api.SRC_DIR.parent / "scripts"
+    # Popen, not subprocess.run: run() is replaced by the topsApp fake
+    with subprocess.Popen([sys.executable, "coseis.py", "--help"], cwd=scripts_dir,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc:
+        out, err = proc.communicate(timeout=120)
+    assert proc.returncode == 0, err
+    assert "--forward" in out and "--process_only" in out
