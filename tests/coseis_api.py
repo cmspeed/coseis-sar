@@ -14,7 +14,7 @@ sys.path.insert(0, str(SRC_DIR))
 from aria_coseis import cli  # noqa: E402
 
 # --- code under test (generated; keep sorted by module) ---
-from aria_coseis import legacy as settings  # noqa: E402  (holds root_dir, TRACKING_DIR, recipients)
+from aria_coseis import config as settings  # noqa: E402  (holds root_dir, TRACKING_DIR, recipients)
 from aria_coseis.legacy import (  # noqa: E402
     add_to_tracker,
     ascii_table_to_html,

@@ -30,44 +30,22 @@ from types import SimpleNamespace
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional
 
-# Set logging level to WARNING to suppress DEBUG and INFO logs
-logging.basicConfig(level=logging.WARNING)
-
-# API endpoints
-USGS_api_hourly = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"  # USGS Earthquake API - Hourly
-USGS_api_daily = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson"  # USGS Earthquake API - Daily
-USGS_api_30day = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson"  # USGS Earthquake API - Monthly
-USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Earthquake API - All Time
-coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
-ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param" # ASF DAAC API endpoint
-CMR_API_URL = "https://cmr.earthdata.nasa.gov/search/granules.json" # NASA CMR API endpoint
-root_dir = os.path.join(os.getcwd(), "data")
-
-# Global variables
-OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
-
-TRACKING_DIR = "active_jobs"
-
-def get_recipients_from_env(var_name):
-    """
-    Retrieves a list of emails from an environment variable.
-    """
-    env_val = os.getenv(var_name, "")
-    # Split by comma and strip whitespace
-    return [email.strip() for email in env_val.split(',') if email.strip()]
-
-# Load recipients from environment variables
-PRIMARY_RECIPIENTS = get_recipients_from_env('COSEIS_PRIMARY_RECIPIENTS')
-SECONDARY_RECIPIENTS = get_recipients_from_env('COSEIS_SECONDARY_RECIPIENTS')
+from aria_coseis import config
+from aria_coseis.config import (
+    ASF_DAAC_API,
+    OPTICAL_CLOUD_THRESHOLD,
+    USGS_api_alltime,
+    coastline_api,
+)
 
 def load_tracker():
     """Loads all active jobs from the tracking directory."""
     tracker = {}
-    if not os.path.exists(TRACKING_DIR):
-        os.makedirs(TRACKING_DIR, exist_ok=True)
+    if not os.path.exists(config.TRACKING_DIR):
+        os.makedirs(config.TRACKING_DIR, exist_ok=True)
         return tracker
     
-    for file in glob.glob(os.path.join(TRACKING_DIR, "*.json")):
+    for file in glob.glob(os.path.join(config.TRACKING_DIR, "*.json")):
         try:
             with open(file, "r") as f:
                 event_data = json.load(f)
@@ -80,17 +58,17 @@ def load_tracker():
 
 def save_tracker(data):
     """Saves the tracking data back to individual files."""
-    if not os.path.exists(TRACKING_DIR):
-        os.makedirs(TRACKING_DIR, exist_ok=True)
+    if not os.path.exists(config.TRACKING_DIR):
+        os.makedirs(config.TRACKING_DIR, exist_ok=True)
         
     # Save current tracker state to individual files
     for event_id, event_data in data.items():
-        file_path = os.path.join(TRACKING_DIR, f"{event_id}.json")
+        file_path = os.path.join(config.TRACKING_DIR, f"{event_id}.json")
         with open(file_path, "w") as f:
             json.dump(event_data, f, indent=4)
             
     # Remove files for events that are no longer in the tracker dictionary
-    for file in glob.glob(os.path.join(TRACKING_DIR, "*.json")):
+    for file in glob.glob(os.path.join(config.TRACKING_DIR, "*.json")):
         event_id = os.path.basename(file).replace('.json', '')
         if event_id not in data:
             os.remove(file)
@@ -298,7 +276,7 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
                         newer_date_str = post_seismic_date.split('T')[0].replace("-", "")
                         pair_folder_name = f"{flight_dir}{int(path_num):03d}_{older_date_str}_{newer_date_str}"
                         processing_dir = os.path.join(
-                            root_dir, title, f"{flight_dir}{int(path_num):03d}", "coseismic", pair_folder_name
+                            config.root_dir, title, f"{flight_dir}{int(path_num):03d}", "coseismic", pair_folder_name
                         )
                         
                         print(f"    Starting automatic processing for {pair_folder_name}")
@@ -433,7 +411,7 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
         """
         
         print("Sending completion email to secondary recipients...")
-        send_email(subject, body, recipients=SECONDARY_RECIPIENTS)
+        send_email(subject, body, recipients=config.SECONDARY_RECIPIENTS)
 
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
@@ -2242,7 +2220,7 @@ def send_email(subject, body, recipients=None):
     :param recipients: List of email addresses to send the email to
     """
     if recipients is None:
-        recipients = PRIMARY_RECIPIENTS
+        recipients = config.PRIMARY_RECIPIENTS
 
     if not recipients:
         print("WARNING: Cannot send email. No recipients configured in environment variables.")
@@ -2770,7 +2748,7 @@ def process_earthquake(eq, aoi, pairing_mode, job_list, resolution=90, sensor='s
                 return [[gee_job]], [{"type": "Feature", "geometry": mapping(aoi), "properties": {"title": title, "crs": target_crs}}]
 
             # Execution logic
-            local_dir = os.path.join(root_dir, "GEE_Optical_Downloads", title)
+            local_dir = os.path.join(config.root_dir, "GEE_Optical_Downloads", title)
             manifest_path = os.path.join(local_dir, f"{title}_{sensor}_{optical_level.lower()}_autorift_manifest.json")
             if os.path.exists(manifest_path):
                 print(f"  Data already downloaded for {title}. Skipping GEE computation.")
@@ -3059,8 +3037,8 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
         print('=========================================')
         
         # Initialize the tracking directory if it doesn't exist
-        if not os.path.exists(TRACKING_DIR):
-            os.makedirs(TRACKING_DIR, exist_ok=True)
+        if not os.path.exists(config.TRACKING_DIR):
+            os.makedirs(config.TRACKING_DIR, exist_ok=True)
 
         if not process_only:
             # Check for New Earthquakes over 48-hour window to ensre no events are missed due to API delays
@@ -3206,9 +3184,9 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
                             subject_text = f"New Event: {message_dict['title']}"
                             
                             # Send joint S1 + NISAR email to PRIMARY_RECIPIENTS
-                            if PRIMARY_RECIPIENTS:
+                            if config.PRIMARY_RECIPIENTS:
                                 primary_body = (header_html + s1_section + nisar_section + get_button_html(map_url) + footer_html).replace('\n', '')
-                                send_email(subject=subject_text, body=primary_body, recipients=PRIMARY_RECIPIENTS)
+                                send_email(subject=subject_text, body=primary_body, recipients=config.PRIMARY_RECIPIENTS)
                                 print('=========================================')
                                 print('Joint S1 and NISAR email sent to primary recipients.')
                                 print('=========================================')
