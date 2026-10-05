@@ -1,17 +1,33 @@
 """Optical (autoRIFT) job JSON helpers."""
+
+from __future__ import annotations
+
 import re
+from typing import Any
 
 
-def get_utm_zone(granule_id):
+def get_utm_zone(granule_id: str) -> str:
     """Extracts UTM zone from Sentinel-2 Granule ID (e.g., 'T46QHK' -> '46').
     :param granule_id: The granule ID string from which to extract the UTM zone.
     :return: The UTM zone as a string, or 'Unknown' if it cannot be extracted.
     """
-    match = re.search(r'_T(\d{2})[A-Z]{3}_', granule_id)
+    match = re.search(r"_T(\d{2})[A-Z]{3}_", granule_id)
     return match.group(1) if match else "Unknown"
 
 
-def make_optical_job_json(title, event_id, orbit_id, pre_date, post_date, reference_ids, secondary_ids, pre_cc=None, post_cc=None, status="COMPLETE", zone_suffix=None):
+def make_optical_job_json(
+    title: str,
+    event_id: str,
+    orbit_id: str,
+    pre_date: str,
+    post_date: str,
+    reference_ids: list[str],
+    secondary_ids: list[str],
+    pre_cc: float | None = None,
+    post_cc: float | None = None,
+    status: str = "COMPLETE",
+    zone_suffix: str | None = None,
+) -> dict[str, Any]:
     """
     Helper function to create a JSON object for an AUTORIFT job. Matches the schema defined in ARIA_AUTORIFT.yml.
     :param title: Title of the job (usually the earthquake event name)
@@ -29,25 +45,29 @@ def make_optical_job_json(title, event_id, orbit_id, pre_date, post_date, refere
     orbit_str = f"R{orbit_id}"
     if zone_suffix:
         orbit_str += f"-{zone_suffix}"
-        
+
     job_name = f"{title}-S2-{orbit_str}-{pre_date}_{post_date}"
-    
+
     job_json = {
         "name": job_name,
         "job_type": "AUTORIFT",
         "event_id": event_id,
-        "pre_cloud_cover": round(pre_cc, 2) if pre_cc is not None else None,    # Temporary debug field
-        "post_cloud_cover": round(post_cc, 2) if post_cc is not None else None,  # Temporary debug field
+        "pre_cloud_cover": round(pre_cc, 2)
+        if pre_cc is not None
+        else None,  # Temporary debug field
+        "post_cloud_cover": round(post_cc, 2)
+        if post_cc is not None
+        else None,  # Temporary debug field
         "job_parameters": {
             "reference": reference_ids,
             "secondary": secondary_ids,
             "chip_size": 24,
-            "search_range": 64
-        }
+            "search_range": 64,
+        },
     }
-    
+
     # Internal tracking for partial jobs (optional)
     if status != "COMPLETE":
         job_json["status_note"] = status
-        
+
     return job_json

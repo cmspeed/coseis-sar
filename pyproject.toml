@@ -16,3 +16,15 @@ testpaths = ["tests"]
 # Cassettes are replayed only. Record new tests with --record-mode=new_episodes;
 # re-record a module from scratch by deleting its cassette first.
 addopts = "--record-mode=none"
+
+[tool.ruff]
+line-length = 99   # PEP 8 allows up to 99 by team agreement
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]   # pycodestyle (PEP 8), pyflakes, import sorting
+# ruff format keeps code within line-length; long strings, docstrings and HTML templates are left as is
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aria_coseis", "coseis_api", "conftest"]

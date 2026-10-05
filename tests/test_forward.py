@@ -4,6 +4,7 @@ Forward mode: discovery (GitHub Actions run), processing (local cron run) and th
 Inputs and expected states come from real production commits on `main` (tests/fixtures/production/),
 so these tests also check that this branch reproduces what `main` did.
 """
+
 import glob
 import shutil
 from datetime import datetime, timezone
@@ -43,11 +44,17 @@ def seed(workdir: Path, fixture: str) -> None:
 
 
 def tracker_files(workdir: Path) -> Dict[str, Any]:
-    return {Path(p).name: read_json(Path(p)) for p in sorted(glob.glob(str(workdir / "active_jobs" / "*.json")))}
+    return {
+        Path(p).name: read_json(Path(p))
+        for p in sorted(glob.glob(str(workdir / "active_jobs" / "*.json")))
+    }
 
 
 def partial_files(workdir: Path) -> Dict[str, Any]:
-    return {Path(p).name: read_json(Path(p)) for p in sorted(glob.glob(str(workdir / "job_*_partial.json")))}
+    return {
+        Path(p).name: read_json(Path(p))
+        for p in sorted(glob.glob(str(workdir / "job_*_partial.json")))
+    }
 
 
 def without_event_id(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -56,8 +63,13 @@ def without_event_id(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 @pytest.mark.vcr
-def test_discovery_matches_production(workdir: Path, no_lock: None, fake_next_pass: Dict[str, Any],
-                                      sent_emails: List[Dict[str, Any]], golden: Callable[[str, Any], None]) -> None:
+def test_discovery_matches_production(
+    workdir: Path,
+    no_lock: None,
+    fake_next_pass: Dict[str, Any],
+    sent_emails: List[Dict[str, Any]],
+    golden: Callable[[str, Any], None],
+) -> None:
     """The GitHub Actions run: `coseis.py --forward --pairing coseismic --send_email`."""
     with time_machine.travel(TAMARINDO_DISCOVERY, tick=False):
         api.main_forward(pairing_mode="coseismic", send_email_flag=True)
@@ -67,10 +79,16 @@ def test_discovery_matches_production(workdir: Path, no_lock: None, fake_next_pa
     golden("forward/discovery_2026-10-01T0005Z", {"trackers": trackers, "partials": partials})
 
     # Same tracker entry and partial jobs as production commit ff08a73
-    assert trackers["us6000tymj.json"] == read_json(PRODUCTION / "tamarindo_ff08a73" / "us6000tymj.json")
-    for name in ("job_m_56_94_km_sw_of_tamarindo_costa_rica_ASCENDING_165_partial.json",
-                 "job_m_56_94_km_sw_of_tamarindo_costa_rica_DESCENDING_157_partial.json"):
-        assert without_event_id(partials[name]) == read_json(PRODUCTION / "tamarindo_ff08a73" / name)
+    assert trackers["us6000tymj.json"] == read_json(
+        PRODUCTION / "tamarindo_ff08a73" / "us6000tymj.json"
+    )
+    for name in (
+        "job_m_56_94_km_sw_of_tamarindo_costa_rica_ASCENDING_165_partial.json",
+        "job_m_56_94_km_sw_of_tamarindo_costa_rica_DESCENDING_157_partial.json",
+    ):
+        assert without_event_id(partials[name]) == read_json(
+            PRODUCTION / "tamarindo_ff08a73" / name
+        )
         assert partials[name][0]["event_id"] == "us6000tymj"
 
     # New-event email to primary recipients, linking the overpass map published under docs/maps/
@@ -84,12 +102,16 @@ def test_discovery_matches_production(workdir: Path, no_lock: None, fake_next_pa
 
 
 @pytest.mark.vcr
-def test_processing_waits_without_post_seismic_data(workdir: Path, no_lock: None, topsapp: Dict[str, Any]) -> None:
+def test_processing_waits_without_post_seismic_data(
+    workdir: Path, no_lock: None, topsapp: Dict[str, Any]
+) -> None:
     """The local cron run before any post-event SLC exists: nothing changes."""
     seed(workdir, "tamarindo_ff08a73")
     before = (tracker_files(workdir), partial_files(workdir))
     with time_machine.travel(TAMARINDO_NO_POST_DATA, tick=False):
-        api.main_forward(pairing_mode="coseismic", resolution=30, do_processing=True, process_only=True)
+        api.main_forward(
+            pairing_mode="coseismic", resolution=30, do_processing=True, process_only=True
+        )
     assert (tracker_files(workdir), partial_files(workdir)) == before
     assert topsapp["calls"] == []
 
@@ -99,21 +121,30 @@ def run_processing(workdir: Path, topsapp: Dict[str, Any], outcome: str) -> Dict
     seed(workdir, "ende_98ea2b5")
     topsapp["outcome"] = outcome
     with time_machine.travel(ENDE_PROCESSING, tick=False):
-        api.main_forward(pairing_mode="coseismic", resolution=30, do_processing=True, process_only=True)
+        api.main_forward(
+            pairing_mode="coseismic", resolution=30, do_processing=True, process_only=True
+        )
     return tracker_files(workdir)["us6000tkt2.json"]["tracks"]["DESCENDING_61"]
 
 
 @pytest.mark.vcr
-def test_processing_success_matches_production(workdir: Path, no_lock: None, topsapp: Dict[str, Any]) -> None:
+def test_processing_success_matches_production(
+    workdir: Path, no_lock: None, topsapp: Dict[str, Any]
+) -> None:
     track = run_processing(workdir, topsapp, "success")
 
     # Same state as production commit 92edeb3, apart from the machine-specific processing location
-    expected = read_json(PRODUCTION / "ende_92edeb3" / "us6000tkt2.json")["tracks"]["DESCENDING_61"]
-    pair_dir = "m_77_68_km_nnw_of_ende_indonesia/DESCENDING061/coseismic/DESCENDING061_20260802_20260820"
+    expected = read_json(PRODUCTION / "ende_92edeb3" / "us6000tkt2.json")["tracks"][
+        "DESCENDING_61"
+    ]
+    pair_dir = (
+        "m_77_68_km_nnw_of_ende_indonesia/DESCENDING061/coseismic/DESCENDING061_20260802_20260820"
+    )
     assert expected["location"].endswith(pair_dir)
     assert track["location"] == str(Path(api.settings.root_dir) / pair_dir)
-    assert {k: v for k, v in track.items() if k != "location"} == \
-        {k: v for k, v in expected.items() if k != "location"}
+    assert {k: v for k, v in track.items() if k != "location"} == {
+        k: v for k, v in expected.items() if k != "location"
+    }
 
     # topsApp ran once on the pre/post pair; its resolution comes from the partial job file
     (call,) = topsapp["calls"]
@@ -121,7 +152,8 @@ def test_processing_success_matches_production(workdir: Path, no_lock: None, top
     cmd = call["cmd"]
     assert cmd[cmd.index("--reference-scenes") + 1] == (
         "S1C_IW_SLC__1SDV_20260820T213528_20260820T213558_009084_01208A_0DB0 "
-        "S1C_IW_SLC__1SDV_20260820T213556_20260820T213631_009084_01208A_BC33")
+        "S1C_IW_SLC__1SDV_20260820T213556_20260820T213631_009084_01208A_BC33"
+    )
     assert cmd[cmd.index("--output-resolution") + 1] == "90"
 
     # Product kept, raw SLCs and intermediate dirs cleaned up, partial file consumed
@@ -129,17 +161,31 @@ def test_processing_success_matches_production(workdir: Path, no_lock: None, top
     assert (location / "S1-GUNW-test-product.nc").exists()
     assert not (location / "S1A_IW_SLC__fake.zip").exists()
     assert not (location / "fine_interferogram").exists()
-    assert (location / "job_m_77_68_km_nnw_of_ende_indonesia_DESCENDING_61_COMPLETED.json").exists()
+    assert (
+        location / "job_m_77_68_km_nnw_of_ende_indonesia_DESCENDING_61_COMPLETED.json"
+    ).exists()
     assert partial_files(workdir) == {}
 
 
 @pytest.mark.vcr
-@pytest.mark.parametrize("outcome, status_prefix", [
-    ("nonzero_exit", "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11'"),
-    ("missing_conda", "Failed: conda"),
-])
-def test_processing_failure_is_flagged(outcome: str, status_prefix: str, workdir: Path, no_lock: None,
-                                       topsapp: Dict[str, Any], sent_emails: List[Dict[str, Any]]) -> None:
+@pytest.mark.parametrize(
+    "outcome, status_prefix",
+    [
+        (
+            "nonzero_exit",
+            "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11'",
+        ),
+        ("missing_conda", "Failed: conda"),
+    ],
+)
+def test_processing_failure_is_flagged(
+    outcome: str,
+    status_prefix: str,
+    workdir: Path,
+    no_lock: None,
+    topsapp: Dict[str, Any],
+    sent_emails: List[Dict[str, Any]],
+) -> None:
     track = run_processing(workdir, topsapp, outcome)
     assert track["status"] == "READY_FOR_EMAIL"
     assert track["processing_status"].startswith(status_prefix)
@@ -154,7 +200,9 @@ def test_processing_failure_is_flagged(outcome: str, status_prefix: str, workdir
     assert email["bcc"] == ["secondary@example.com"]
 
 
-def test_email_run_reports_and_removes_finished_event(workdir: Path, sent_emails: List[Dict[str, Any]]) -> None:
+def test_email_run_reports_and_removes_finished_event(
+    workdir: Path, sent_emails: List[Dict[str, Any]]
+) -> None:
     """The GitHub Actions run after processing (production commit 595ed24 removed the tracker file)."""
     seed(workdir, "ende_92edeb3")
     api.check_tracker_for_updates(do_processing=False, send_email_flag=True)
@@ -165,8 +213,9 @@ def test_email_run_reports_and_removes_finished_event(workdir: Path, sent_emails
     assert "DESCENDING_61" in email["contents"][0]
 
 
-def test_tracker_states_left_alone_by_the_other_runner(workdir: Path, sent_emails: List[Dict[str, Any]],
-                                                       topsapp: Dict[str, Any]) -> None:
+def test_tracker_states_left_alone_by_the_other_runner(
+    workdir: Path, sent_emails: List[Dict[str, Any]], topsapp: Dict[str, Any]
+) -> None:
     """The email runner ignores AWAITING tracks; the processing runner ignores READY_FOR_EMAIL tracks."""
     seed(workdir, "tamarindo_ff08a73")
     before = tracker_files(workdir)
