@@ -1,0 +1,22 @@
+{
+  "event_id": "us0000test",
+  "job_parameters": {
+    "compute_solid_earth_tide": true,
+    "dense_offsets": true,
+    "esd_coherence_threshold": -1,
+    "estimate_ionosphere_delay": true,
+    "frame_id": -1,
+    "goldstein_filter_power": 0.5,
+    "granules": [
+      "S1A_REF_1",
+      "S1A_REF_2"
+    ],
+    "output_resolution": 30,
+    "secondary_granules": [
+      "S1A_SEC_1"
+    ],
+    "unfiltered_coherence": true
+  },
+  "job_type": "ARIA_S1_COSEIS",
+  "name": "m_71_test_event-D121"
+}
