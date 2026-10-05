@@ -21,13 +21,15 @@ from aria_coseis.aoi import (  # noqa: E402
 from aria_coseis.legacy import (  # noqa: E402
     main_forward,
     main_historic,
-    process_earthquake,
 )
 from aria_coseis.notify import (  # noqa: E402
     ascii_table_to_html,
 )
 from aria_coseis.optical.jobs import (  # noqa: E402
     make_optical_job_json,
+)
+from aria_coseis.pipeline import (  # noqa: E402
+    process_earthquake,
 )
 from aria_coseis.sar.pairing import (  # noqa: E402
     generate_pairs,
