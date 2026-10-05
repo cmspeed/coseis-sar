@@ -1,21 +1,26 @@
 """Google Earth Engine composites: export, GCS download, merge and nodata handling."""
 
+from __future__ import annotations
+
 import os
 import subprocess
 import time
+from typing import Any
+
+from shapely.geometry.base import BaseGeometry
 
 
 def export_gee_sentinel2_composite(
-    aoi_polygon,
-    start_date,
-    end_date,
-    title,
-    stage,
-    gcs_bucket,
-    collection_id,
-    optical_level,
-    crs_epsg="EPSG:4326",
-):
+    aoi_polygon: BaseGeometry,
+    start_date: str,
+    end_date: str,
+    title: str,
+    stage: str,
+    gcs_bucket: str,
+    collection_id: str,
+    optical_level: str,
+    crs_epsg: str = "EPSG:4326",
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
     """
     Generates a cloud-free median composite in GEE and exports to Google Cloud Storage.
     :param aoi_polygon: Shapely Polygon representing the Area of Interest
@@ -120,18 +125,18 @@ def export_gee_sentinel2_composite(
 
 
 def export_gee_landsat_composite(
-    aoi_polygon,
-    start_date,
-    end_date,
-    title,
-    stage,
-    gcs_bucket,
-    collection_id,
-    band_name,
-    scale,
-    optical_level,
-    crs_epsg="EPSG:4326",
-):
+    aoi_polygon: BaseGeometry,
+    start_date: str,
+    end_date: str,
+    title: str,
+    stage: str,
+    gcs_bucket: str,
+    collection_id: str,
+    band_name: str,
+    scale: int,
+    optical_level: str,
+    crs_epsg: str = "EPSG:4326",
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
     """Generates a cloud-free median TOA composite for the explicitly provided Landsat mission.
     :param aoi_polygon: Shapely Polygon representing the Area of Interest
     :param start_date: Start date for the image collection filter (YYYY-MM-DD)
@@ -265,7 +270,7 @@ def export_gee_landsat_composite(
     return path_exports, sorted(list(set(all_unique_dates)))
 
 
-def wait_for_gee_tasks(tasks, timeout_mins=60):
+def wait_for_gee_tasks(tasks: list[Any], timeout_mins: int = 60) -> None:
     """
     Polls GEE until all provided tasks are either COMPLETED or FAILED.
     Includes a timeout to prevent infinite hangs on stuck GEE backend tasks.
@@ -299,7 +304,7 @@ def wait_for_gee_tasks(tasks, timeout_mins=60):
             print(f"  Task {task.id} FAILED: {status.get('error_message', 'Unknown error')}")
 
 
-def download_from_gcs(bucket_name, prefix, local_dir):
+def download_from_gcs(bucket_name: str, prefix: str, local_dir: str) -> list[str]:
     """Downloads a blob from the GCS bucket to user's local machine.
     :param bucket_name: Name of the GCS bucket
     :param prefix: Prefix of the blob in the GCS bucket (including path) to identify the file(s) to download
@@ -326,7 +331,7 @@ def download_from_gcs(bucket_name, prefix, local_dir):
     return downloaded_files
 
 
-def merge_and_compress_chips(chip_paths, output_path):
+def merge_and_compress_chips(chip_paths: list[str], output_path: str) -> str:
     """Uses GDAL to merge GEE image chips into a single compressed GeoTIFF.
     :param chip_paths: List of file paths to the individual image chips downloaded from GCS
     :param output_path: Desired file path for the final merged and compressed GeoTIFF
@@ -367,7 +372,7 @@ def merge_and_compress_chips(chip_paths, output_path):
     return output_path
 
 
-def assign_nodata(filepath, nodata_val=0):
+def assign_nodata(filepath: str, nodata_val: float = 0) -> None:
     """
     Opens the specified GeoTIFF and explicitly writes the NoData
     value into the metadata header.

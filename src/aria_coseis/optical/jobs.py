@@ -1,9 +1,12 @@
 """Optical (autoRIFT) job JSON helpers."""
 
+from __future__ import annotations
+
 import re
+from typing import Any
 
 
-def get_utm_zone(granule_id):
+def get_utm_zone(granule_id: str) -> str:
     """Extracts UTM zone from Sentinel-2 Granule ID (e.g., 'T46QHK' -> '46').
     :param granule_id: The granule ID string from which to extract the UTM zone.
     :return: The UTM zone as a string, or 'Unknown' if it cannot be extracted.
@@ -13,18 +16,18 @@ def get_utm_zone(granule_id):
 
 
 def make_optical_job_json(
-    title,
-    event_id,
-    orbit_id,
-    pre_date,
-    post_date,
-    reference_ids,
-    secondary_ids,
-    pre_cc=None,
-    post_cc=None,
-    status="COMPLETE",
-    zone_suffix=None,
-):
+    title: str,
+    event_id: str,
+    orbit_id: str,
+    pre_date: str,
+    post_date: str,
+    reference_ids: list[str],
+    secondary_ids: list[str],
+    pre_cc: float | None = None,
+    post_cc: float | None = None,
+    status: str = "COMPLETE",
+    zone_suffix: str | None = None,
+) -> dict[str, Any]:
     """
     Helper function to create a JSON object for an AUTORIFT job. Matches the schema defined in ARIA_AUTORIFT.yml.
     :param title: Title of the job (usually the earthquake event name)

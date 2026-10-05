@@ -1,17 +1,23 @@
 """Sentinel-2 scene search and pairing via the Element84 Earth Search STAC API."""
 
+from __future__ import annotations
+
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import Any
 
 from shapely.geometry import mapping, shape
+from shapely.geometry.base import BaseGeometry
 
 from aria_coseis.config import OPTICAL_CLOUD_THRESHOLD
 from aria_coseis.optical.jobs import get_utm_zone, make_optical_job_json
 from aria_coseis.utils import convert_time
 
 
-def search_element84_stac(aoi_polygon, start_date, end_date):
+def search_element84_stac(
+    aoi_polygon: BaseGeometry, start_date: str, end_date: str
+) -> list[dict[str, Any]]:
     """
     Searches Element84 Earth Search STAC API v1 for Sentinel-2 L2A COGs using pystac_client.
     """
@@ -84,16 +90,16 @@ def search_element84_stac(aoi_polygon, start_date, end_date):
 
 
 def process_candidate_group(
-    orbit_key,
-    dates_dict,
-    rupture_dt,
-    aoi_polygon,
-    title,
-    event_id,
-    aoi_area,
-    strategy_name,
-    role=None,
-):
+    orbit_key: str,
+    dates_dict: dict[str, list[dict[str, Any]]],
+    rupture_dt: datetime,
+    aoi_polygon: BaseGeometry,
+    title: str,
+    event_id: str,
+    aoi_area: float,
+    strategy_name: str,
+    role: str | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Generic logic to select best Pre/Post pair from a grouped dictionary of candidates. Used by both 'Dominant' and 'Split' strategies.
     :param orbit_key: The key representing the group (e.g., "047" for Orbit-based, "047_Z46" for Orbit_Zone-based)
@@ -235,7 +241,7 @@ def process_candidate_group(
     return jobs, features
 
 
-def check_mixed_zones_in_group(dates_dict):
+def check_mixed_zones_in_group(dates_dict: dict[str, list[dict[str, Any]]]) -> bool:
     """
     Checks if any single date/acquisition within an orbit group contains  tiles from multiple UTM zones.
     This indicates a 'Mixed' case that requires Split/Dominant strategy comparison.
@@ -249,7 +255,13 @@ def check_mixed_zones_in_group(dates_dict):
     return False
 
 
-def find_optical_pairs_element84(optical_scenes, rupture_time, title, event_id, aoi_polygon):
+def find_optical_pairs_element84(
+    optical_scenes: list[dict[str, Any]],
+    rupture_time: int,
+    title: str,
+    event_id: str,
+    aoi_polygon: BaseGeometry,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Generates optical pairs using two strategies concurrently for comparison:
     1. DOMINANT: Enforces one UTM zone per Orbit (drops minority tiles).

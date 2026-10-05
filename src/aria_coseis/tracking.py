@@ -1,12 +1,16 @@
 """Forward-mode job tracking: tracker files and the AWAITING -> READY_FOR_EMAIL state machine."""
 
+from __future__ import annotations
+
 import glob
 import json
 import os
 from collections import defaultdict
 from datetime import datetime
+from typing import Any
 
 from shapely.geometry import mapping, shape
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 from aria_coseis import config
@@ -17,7 +21,7 @@ from aria_coseis.sar.topsapp import run_dockerized_topsApp
 from aria_coseis.utils import convert_time, to_snake_case
 
 
-def load_tracker():
+def load_tracker() -> dict[str, dict[str, Any]]:
     """Loads all active jobs from the tracking directory."""
     tracker = {}
     if not os.path.exists(config.TRACKING_DIR):
@@ -36,7 +40,7 @@ def load_tracker():
     return tracker
 
 
-def save_tracker(data):
+def save_tracker(data: dict[str, dict[str, Any]]) -> None:
     """Saves the tracking data back to individual files."""
     if not os.path.exists(config.TRACKING_DIR):
         os.makedirs(config.TRACKING_DIR, exist_ok=True)
@@ -54,7 +58,7 @@ def save_tracker(data):
             os.remove(file)
 
 
-def add_to_tracker(eq, aoi, resolution=30):
+def add_to_tracker(eq: dict[str, Any], aoi: BaseGeometry, resolution: int = 30) -> None:
     """
     Initializes tracking for a new earthquake.
     Identifies intersecting tracks, finds pre-seismic SLCs for each track,
@@ -175,7 +179,7 @@ def add_to_tracker(eq, aoi, resolution=30):
         print(f"No valid tracks initialized for {title}.")
 
 
-def check_tracker_for_updates(do_processing=False, send_email_flag=False):
+def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool = False) -> None:
     """
     Iterates through the tracking file using a unified state machine.
     - Local Machine (do_processing=True): Looks for 'AWAITING_POST_SEISMIC', runs topsApp, updates state to 'READY_FOR_EMAIL'.

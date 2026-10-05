@@ -1,10 +1,15 @@
 """Local dockerized topsApp execution."""
 
+from __future__ import annotations
+
 import os
 import subprocess
+from typing import Any
 
 
-def create_directories_from_json(eq_jsons, root_dir):
+def create_directories_from_json(
+    eq_jsons: list[list[dict[str, Any]]], root_dir: str
+) -> tuple[list[list[str]], int]:
     """
     Create directories for each group of SLCs based on the JSON data provided. These directories will be used to store the outputs of the dockerized topsApp.
     The directories are created in the root directory specified and will have a name following this format: 'flight_directionpath_number_secondary_date_reference_date'.
@@ -41,7 +46,7 @@ def create_directories_from_json(eq_jsons, root_dir):
     return dirnames, total
 
 
-def run_dockerized_topsApp(json_data, working_dir):
+def run_dockerized_topsApp(json_data: dict[str, Any], working_dir: str) -> None:
     """
     Run dockerized topsApp InSAR processing workflow using the provided JSON data.
     Outputs are added to the root dir + an extension for each pair.

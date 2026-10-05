@@ -1,5 +1,7 @@
 """Historic and forward processing modes."""
 
+from __future__ import annotations
+
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -26,17 +28,17 @@ from aria_coseis.utils import convert_time, to_snake_case
 
 
 def main_historic(
-    start_date=None,
-    end_date=None,
-    eq_list_path=None,
-    aoi=None,
-    pairing_mode=None,
-    job_list=False,
-    resolution=90,
-    sensor="sar",
-    optical_backend="copernicus",
-    optical_level="toa",
-):
+    start_date: str | None = None,
+    end_date: str | None = None,
+    eq_list_path: str | None = None,
+    aoi: str | None = None,
+    pairing_mode: str | None = None,
+    job_list: bool = False,
+    resolution: int = 90,
+    sensor: str = "sar",
+    optical_backend: str = "copernicus",
+    optical_level: str = "toa",
+) -> None:
     """
     Runs the main query and processing workflow in historic processing mode.
     Used to produce 'pre-seismic', 'co-seismic', and 'post-seismic' displacement products for historic earthquakes.
@@ -160,12 +162,12 @@ def main_historic(
 
 
 def main_forward(
-    pairing_mode=None,
-    resolution=30,
-    do_processing=False,
-    send_email_flag=False,
-    process_only=False,
-):
+    pairing_mode: str | None = None,
+    resolution: int = 30,
+    do_processing: bool = False,
+    send_email_flag: bool = False,
+    process_only: bool = False,
+) -> None:
     """
     Runs the main query and processing workflow in forward processing mode.
     Used to produce co-seismic product for new earthquakes when new SLC data becomes available.

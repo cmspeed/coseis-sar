@@ -1,9 +1,12 @@
 """Per-earthquake processing: AOI, SAR pairing or optical backends."""
 
+from __future__ import annotations
+
 import json
 import math
 import os
 from datetime import datetime, timedelta
+from typing import Any
 
 import geojson
 import geopandas as gpd
@@ -29,15 +32,15 @@ from aria_coseis.utils import convert_time, to_snake_case
 
 
 def process_earthquake(
-    eq,
-    aoi,
-    pairing_mode,
-    job_list,
-    resolution=90,
-    sensor="sar",
-    optical_backend="copernicus",
-    optical_level="toa",
-):
+    eq: dict[str, Any],
+    aoi: str | None,
+    pairing_mode: str | None,
+    job_list: bool,
+    resolution: int = 90,
+    sensor: str = "sar",
+    optical_backend: str = "copernicus",
+    optical_level: str = "toa",
+) -> tuple[list[list[dict[str, Any]]], list[dict[str, Any]]]:
     """
     Process earthquake event and generate the necessary SLC pairs for InSAR processing.
     :param eq: dictionary containing earthquake data

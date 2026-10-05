@@ -1,5 +1,7 @@
 """Settings: API endpoints, thresholds, working paths and email recipients."""
 
+from __future__ import annotations
+
 import logging
 import os
 
@@ -32,7 +34,7 @@ TRACKING_DIR = os.environ.get("COSEIS_TRACKING_DIR") or "active_jobs"
 LOCK_FILE = os.environ.get("COSEIS_LOCK_FILE") or "/tmp/coseis_processing.lock"
 
 
-def get_recipients_from_env(var_name):
+def get_recipients_from_env(var_name: str) -> list[str]:
     """
     Retrieves a list of emails from an environment variable.
     """

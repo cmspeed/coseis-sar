@@ -1,11 +1,15 @@
 """Significance filtering: magnitude, depth, proximity to land, and the optical rake filter."""
 
+from __future__ import annotations
+
 import csv
 import json
+from typing import Any
 
 import geojson
 import requests
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon, mapping
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import linemerge
 
 from aria_coseis.config import coastline_api
@@ -13,7 +17,7 @@ from aria_coseis.usgs import get_event_rake
 from aria_coseis.utils import convert_time
 
 
-def get_coastline(coastline_api):
+def get_coastline(coastline_api: str) -> BaseGeometry | None:
     """
     Fetch coastline data from OSGEO/PROJ Github repo and return it as a GeoJSON object.
     The data returned will be in the form of a MultiPolygon covering the landmass interiors
@@ -89,7 +93,7 @@ def get_coastline(coastline_api):
         return None
 
 
-def withinCoastline(earthquake, coastline):
+def withinCoastline(earthquake: dict[str, Any], coastline: BaseGeometry) -> bool | None:
     """
     Determine if earthquake epicenter is within 0.5 decimal degrees (~55 km) of the coastline.
     This is one filtering parameter to determine if an earthquake is "significant" within the scope of this project.
@@ -113,7 +117,13 @@ def withinCoastline(earthquake, coastline):
     return within_coastline_buffer
 
 
-def check_significance(earthquakes, start_date, end_date=None, sensor="sar", mode="historic"):
+def check_significance(
+    earthquakes: list[dict[str, Any]],
+    start_date: str,
+    end_date: str | None = None,
+    sensor: str = "sar",
+    mode: str = "historic",
+) -> list[dict[str, Any]] | None:
     """
     Check the significance of each earthquake based on its
     (1) magnitude and (2) depth (historic: M>=6.0 and <=40 km; forward: M>=5.5 and <=15 km or M>=6.0 and <=40 km),
@@ -213,7 +223,9 @@ def check_significance(earthquakes, start_date, end_date=None, sensor="sar", mod
         return None
 
 
-def significant_earthquakes_to_geojson_and_csv(significant_earthquakes, start_date, end_date=None):
+def significant_earthquakes_to_geojson_and_csv(
+    significant_earthquakes: list[dict[str, Any]], start_date: str, end_date: str | None = None
+) -> None:
     """
     Write the significant earthquakes to a GeoJSON file, namely: "significant_earthquakes_full_record.geojson"
     :param significant_earthquakes: list of dictionaries containing significant earthquake metadata

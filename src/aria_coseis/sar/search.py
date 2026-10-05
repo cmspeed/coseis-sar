@@ -1,8 +1,11 @@
 """Sentinel-1 SLC search on ASF DAAC: intersecting tracks/frames and SLCs per track."""
 
+from __future__ import annotations
+
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from time import sleep
+from typing import Any
 
 import geojson
 import geopandas as gpd
@@ -10,12 +13,15 @@ import requests
 from dateutil import parser as dateparser
 from dateutil.parser import isoparse
 from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
 
 from aria_coseis.config import ASF_DAAC_API
 from aria_coseis.utils import convert_time
 
 
-def get_path_and_frame_numbers(AOI, time):
+def get_path_and_frame_numbers(
+    AOI: BaseGeometry, time: int
+) -> tuple[dict[tuple[str, int], list[tuple[int, str]]], gpd.GeoDataFrame]:
     """
     Query the ASF DAAC API for SLC data intersecting the Area of Interest (AOI) over a +/- 90 day window.
     This ensures all possible intersecting tracks are returned for the given AOI, avoiding data gap omissions.
@@ -129,7 +135,9 @@ def get_path_and_frame_numbers(AOI, time):
     return {}, gpd.GeoDataFrame()
 
 
-def get_SLCs(flight_direction, path_number, aoi_wkt, time, processing_mode):
+def get_SLCs(
+    flight_direction: str, path_number: int, aoi_wkt: str, time: int, processing_mode: str
+) -> list[dict[str, Any]] | None:
     """
     Query the ASF DAAC API for SLC data based on the given path and AOI.
     The data are organized by flight direction and path number.

@@ -1,5 +1,7 @@
 """Area-of-interest construction and loading."""
 
+from __future__ import annotations
+
 import json
 from urllib.parse import urlparse
 
@@ -8,7 +10,7 @@ from shapely.geometry import Polygon, box, shape
 from shapely.ops import unary_union
 
 
-def make_aoi(coordinates):
+def make_aoi(coordinates: list[float]) -> Polygon:
     """
     Create an Area of Interest (AOI) polygon based on the given coordinates.
     The AOI is a square with a side length of 1 degree (~111 km) centered on the earthquake's epicenter.
@@ -46,7 +48,7 @@ def make_aoi(coordinates):
     return AOI
 
 
-def load_aoi_from_json(aoi_path_or_url):
+def load_aoi_from_json(aoi_path_or_url: str) -> Polygon:
     """
     Load an AOI from a given GeoJSON file or URL and return a Shapely Polygon or MultiPolygon.
 

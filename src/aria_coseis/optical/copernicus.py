@@ -1,19 +1,25 @@
 """Sentinel-2 scene search and pairing via the Copernicus Data Space OData API."""
 
+from __future__ import annotations
+
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import Any
 
 import requests
 from shapely import wkt
 from shapely.geometry import mapping
+from shapely.geometry.base import BaseGeometry
 
 from aria_coseis.config import OPTICAL_CLOUD_THRESHOLD
 from aria_coseis.optical.jobs import make_optical_job_json
 from aria_coseis.utils import convert_time
 
 
-def search_copernicus_public(aoi_polygon, start_date, end_date):
+def search_copernicus_public(
+    aoi_polygon: BaseGeometry, start_date: str, end_date: str
+) -> list[dict[str, Any]]:
     """
     Searches CDSE Public OData.
     Fetches 'Footprint' to calculate true coverage area.
@@ -115,8 +121,13 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
 
 
 def find_optical_pairs_copernicus(
-    optical_scenes, rupture_time, title, event_id, aoi_polygon, job_list=True
-):
+    optical_scenes: list[dict[str, Any]],
+    rupture_time: int,
+    title: str,
+    event_id: str,
+    aoi_polygon: BaseGeometry,
+    job_list: bool = True,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Generate Optical Pairs grouped by Relative Orbit.
     Prioritizes: 1. True Coverage Area %, 2. Cloud Cover, 3. Time.

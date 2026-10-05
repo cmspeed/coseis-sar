@@ -1,15 +1,20 @@
 """Notifications: email, HTML tables, interactive frame maps and satellite overpass predictions."""
 
+from __future__ import annotations
+
 import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import folium
+import geopandas as gpd
 import yagmail
+from shapely.geometry.base import BaseGeometry
 
 from aria_coseis import config
 
 
-def send_email(subject, body, recipients=None):
+def send_email(subject: str, body: str, recipients: list[str] | None = None) -> None:
     """
     Send an email with the earthquake information to a specified list of recipients.
     :param subject: Email subject
@@ -38,7 +43,7 @@ def send_email(subject, body, recipients=None):
     return
 
 
-def ascii_table_to_html(ascii_table):
+def ascii_table_to_html(ascii_table: str | None) -> str:
     """Converts a raw ASCII table string into a styled HTML table."""
     if not ascii_table or "+" not in ascii_table:
         return f"<pre style='background:#2b2b2b; color:#ccc; padding:10px;'>{ascii_table}</pre>"
@@ -66,9 +71,9 @@ def ascii_table_to_html(ascii_table):
     return html
 
 
-def make_interactive_map(frame_dataframe, title, coords, url):
-
-    # Extract latitude and longitude from coords
+def make_interactive_map(
+    frame_dataframe: gpd.GeoDataFrame, title: str, coords: list[float], url: str
+) -> str:
     lon, lat = coords[0], coords[1]
 
     # Generate an interactive map
@@ -100,7 +105,9 @@ def make_interactive_map(frame_dataframe, title, coords, url):
     return map_filename
 
 
-def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
+def get_next_pass(
+    AOI: BaseGeometry, timestamp_dir: Path, satellite: str = "sentinel-1"
+) -> tuple[str | None, str | None, Path | None]:
     """
     Get the next satellite pass over the given AOI.
     Uses the next_pass.py script to determine the next overpass.

@@ -1,14 +1,19 @@
 """USGS earthquake catalog access: event queries, finite-fault models, rake, and custom event lists."""
 
+from __future__ import annotations
+
 import json
 import time
 from datetime import datetime, timezone
+from typing import Any
 
 import geojson
 import requests
 
 
-def get_historic_earthquake_data_single_date(eq_api, input_date):
+def get_historic_earthquake_data_single_date(
+    eq_api: str, input_date: str
+) -> dict[str, Any] | None:
     """
     Fetch data from the USGS Earthquake Portal for a single date and returns it as a GeoJSON object.
     The data returned will depend on the parameters included with the API request.
@@ -46,7 +51,9 @@ def get_historic_earthquake_data_single_date(eq_api, input_date):
         return None
 
 
-def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
+def get_historic_earthquake_data_date_range(
+    eq_api: str, start_date: str, end_date: str
+) -> dict[str, Any] | None:
     """
     Fetch data from the USGS Earthquake Portal over the date range and returns it as a GeoJSON object.
     The data returned will depend on the parameters included with the API request.
@@ -87,7 +94,7 @@ def get_historic_earthquake_data_date_range(eq_api, start_date, end_date):
         return None
 
 
-def get_ffm_geojson_url(event_id):
+def get_ffm_geojson_url(event_id: str) -> str | None:
     """
     Retrieves the URL to the FFM.geojson for a given earthquake event ID.
     """
@@ -117,7 +124,7 @@ def get_ffm_geojson_url(event_id):
     return None
 
 
-def parse_geojson(geojson_data):
+def parse_geojson(geojson_data: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Parse the features of a GeoJSON object and create a dictionary for each earthquake (feature),
     with property names as the keys and property values as the values.
@@ -149,7 +156,7 @@ def parse_geojson(geojson_data):
     return earthquakes
 
 
-def get_event_rake(event_id):
+def get_event_rake(event_id: str) -> list[float]:
     """
     Fetches the rake angles for a specific event ID from USGS. Example : [-170.21, -34.16]
     :param event_id: The USGS event ID for the earthquake.
@@ -200,7 +207,7 @@ def get_event_rake(event_id):
         return []
 
 
-def parse_custom_eq_list(file_path):
+def parse_custom_eq_list(file_path: str) -> list[dict[str, Any]]:
     """
     Parses a custom JSON list of earthquakes and converts them into the standard
     dictionary format expected by the coseis.py processing pipeline.

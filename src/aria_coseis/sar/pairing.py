@@ -1,14 +1,18 @@
 """Sentinel-1 reference/secondary pairing and topsApp/HyP3 job JSON."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from itertools import combinations
+from typing import Any
 
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 from aria_coseis.utils import convert_time
 
 
-def generate_pairs(pairs, mode):
+def generate_pairs(pairs: list[Any], mode: str) -> list[tuple[Any, Any]]:
     """
     Generate pairs of SLCs based on the selected pairing mode.
     :param pairs: List of SLC pairs sorted by date
@@ -25,17 +29,17 @@ def generate_pairs(pairs, mode):
 
 
 def find_reference_and_secondary_pairs(
-    SLCs,
-    time,
-    flight_direction,
-    path_number,
-    title,
-    aoi,
-    event_id,
-    pairing_mode="sequential",
-    job_list=False,
-    resolution=90,
-):
+    SLCs: list[dict[str, Any]],
+    time: int,
+    flight_direction: str,
+    path_number: int,
+    title: str,
+    aoi: BaseGeometry,
+    event_id: str,
+    pairing_mode: str = "sequential",
+    job_list: bool = False,
+    resolution: int = 90,
+) -> list[dict[str, Any]]:
     """
     Find the reference and secondary pairs of SLCs necessary to run dockerized topsApp,
     and determine whether each pair is pre-seismic, co-seismic, or post-seismic based on the rupture date and SLC dates.
@@ -164,16 +168,16 @@ def find_reference_and_secondary_pairs(
 
 
 def make_json(
-    title,
-    timing,
-    flight_direction,
-    path_number,
-    frame_numbers,
-    reference,
-    secondary,
-    reference_scenes,
-    secondary_scenes,
-):
+    title: str,
+    timing: str,
+    flight_direction: str,
+    path_number: int,
+    frame_numbers: list[int],
+    reference: str,
+    secondary: str,
+    reference_scenes: list[str],
+    secondary_scenes: list[str],
+) -> dict[str, Any]:
     """Create a JSON object containing parameters for dockerized topsApp.
     Note: Not all params here are used in the final dockerized topsApp. Some are used for file organzation.
     Note: Several params are 'hardcoded', as these should not vary between individual products.
@@ -214,8 +218,14 @@ def make_json(
 
 
 def make_job_json(
-    title, event_id, flight_direction, path_number, reference_scenes, secondary_scenes, resolution
-):
+    title: str,
+    event_id: str,
+    flight_direction: str,
+    path_number: int,
+    reference_scenes: list[str],
+    secondary_scenes: list[str],
+    resolution: int,
+) -> dict[str, Any]:
     """
     Create a JSON object containing parameters for dockerized topsApp on HYP3.
     :param title: USGS title of the earthquake event

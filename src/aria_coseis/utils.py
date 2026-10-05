@@ -1,11 +1,13 @@
 """Small shared helpers: name formatting and USGS time conversion."""
 
+from __future__ import annotations
+
 import re
 import unicodedata
 from datetime import datetime, timezone
 
 
-def to_snake_case(input_string):
+def to_snake_case(input_string: str) -> str:
     """
     Convert the given string to snake_case with ASCII-safe characters.
     Strips accents and transliterates Unicode to closest ASCII.
@@ -24,7 +26,7 @@ def to_snake_case(input_string):
     return snake_case_string
 
 
-def convert_time(time):
+def convert_time(time: int | float) -> datetime:
     """
     Convert the given Unix timestamp in milliseconds to a UTC datetime object.
     :param time_ms: Unix timestamp in milliseconds (int or float)
