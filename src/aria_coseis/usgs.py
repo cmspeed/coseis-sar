@@ -1,10 +1,11 @@
 """USGS earthquake catalog access: event queries, finite-fault models, rake, and custom event lists."""
 
-import requests
 import json
-import geojson
-from datetime import datetime, timezone
 import time
+from datetime import datetime, timezone
+
+import geojson
+import requests
 
 
 def get_historic_earthquake_data_single_date(eq_api, input_date):
@@ -90,7 +91,7 @@ def get_ffm_geojson_url(event_id):
     """
     Retrieves the URL to the FFM.geojson for a given earthquake event ID.
     """
-    detail_url = f"https://earthquake.usgs.gov/fdsnws/event/1/query"
+    detail_url = "https://earthquake.usgs.gov/fdsnws/event/1/query"
     params = {"eventid": event_id, "format": "geojson"}
 
     print(f"Fetching event detail for {event_id}...")
@@ -154,7 +155,7 @@ def get_event_rake(event_id):
     :param event_id: The USGS event ID for the earthquake.
     :return: A list of rake angles from both nodal planes, or an empty list if not available.
     """
-    detail_url = f"https://earthquake.usgs.gov/fdsnws/event/1/query"
+    detail_url = "https://earthquake.usgs.gov/fdsnws/event/1/query"
     params = {"eventid": event_id, "format": "geojson"}
 
     print(f"Fetching rake for event_id: {event_id}")

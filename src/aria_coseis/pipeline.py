@@ -1,12 +1,13 @@
 """Per-earthquake processing: AOI, SAR pairing or optical backends."""
 
-import os
 import json
+import math
+import os
+from datetime import datetime, timedelta
+
 import geojson
 import geopandas as gpd
-import math
 from shapely.geometry import mapping
-from datetime import datetime, timedelta
 
 from aria_coseis import config
 from aria_coseis.aoi import load_aoi_from_json, make_aoi
@@ -22,7 +23,7 @@ from aria_coseis.optical.gee import (
     wait_for_gee_tasks,
 )
 from aria_coseis.sar.pairing import find_reference_and_secondary_pairs
-from aria_coseis.sar.search import get_SLCs, get_path_and_frame_numbers
+from aria_coseis.sar.search import get_path_and_frame_numbers, get_SLCs
 from aria_coseis.usgs import get_ffm_geojson_url
 from aria_coseis.utils import convert_time, to_snake_case
 
@@ -303,7 +304,7 @@ def process_earthquake(
                 raise e
 
             if sensor == "sentinel-2":
-                print(f"Generating Pre-Event Sentinel-2 Composites...")
+                print("Generating Pre-Event Sentinel-2 Composites...")
                 pre_exports, pre_dates = export_gee_sentinel2_composite(
                     aoi,
                     pre_start,
@@ -315,7 +316,7 @@ def process_earthquake(
                     optical_level,
                     crs_epsg=target_crs,
                 )
-                print(f"Generating Post-Event Sentinel-2 Composites...")
+                print("Generating Post-Event Sentinel-2 Composites...")
                 post_exports, post_dates = export_gee_sentinel2_composite(
                     aoi,
                     post_start,
@@ -329,7 +330,7 @@ def process_earthquake(
                 )
 
             elif sensor == "landsat":
-                print(f"Generating Pre-Event Landsat Composites...")
+                print("Generating Pre-Event Landsat Composites...")
                 pre_exports, pre_dates = export_gee_landsat_composite(
                     aoi,
                     pre_start,
@@ -343,7 +344,7 @@ def process_earthquake(
                     optical_level,
                     crs_epsg=target_crs,
                 )
-                print(f"Generating Post-Event Landsat Composites...")
+                print("Generating Post-Event Landsat Composites...")
                 post_exports, post_dates = export_gee_landsat_composite(
                     aoi,
                     post_start,

@@ -1,14 +1,15 @@
 """Sentinel-1 SLC search on ASF DAAC: intersecting tracks/frames and SLCs per track."""
 
-from dateutil import parser as dateparser
-from dateutil.parser import isoparse
-import requests
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from time import sleep
+
 import geojson
 import geopandas as gpd
+import requests
+from dateutil import parser as dateparser
+from dateutil.parser import isoparse
 from shapely.geometry import shape
-from datetime import datetime, timedelta, timezone
-from collections import defaultdict
-from time import sleep
 
 from aria_coseis.config import ASF_DAAC_API
 from aria_coseis.utils import convert_time

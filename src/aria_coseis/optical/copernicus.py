@@ -1,11 +1,12 @@
 """Sentinel-2 scene search and pairing via the Copernicus Data Space OData API."""
 
 import re
+from collections import defaultdict
+from datetime import datetime, timezone
+
 import requests
 from shapely import wkt
 from shapely.geometry import mapping
-from datetime import datetime, timezone
-from collections import defaultdict
 
 from aria_coseis.config import OPTICAL_CLOUD_THRESHOLD
 from aria_coseis.optical.jobs import make_optical_job_json
@@ -35,7 +36,7 @@ def search_copernicus_public(aoi_polygon, start_date, end_date):
     # Removing $select ensures we get the 'Footprint' field
     params = {"$filter": filter_query, "$orderby": "ContentDate/Start asc", "$top": 1000}
 
-    print(f"Searching Copernicus (Public OData) for Sentinel-2 L1C...")
+    print("Searching Copernicus (Public OData) for Sentinel-2 L1C...")
 
     granules = []
     next_link = base_url
@@ -223,7 +224,7 @@ def find_optical_pairs_copernicus(
                 pre_date_str = best_pre["date"]
                 primary_ids = [s["granule_id"].replace(".SAFE", "") for s in best_pre["scenes"]]
             else:
-                print(f"    - Missing PRE-event coverage.")
+                print("    - Missing PRE-event coverage.")
 
             if post_candidates:
                 best_post = min(post_candidates, key=lambda x: x["cc"])
@@ -231,7 +232,7 @@ def find_optical_pairs_copernicus(
                 post_date_str = best_post["date"]
                 secondary_ids = [s["granule_id"].replace(".SAFE", "") for s in best_post["scenes"]]
             else:
-                print(f"    - Missing POST-event coverage.")
+                print("    - Missing POST-event coverage.")
 
             # Generate the partial job and add to list
             if job_list:

@@ -1,8 +1,9 @@
 """Sentinel-1 reference/secondary pairing and topsApp/HyP3 job JSON."""
 
-from shapely.ops import unary_union
 from datetime import datetime
 from itertools import combinations
+
+from shapely.ops import unary_union
 
 from aria_coseis.utils import convert_time
 

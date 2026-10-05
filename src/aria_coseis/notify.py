@@ -1,9 +1,10 @@
 """Notifications: email, HTML tables, interactive frame maps and satellite overpass predictions."""
 
 import os
+from types import SimpleNamespace
+
 import folium
 import yagmail
-from types import SimpleNamespace
 
 from aria_coseis import config
 
@@ -109,6 +110,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     """
     import os
     import sys
+
     import next_pass
 
     next_pass_dir = os.path.dirname(next_pass.__file__)
@@ -126,7 +128,7 @@ def get_next_pass(AOI, timestamp_dir, satellite="sentinel-1"):
     bbox = [str(min_lat), str(max_lat), str(min_lon), str(max_lon)]
 
     print("=========================================")
-    print(f"Querying next-pass for all satellites over AOI...")
+    print("Querying next-pass for all satellites over AOI...")
     print("=========================================")
 
     args = SimpleNamespace(

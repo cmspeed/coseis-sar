@@ -1,10 +1,11 @@
 """Significance filtering: magnitude, depth, proximity to land, and the optical rake filter."""
 
-import requests
-import json
-import geojson
 import csv
-from shapely.geometry import mapping, Point, Polygon, LineString, MultiPolygon
+import json
+
+import geojson
+import requests
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon, mapping
 from shapely.ops import linemerge
 
 from aria_coseis.config import coastline_api
@@ -172,7 +173,7 @@ def check_significance(earthquakes, start_date, end_date=None, sensor="sar", mod
         earthquake["rakes"] = rakes
 
         if not rakes:
-            print(f"    -> Skipped (Optical mode requires rake data, none found)")
+            print("    -> Skipped (Optical mode requires rake data, none found)")
             continue
 
         # Check if ANY available rake satisfies the condition

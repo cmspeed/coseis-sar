@@ -1,17 +1,18 @@
 """Forward-mode job tracking: tracker files and the AWAITING -> READY_FOR_EMAIL state machine."""
 
-import os
-import json
 import glob
+import json
+import os
+from collections import defaultdict
+from datetime import datetime
+
 from shapely.geometry import mapping, shape
 from shapely.ops import unary_union
-from datetime import datetime
-from collections import defaultdict
 
 from aria_coseis import config
 from aria_coseis.notify import send_email
 from aria_coseis.sar.pairing import make_job_json
-from aria_coseis.sar.search import get_SLCs, get_path_and_frame_numbers
+from aria_coseis.sar.search import get_path_and_frame_numbers, get_SLCs
 from aria_coseis.sar.topsapp import run_dockerized_topsApp
 from aria_coseis.utils import convert_time, to_snake_case
 
@@ -355,7 +356,7 @@ def check_tracker_for_updates(do_processing=False, send_email_flag=False):
                     except Exception as e:
                         print(f"    Error processing partial file {partial_file}: {e}")
                 else:
-                    print(f"    No post-seismic data yet.")
+                    print("    No post-seismic data yet.")
 
             # Email with Github Actions
             elif track_info["status"] == "READY_FOR_EMAIL":

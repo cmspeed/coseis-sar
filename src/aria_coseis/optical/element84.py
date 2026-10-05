@@ -1,9 +1,10 @@
 """Sentinel-2 scene search and pairing via the Element84 Earth Search STAC API."""
 
 import re
-from shapely.geometry import mapping, shape
-from datetime import datetime, timezone
 from collections import defaultdict
+from datetime import datetime, timezone
+
+from shapely.geometry import mapping, shape
 
 from aria_coseis.config import OPTICAL_CLOUD_THRESHOLD
 from aria_coseis.optical.jobs import get_utm_zone, make_optical_job_json
@@ -146,7 +147,7 @@ def process_candidate_group(
                 clean_poly = combined_poly.buffer(0)
                 intersection = clean_poly.intersection(aoi_polygon)
                 coverage_pct = (intersection.area / aoi_area) * 100.0
-            except:
+            except:  # noqa: E722 (bare except kept as-is; see backlog)
                 pass
 
         avg_cc = sum(s["cloud_cover"] for s in unique_scenes) / len(unique_scenes)

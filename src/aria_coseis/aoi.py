@@ -1,10 +1,11 @@
 """Area-of-interest construction and loading."""
 
-import requests
 import json
-from shapely.geometry import shape, box, Polygon
-from shapely.ops import unary_union
 from urllib.parse import urlparse
+
+import requests
+from shapely.geometry import Polygon, box, shape
+from shapely.ops import unary_union
 
 
 def make_aoi(coordinates):
