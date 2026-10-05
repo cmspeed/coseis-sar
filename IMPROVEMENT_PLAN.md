@@ -20,7 +20,7 @@
 | Phase | State | Branch / PR |
 |---|---|---|
 | 1. Reconcile `develop` with `main` | **done** 2026-10-01 | issue #27 → PR #28 |
-| 2. Tests + modularize | 2a, 2b **done** 2026-10-05; 2c in progress | 2a: issue #29 → PR #31; 2b: issue #30 → PR #32; 2c: branch `2c-cleanup` |
+| 2. Tests + modularize | 2a, 2b **done** 2026-10-05; 2c in review | 2a: issue #29 → PR #31; 2b: issue #30 → PR #32; 2c: issue #33 → PR |
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
 | 5. Validation + cutover | not started | — |
@@ -102,12 +102,15 @@ Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 - [x] `GITHUB_PAGES_BASE_URL` moved to `config.py`.
 - [x] `COSEIS_DATA_DIR`, `COSEIS_TRACKING_DIR`, `COSEIS_LOCK_FILE` overrides, with defaults unchanged. This enables the Phase 5 shadow run without sharing production's lock file.
 
-**2c. Cleanup (behavior-neutral).** Kept out of 2b so its diff stays pure relocation. Branch `2c-cleanup`.
-- [ ] `ruff format` + `ruff check` (PEP 8) across `src/`, `tests/` and `scripts/coseis.py`, in one formatting-only commit; add `ruff` to CI. Other scripts (`batch_autorift.py`, the job-list utilities, `s3_upload_aria_share/`) are out of scope.
-- [ ] Type hints on all public functions, one commit per module.
-- [ ] Fix stale docstrings (depth limits, "60-day windows", "AOI.geojson").
-- [ ] Remove dead code: `scripts/coseis_sar.py` (old CLI, still described in `README.md`), `check_for_new_data` (never called), commented-out blocks. Decide separately about `create_directories_from_json` (see backlog).
-- [ ] Rewrite `README.md` for the package layout and current CLI.
+**2c. Cleanup (behavior-neutral).** Kept out of 2b so its diff stays pure relocation. **DONE 2026-10-05 (issue #33)**
+- [x] `ruff format` (PEP 8, 99 columns) over `src/`, `tests/` and `scripts/coseis.py`, in a formatting-only commit; the AST of every file is unchanged apart from docstring whitespace.
+- [x] `ruff check` (pycodestyle, pyflakes, import sorting) with auto-fixes only, and CI runs `ruff check` and `ruff format --check`.
+  - E501 (line length) is ignored: code fits in 99 columns, while long strings, docstrings and HTML templates are left as is.
+  - Other scripts (`batch_autorift.py`, the job-list utilities, `s3_upload_aria_share/`) are out of scope.
+- [x] Type hints on all top-level functions, one commit per module, with `from __future__ import annotations`. Verified that the code is identical once annotations are removed.
+- [x] Stale docstrings, comments and one log message fixed (near-land ~1°, CLI examples, GEE 90-day windows, ASF ±90-day search).
+- [x] Dead code removed: `scripts/coseis_sar.py`, `check_for_new_data`, a commented-out debug print. `create_directories_from_json` is kept pending a decision (see backlog).
+- [x] `README.md` rewritten for the package layout and current CLI.
 
 ## Phase 3: Optical in forward mode
 Open design questions to settle in the issue before writing code:
@@ -166,6 +169,7 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 - [ ] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes.
 
 **Code quality**
+- [ ] `optical/element84.py` has a bare `except:` (marked `noqa: E722`), which also swallows `KeyboardInterrupt`/`SystemExit`. Narrow it to `except Exception:` with a test.
 - [ ] **Near-land filter buffers twice.** `get_coastline` buffers the land polygons by 0.5°, then `withinCoastline` buffers that again by 0.5° for every earthquake. So the effective distance is about 1°, not the documented 0.5°, and the repeated buffer is slow. Decide on the intended distance, buffer once, and update the significance tests.
 - [ ] Forward discovery fetches the same ASF frame search twice per event (`main_forward`, then `add_to_tracker`). Pass the result through.
 - [ ] Historic mode without `--job_list` only writes pair JSON and frame maps; `create_directories_from_json` is never called (dead code), and topsApp runs only in forward mode. Remove it, or wire up local historic processing if that's wanted.
