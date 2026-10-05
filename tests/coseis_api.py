@@ -19,9 +19,6 @@ from aria_coseis.aoi import (  # noqa: E402
     make_aoi,
 )
 from aria_coseis.legacy import (  # noqa: E402
-    add_to_tracker,
-    check_tracker_for_updates,
-    load_tracker,
     main_forward,
     main_historic,
     process_earthquake,
@@ -38,6 +35,11 @@ from aria_coseis.sar.pairing import (  # noqa: E402
 )
 from aria_coseis.significance import (  # noqa: E402
     check_significance,
+)
+from aria_coseis.tracking import (  # noqa: E402
+    add_to_tracker,
+    check_tracker_for_updates,
+    load_tracker,
 )
 from aria_coseis.usgs import (  # noqa: E402
     parse_custom_eq_list,
