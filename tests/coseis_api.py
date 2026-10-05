@@ -18,7 +18,7 @@ from aria_coseis import config as settings  # noqa: E402  (holds root_dir, TRACK
 from aria_coseis.aoi import (  # noqa: E402
     make_aoi,
 )
-from aria_coseis.legacy import (  # noqa: E402
+from aria_coseis.modes import (  # noqa: E402
     main_forward,
     main_historic,
 )
