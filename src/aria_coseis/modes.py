@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from aria_coseis import config
 from aria_coseis.aoi import make_aoi
-from aria_coseis.config import USGS_api_alltime
+from aria_coseis.config import GITHUB_PAGES_BASE_URL, USGS_api_alltime
 from aria_coseis.notify import ascii_table_to_html, get_next_pass, send_email
 from aria_coseis.pipeline import process_earthquake
 from aria_coseis.sar.search import get_path_and_frame_numbers
@@ -218,7 +218,6 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
                         # Setup Github pages directory
                         docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
                         docs_maps_dir.mkdir(parents=True, exist_ok=True)
-                        GITHUB_PAGES_BASE_URL = "https://cmspeed.github.io/coseis-sar"
                         
                         # Create a unique ID for the filenames so they aren't overwritten
                         unique_id = eq.get('id', datetime.now().strftime('%Y%m%d%H%M%S'))

@@ -13,6 +13,9 @@ USGS_api_alltime = "https://earthquake.usgs.gov/fdsnws/event/1/query" # USGS Ear
 coastline_api = "https://raw.githubusercontent.com/OSGeo/PROJ/refs/heads/master/docs/plot/data/coastline.geojson" # Coastline API
 ASF_DAAC_API = "https://api.daac.asf.alaska.edu/services/search/param" # ASF DAAC API endpoint
 CMR_API_URL = "https://cmr.earthdata.nasa.gov/search/granules.json" # NASA CMR API endpoint
+
+# Published overpass maps (docs/maps/ on GitHub Pages). Pages URLs do not redirect if the repo is renamed.
+GITHUB_PAGES_BASE_URL = "https://cmspeed.github.io/coseis-sar"
 root_dir = os.path.join(os.getcwd(), "data")
 
 # Global variables
