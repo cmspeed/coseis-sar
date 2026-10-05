@@ -26,11 +26,13 @@ from aria_coseis.legacy import (  # noqa: E402
     make_aoi,
     make_job_json,
     make_optical_job_json,
-    parse_custom_eq_list,
     process_earthquake,
 )
 from aria_coseis.notify import (  # noqa: E402
     ascii_table_to_html,
+)
+from aria_coseis.usgs import (  # noqa: E402
+    parse_custom_eq_list,
 )
 from aria_coseis.utils import (  # noqa: E402
     convert_time,
