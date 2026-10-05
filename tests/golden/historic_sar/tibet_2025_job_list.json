@@ -1,0 +1,110 @@
+{
+  "aois": {
+    "m_71_2025_southern_tibetan_plateau_earthquake_sar_toa_AOI.geojson": {
+      "coordinates": [
+        [
+          [
+            87.5164,
+            28.2058
+          ],
+          [
+            87.5164,
+            29.1688
+          ],
+          [
+            87.1515,
+            29.1688
+          ],
+          [
+            87.1515,
+            28.2058
+          ],
+          [
+            87.5164,
+            28.2058
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    }
+  },
+  "earthquake_info": [
+    {
+      "epicenter": {
+        "depth_km": 10,
+        "latitude": 28.6036,
+        "longitude": 87.3781,
+        "usgs_event_url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000pi9w"
+      },
+      "time": "2025-01-07 01:05:16 UTC",
+      "title": "M 7.1 - 2025 Southern Tibetan Plateau Earthquake"
+    }
+  ],
+  "jobs": [
+    {
+      "event_id": "us6000pi9w",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1A_IW_SLC__1SDV_20250113T001129_20250113T001156_057418_071181_59B0",
+          "S1A_IW_SLC__1SDV_20250113T001103_20250113T001131_057418_071181_754C"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1A_IW_SLC__1SDV_20250101T001130_20250101T001157_057243_070A97_620F",
+          "S1A_IW_SLC__1SDV_20250101T001104_20250101T001132_057243_070A97_C288"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_71_2025_southern_tibetan_plateau_earthquake-D121"
+    },
+    {
+      "event_id": "us6000pi9w",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1A_IW_SLC__1SDV_20250108T000318_20250108T000345_057345_070E97_8DD9"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1A_IW_SLC__1SDV_20241227T000319_20241227T000346_057170_0707B2_97C6"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_71_2025_southern_tibetan_plateau_earthquake-D048"
+    },
+    {
+      "event_id": "us6000pi9w",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1A_IW_SLC__1SDV_20250117T121423_20250117T121451_057484_07141C_8E02"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1A_IW_SLC__1SDV_20250105T121424_20250105T121452_057309_070D2E_EF04"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_71_2025_southern_tibetan_plateau_earthquake-A012"
+    }
+  ]
+}

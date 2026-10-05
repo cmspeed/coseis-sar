@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Cassettes are replayed only. Record new tests with --record-mode=new_episodes;
+# re-record a module from scratch by deleting its cassette first.
+addopts = "--record-mode=none"
