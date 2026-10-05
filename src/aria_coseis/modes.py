@@ -140,7 +140,7 @@ def main_forward(pairing_mode=None, resolution=30, do_processing=False, send_ema
     import shutil
 
     # A lock file to prevent overlapping runs
-    lock_file = "/tmp/coseis_processing.lock"
+    lock_file = config.LOCK_FILE
 
     if os.path.exists(lock_file):
         print("Previous processing run still active. Exiting.")
