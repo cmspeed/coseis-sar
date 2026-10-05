@@ -1,0 +1,103 @@
+{
+  "partials": {
+    "job_m_56_94_km_sw_of_tamarindo_costa_rica_ASCENDING_165_partial.json": [
+      {
+        "event_id": "us6000tymj",
+        "job_parameters": {
+          "compute_solid_earth_tide": true,
+          "dense_offsets": true,
+          "esd_coherence_threshold": -1,
+          "estimate_ionosphere_delay": true,
+          "frame_id": -1,
+          "goldstein_filter_power": 0.5,
+          "granules": [],
+          "output_resolution": 30,
+          "secondary_granules": [
+            "S1D_IW_SLC__1SDV_20260926T235613_20260926T235640_004756_008E85_4D6F",
+            "S1D_IW_SLC__1SDV_20260926T235545_20260926T235615_004756_008E85_20A5"
+          ],
+          "unfiltered_coherence": true
+        },
+        "job_type": "ARIA_S1_COSEIS",
+        "name": "m_56_94_km_sw_of_tamarindo_costa_rica-ASCENDING165"
+      }
+    ],
+    "job_m_56_94_km_sw_of_tamarindo_costa_rica_DESCENDING_157_partial.json": [
+      {
+        "event_id": "us6000tymj",
+        "job_parameters": {
+          "compute_solid_earth_tide": true,
+          "dense_offsets": true,
+          "esd_coherence_threshold": -1,
+          "estimate_ionosphere_delay": true,
+          "frame_id": -1,
+          "goldstein_filter_power": 0.5,
+          "granules": [],
+          "output_resolution": 30,
+          "secondary_granules": [
+            "S1D_IW_SLC__1SDV_20260926T113028_20260926T113055_004748_008E3F_6800"
+          ],
+          "unfiltered_coherence": true
+        },
+        "job_type": "ARIA_S1_COSEIS",
+        "name": "m_56_94_km_sw_of_tamarindo_costa_rica-DESCENDING157"
+      }
+    ]
+  },
+  "trackers": {
+    "us6000tymj.json": {
+      "aoi": {
+        "coordinates": [
+          [
+            [
+              -87.0063,
+              9.2526
+            ],
+            [
+              -86.0063,
+              9.2526
+            ],
+            [
+              -86.0063,
+              10.2526
+            ],
+            [
+              -87.0063,
+              10.2526
+            ],
+            [
+              -87.0063,
+              9.2526
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "time": 1790805326169,
+      "title": "m_56_94_km_sw_of_tamarindo_costa_rica",
+      "tracks": {
+        "ASCENDING_165": {
+          "flight_direction": "ASCENDING",
+          "frame_numbers": [
+            24,
+            30
+          ],
+          "partial_job_file": "job_m_56_94_km_sw_of_tamarindo_costa_rica_ASCENDING_165_partial.json",
+          "path_number": 165,
+          "reference_date": "2026-09-26",
+          "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_157": {
+          "flight_direction": "DESCENDING",
+          "frame_numbers": [
+            560
+          ],
+          "partial_job_file": "job_m_56_94_km_sw_of_tamarindo_costa_rica_DESCENDING_157_partial.json",
+          "path_number": 157,
+          "reference_date": "2026-09-26",
+          "status": "AWAITING_POST_SEISMIC"
+        }
+      }
+    }
+  }
+}

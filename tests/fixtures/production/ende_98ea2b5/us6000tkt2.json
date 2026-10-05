@@ -1,0 +1,44 @@
+{
+    "title": "m_77_68_km_nnw_of_ende_indonesia",
+    "time": 1786744701564,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    120.8517,
+                    -8.8101
+                ],
+                [
+                    121.8517,
+                    -8.8101
+                ],
+                [
+                    121.8517,
+                    -7.8101
+                ],
+                [
+                    120.8517,
+                    -7.8101
+                ],
+                [
+                    120.8517,
+                    -8.8101
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_61": {
+            "flight_direction": "DESCENDING",
+            "path_number": 61,
+            "frame_numbers": [
+                616,
+                621
+            ],
+            "partial_job_file": "job_m_77_68_km_nnw_of_ende_indonesia_DESCENDING_61_partial.json",
+            "reference_date": "2026-08-02",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

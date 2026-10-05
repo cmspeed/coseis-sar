@@ -1,0 +1,54 @@
+{
+    "title": "m_56_94_km_sw_of_tamarindo_costa_rica",
+    "time": 1790805326169,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -87.0063,
+                    9.2526
+                ],
+                [
+                    -86.0063,
+                    9.2526
+                ],
+                [
+                    -86.0063,
+                    10.2526
+                ],
+                [
+                    -87.0063,
+                    10.2526
+                ],
+                [
+                    -87.0063,
+                    9.2526
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_165": {
+            "flight_direction": "ASCENDING",
+            "path_number": 165,
+            "frame_numbers": [
+                24,
+                30
+            ],
+            "partial_job_file": "job_m_56_94_km_sw_of_tamarindo_costa_rica_ASCENDING_165_partial.json",
+            "reference_date": "2026-09-26",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_157": {
+            "flight_direction": "DESCENDING",
+            "path_number": 157,
+            "frame_numbers": [
+                560
+            ],
+            "partial_job_file": "job_m_56_94_km_sw_of_tamarindo_costa_rica_DESCENDING_157_partial.json",
+            "reference_date": "2026-09-26",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
