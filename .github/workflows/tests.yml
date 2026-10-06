@@ -33,8 +33,8 @@ jobs:
 
       - name: Lint and format check (ruff)
         run: |
-          ruff check src tests scripts/coseis.py
-          ruff format --check src tests scripts/coseis.py
+          ruff check src tests
+          ruff format --check src tests
 
       - name: Run tests (HTTP replayed from cassettes; network requests not in a cassette fail)
         run: pytest -q

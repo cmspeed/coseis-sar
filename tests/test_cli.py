@@ -173,20 +173,24 @@ def test_argparse_rejects(argv: List[str]) -> None:
     assert exit_info.value.code == 2
 
 
-def test_entry_point_script_runs_from_scripts_dir() -> None:
-    """Cron and GitHub Actions run `cd scripts && python coseis.py ...`."""
+def test_module_entry_point_runs_from_repo_root() -> None:
+    """Cron and GitHub Actions run `python -m aria_coseis ...` from the repository root."""
+    import os
     import subprocess
     import sys
 
-    scripts_dir = api.SRC_DIR.parent / "scripts"
+    repo_dir = api.SRC_DIR.parent
+    env = dict(os.environ, PYTHONPATH=str(api.SRC_DIR))  # works with or without `pip install -e .`
     # Popen, not subprocess.run: run() is replaced by the topsApp fake
     with subprocess.Popen(
-        [sys.executable, "coseis.py", "--help"],
-        cwd=scripts_dir,
+        [sys.executable, "-m", "aria_coseis", "--help"],
+        cwd=repo_dir,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     ) as proc:
         out, err = proc.communicate(timeout=120)
     assert proc.returncode == 0, err
+    assert out.startswith("usage: aria-coseis")
     assert "--forward" in out and "--process_only" in out
