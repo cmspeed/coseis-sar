@@ -7,20 +7,20 @@
 2. **`develop` is the integration branch.** Every phase is one or more GitHub issues. Each issue gets a branch named by its issue number, cut from `develop`, with a PR back into `develop` (merge commit, not squash/rebase). No PR targets `main` until Phase 5.
 3. **Hotfix flow:** fix on `main` in a small PR, then bring it to `develop` right away.
    - **Since Phase 2b, git can't carry `coseis.py` edits across.** `main` still has the single `scripts/coseis.py`, while `develop`'s code lives in `src/aria_coseis/`.
-   - So merge `main` into `develop` (keeping `develop`'s `scripts/coseis.py` shim), then **port the fix by hand** into the matching `aria_coseis` module, with a test that covers it.
+   - So **port the fix by hand** into the matching `aria_coseis` module on a `develop` branch, with a test that covers it. Don't merge `main` into `develop` (see rule 4).
    - Keep `main` hotfixes rare and small until cutover.
-4. **Sync `main` into `develop` regularly** (at least before starting each phase) to pick up hotfixes. Bot data files will conflict; resolve them by taking `main`'s version.
+4. **No routine `main` → `develop` syncs** *(since Phase 2d, decided 2026-10-06)*. `main`'s new commits are bot tracker/map data, which `develop` doesn't carry: its `active_jobs/` holds only placeholders. Hotfixes are ported by hand (rule 3). The live tracker data moves into the new layout at cutover (Phase 5).
 5. **Commits within a PR are small and single-purpose.** In refactor PRs, a commit that moves code never also changes behavior.
 6. **For SAR and shared code, `main` wins.** `main` is the stable reference for SAR and for logic both modes share. `develop` may add optical-only behavior but must not change SAR results. *(decided 2026-10-01)*
 7. **SAR/forward output changes must be deliberate.** The Phase 2a tests check output against `main`'s production states (`tests/fixtures/production/`) and golden files. A change that alters them must update them in the same PR, with the reason in the commit message.
 8. **Recorded HTTP is a snapshot.** Tests replay USGS/ASF/Copernicus as recorded. Re-recording a cassette (e.g. after USGS revises an event) can change golden files; review those diffs as data updates, not regressions.
-9. **Keep the external interface stable.** Cron and GitHub Actions call `cd scripts && python coseis.py --forward ...`. That command, its flags, the `active_jobs/` format and the email env vars must keep working through every phase.
+9. **Keep the external interface stable.** The CLI flags, the tracker JSON format and the email env vars must keep working through every phase. Since Phase 2d, `develop` runs as `python -m aria_coseis ...` from the repository root (`ops/run_coseis_forward.sh`, `coseis-cron.yml`); production keeps `cd scripts && python coseis.py ...` on `main` until the cutover switches both runners together.
 
 ## Status
 | Phase | State | Branch / PR |
 |---|---|---|
 | 1. Reconcile `develop` with `main` | **done** 2026-10-01 | issue #27 → PR #28 |
-| 2. Tests + modularize | 2a, 2b **done** 2026-10-05; 2c in review | 2a: issue #29 → PR #31; 2b: issue #30 → PR #32; 2c: issue #33 → PR |
+| 2. Tests, package, layout | 2a–2c **done** 2026-10-05; 2d in review | 2a: #29 → PR #31; 2b: #30 → PR #32; 2c: #33 → PR #34; 2d: #35 → PR |
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
 | 5. Validation + cutover | not started | — |
@@ -112,6 +112,25 @@ Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 - [x] Dead code removed: `scripts/coseis_sar.py`, `check_for_new_data`, a commented-out debug print. `create_directories_from_json` is kept pending a decision (see backlog).
 - [x] `README.md` rewritten for the package layout and current CLI.
 
+**2d. Repository layout.** **DONE 2026-10-06 (issue #35)**: GitHub holds only what historic and forward mode need. Decisions (2026-10-06): partial jobs in `active_jobs/partials/`, untracked outputs in `outputs/`, cron wrapper tracked in `ops/`, archive tag plus a local copy, and no routine `main` → `develop` syncs.
+```
+.github/workflows/   coseis-cron.yml, tests.yml, test-email.yml
+src/aria_coseis/     package; python -m aria_coseis (aria-coseis); optical/autorift.py (was scripts/batch_autorift.py)
+tests/
+active_jobs/         tracker JSONs; partials/ holds partial HyP3 jobs (bot-committed)
+docs/maps/           GitHub Pages overpass maps (bot-committed)
+ops/                 run_coseis_forward.sh (processing-machine cron wrapper)
+pyproject.toml  environment.yml  README.md  IMPROVEMENT_PLAN.md
+```
+- [x] Dependencies declared in `pyproject.toml`, with optional `forward` (next_pass), `optical` and `test` groups; `requirements-test.txt` removed; `environment.yml` installs the package.
+- [x] All file locations come from `config` relative to the repo root (`TRACKING_DIR`, `PARTIALS_DIR`, `MAPS_DIR`, `OUTPUT_DIR`, `root_dir`), each overridable by `COSEIS_*`. Trackers keep bare partial-job file names, so live entries still work after the move.
+- [x] `scripts/batch_autorift.py` moved to `aria_coseis.optical.autorift` (`git mv`; default `--data_dir` is now the data dir) and formatted with ruff.
+- [x] Cron wrapper moved to `ops/` and updated: repo root, `python -m aria_coseis`, `logs/forward.log`, `COSEIS_LOCK_FILE`, `git add -A active_jobs/`.
+- [x] `coseis-cron.yml` installs `.[forward]`, runs from the root, and stages `active_jobs/` and `docs/maps/`. This takes effect only on `main`, at cutover.
+- [x] Untracked, but kept locally and gitignored: `scripts/`, `hyp3/`, `job_lists/`, `s3_upload_aria_share/`, `docs/*.txt`, `requirements.txt`. Recoverable from tag `archive/pre-layout` and a local copy in `../coseis-archive/`.
+- [x] Verified from a fresh clone: install, ruff, and all tests pass; a live historic run from the root writes only to `outputs/` and matches the golden job list.
+- [x] The processing machine doesn't use `hyp3/`, `job_lists/` or `s3_upload_aria_share/` (confirmed 2026-10-06), so nothing there needs a backup at cutover.
+
 ## Phase 3: Optical in forward mode
 Open design questions to settle in the issue before writing code:
 - **Tracker schema:** per-sensor entries under each event (e.g. `tracks.sar[...]`, `tracks.optical[...]`) with independent states. The existing SAR entries must stay readable.
@@ -147,28 +166,36 @@ Remaining gaps:
   - no git push
 - [ ] Compare its tracker and outputs against `main`'s production run for the same events.
 - [ ] Run historic SAR and optical on known events and compare against existing products.
-- [ ] Cutover:
+- [ ] Cutover (layout migration since Phase 2d):
   - tag `main` (`pre-integration`)
-  - pick a quiet window (no lock file, no events in `READY_FOR_EMAIL`)
-  - merge `develop` into `main` via PR
-  - update the GitHub Action's pip dependencies if needed
-  - watch the next few cron cycles
-- [ ] Rollback: revert the merge commit on `main`. The tracker format is unchanged, so no data migration is needed.
+  - pick a quiet window: no lock file and no events in `READY_FOR_EMAIL`; pause the local cron and disable the `coseis-cron.yml` schedule
+  - on a cutover branch from `main`: merge `develop`, keeping `develop`'s layout
+  - move the live tracker data on that branch: `git mv scripts/active_jobs/*.json active_jobs/` and `git mv scripts/job_*_partial.json active_jobs/partials/`; keep `main`'s newest `docs/maps/`
+  - merge the cutover PR into `main`
+  - processing machine:
+    - back up anything there that the cutover pull deletes (only `scripts/` utilities, if any are used there; `hyp3/`, `job_lists/` and `s3_upload_aria_share/` are not used there)
+    - pull, then `pip install -e ".[forward]"` in the `coseis-sar` env
+    - point the crontab at `ops/run_coseis_forward.sh`
+    - keep the existing topsApp products: set `COSEIS_DATA_DIR=<repo>/scripts/data` in the crontab, or move `scripts/data/` to `data/`
+  - re-enable both runners and watch the next few cron cycles
+- [ ] Rollback: revert the cutover merge commit on `main` (git also reverses the tracker-data moves) and point the crontab back at `scripts/run_coseis_forward.sh`. The tracker format is unchanged.
 - [ ] Update `CLAUDE.md` and `README.md` to describe the single unified branch.
 
 ## Backlog: longer-term improvements
 Proposed along the way and not yet scheduled. Move items into a phase when picked up.
 
 **Operations / reliability**
-- [ ] The forward lock file is configurable in Python (`COSEIS_LOCK_FILE`, Phase 2b), but `run_coseis_forward.sh` still checks the hardcoded default. Have the script read the same variable.
-- [ ] **Pin GitHub Actions dependencies.** The email workflow installs unpinned packages and `next_pass` from git HEAD; an upstream change already broke it once (`main` e71d3d0 "Fix next_pass import path"). Use a `requirements-actions.txt` with versions and a `next_pass` commit SHA.
+- [x] The forward lock file is configurable in both Python and `ops/run_coseis_forward.sh` (`COSEIS_LOCK_FILE`). **DONE 2026-10-06 (Phase 2d)**
+- [ ] **Pin forward-mode dependencies.** The email workflow installs `.[forward]`, which pulls `next_pass` from git HEAD and unpinned core packages; an upstream change already broke it once (`main` e71d3d0 "Fix next_pass import path"). Pin `next_pass` to a commit or release in `pyproject.toml` and add a constraints file for the workflow.
 - [ ] **Stale-lock detection.** If the local run is killed (SIGKILL, reboot), `/tmp/coseis_processing.lock` survives and both the bash script and Python silently skip every later run. Store the PID and timestamp in the lock and clear it if the process is gone or the lock is older than N hours.
 - [ ] **Alert on `FAILED_NEEDS_ATTENTION`** and on repeated cron failures (e.g. an email to secondary recipients), instead of relying on someone reading `log_tracking.txt`.
 - [ ] **Push-race retry.** The GitHub Action and the local cron both `pull --rebase && push` to `main`, so a simultaneous push fails that run's commit. Add a retry loop.
-- [ ] Rotate or trim `scripts/log_tracking.txt`.
-- [ ] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes.
+- [ ] Rotate or trim `logs/forward.log` (formerly `scripts/log_tracking.txt`).
+- [x] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes. **DONE 2026-10-06 (Phase 2d)**
 
 **Code quality**
+- [ ] `--eq_list` runs skip `check_significance`, so custom event lists are processed as given. Decide whether lists should be filtered too.
+- [ ] Single-date historic queries build `starttime` as `YYYY-MM-DD00:00:00` (no separator). USGS accepts it, but it's malformed; use `YYYY-MM-DDT00:00:00`.
 - [ ] `optical/element84.py` has a bare `except:` (marked `noqa: E722`), which also swallows `KeyboardInterrupt`/`SystemExit`. Narrow it to `except Exception:` with a test.
 - [ ] **Near-land filter buffers twice.** `get_coastline` buffers the land polygons by 0.5°, then `withinCoastline` buffers that again by 0.5° for every earthquake. So the effective distance is about 1°, not the documented 0.5°, and the repeated buffer is slow. Decide on the intended distance, buffer once, and update the significance tests.
 - [ ] Forward discovery fetches the same ASF frame search twice per event (`main_forward`, then `add_to_tracker`). Pass the result through.
@@ -178,14 +205,14 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 - [ ] Move tunables (magnitude/depth thresholds, coastline buffer, date windows, rake tolerance) into `aria_coseis.config` (endpoints, paths, recipients and the cloud threshold are there since 2b). Today they're scattered literals, and docstrings already disagree with the code.
 - [ ] CLI cleanup: the forward branch repeats `--job_list`, `--dates` and `--aoi` checks twice, and `--pairing` is required for forward even though only `coseismic` is used.
 - [ ] SAR historic AOI output is named `<title>_sar_toa_AOI.geojson` (an optical level in a SAR filename). Name it by sensor only.
-- [ ] Console entry point (`aria-coseis` command). `pyproject.toml` and `pip install -e .` exist since 2b; production still runs through the `scripts/coseis.py` shim.
+- [x] Console entry point: `aria-coseis` and `python -m aria_coseis`. **DONE 2026-10-06 (Phase 2d)**
 
 **Repo**
 - [ ] Rename the GitHub repo to `aria-coseis` (from `cmspeed/coseis-sar`).
   - Pages URLs **don't redirect**, so the same day: hotfix `GITHUB_PAGES_BASE_URL` on `main` (it's in `config.py` after 2b), merge `main` into `develop`, and update `origin` on both machines.
   - Links in already-sent emails break unless a stub `coseis-sar` Pages site redirects.
   - Keep the `coseis-sar` mamba env name and the processing machine's clone folder, which cron and `run_coseis_forward.sh` reference.
-- [ ] `.gitignore` lists `scripts/run_coseis_forward.sh`, but the file is tracked. Remove the stale entry or decide whether it should be per-machine.
+- [x] Stale `.gitignore` entry for the tracked cron wrapper removed; the wrapper now lives in `ops/`. **DONE 2026-10-06 (Phase 2d)**
 
 **Science / products**
 - [ ] Record per-product provenance (`coseis.py` commit SHA, parameters, scene IDs) in the outputs and HyP3 job metadata.

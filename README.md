@@ -15,31 +15,40 @@ It runs in two modes:
 ```bash
 git clone https://github.com/cmspeed/coseis-sar.git
 cd coseis-sar
-mamba env create -f environment.yml    # creates the `coseis-sar` environment
+mamba env create -f environment.yml    # creates `coseis-sar` and installs this package (editable)
 mamba activate coseis-sar
 ```
+- Without conda, `pip install -e ".[forward]"` installs the package and its core dependencies, plus `next_pass` for forward-mode alerts.
 - SAR-only use needs only the core packages. The optical packages (`earthengine-api`, `google-cloud-storage`, `pystac-client`, `gdal`) are imported only when an optical backend runs.
-- `scripts/batch_autorift.py` additionally needs `hyp3_autorift`.
+- `aria_coseis.optical.autorift` additionally needs `hyp3_autorift`.
 
 ## Usage
-Run from the `scripts/` directory. Outputs (`data/`, `active_jobs/`, job lists, maps) are written relative to it.
+Run from the repository root. `aria-coseis` is equivalent to `python -m aria_coseis`.
 
 ```bash
-cd scripts
-
 # Historic SAR: HyP3 job list for every significant event in a date range
-python coseis.py --historic --dates 2014-10-01 2026-07-31 --pairing coseismic --job_list
+python -m aria_coseis --historic --dates 2014-10-01 2026-07-31 --pairing coseismic --job_list
 
 # Historic optical: Sentinel-2 composites from Google Earth Engine, then autoRIFT
-python coseis.py --historic --dates 2023-02-06 --sensor sentinel-2 --optical_backend gee --optical_level toa
-python batch_autorift.py [--filter] [--data_dir DIR]
+python -m aria_coseis --historic --dates 2023-02-06 --sensor sentinel-2 --optical_backend gee --optical_level toa
+python -m aria_coseis.optical.autorift [--filter] [--data_dir DIR]
 
 # A custom list of events instead of a date range
-python coseis.py --eq_list events.json --sensor landsat --optical_backend gee
+python -m aria_coseis --eq_list events.json --sensor landsat --optical_backend gee
 
 # Forward mode (see Operations)
-python coseis.py --forward --pairing coseismic --send_email
+python -m aria_coseis --forward --pairing coseismic --send_email
 ```
+
+Where files go (all relative to the repository root, each overridable with an environment variable):
+
+| Location | Contents | Tracked | Override |
+|---|---|---|---|
+| `outputs/` | AOIs, frame maps, job lists, significance tables, next-pass results | no | `COSEIS_OUTPUT_DIR` |
+| `data/` | topsApp products, Earth Engine downloads and autoRIFT manifests | no | `COSEIS_DATA_DIR` |
+| `active_jobs/` | forward-mode tracker, one JSON per event; `partials/` holds jobs awaiting post-event data | yes | `COSEIS_TRACKING_DIR`, `COSEIS_PARTIALS_DIR` |
+| `docs/maps/` | overpass maps published on GitHub Pages | yes | `COSEIS_MAPS_DIR` |
+| `logs/` | forward-mode cron log | no | — |
 
 | Option | Meaning |
 |---|---|
@@ -58,29 +67,31 @@ python coseis.py --forward --pairing coseismic --send_email
 **AOI.** The AOI is the USGS finite-fault model when one exists (buffered 0.15° for optical runs), otherwise a 1° box around the epicenter.
 
 ## Operations (forward mode)
-Two scheduled runners share the tracker files in `scripts/active_jobs/` on the `main` branch:
+Two scheduled runners share the tracker files in `active_jobs/` on the `main` branch:
 
 - **GitHub Actions** (`.github/workflows/coseis-cron.yml`) checks USGS for new events and starts tracking them. It publishes overpass maps to `docs/maps/` (GitHub Pages) and emails alerts and processing results.
-- **The local cron job** on the processing machine (`scripts/run_coseis_forward.sh`) checks ASF for post-event SLCs and runs `topsApp`.
+- **The local cron job** on the processing machine (`ops/run_coseis_forward.sh`) checks ASF for post-event SLCs and runs `topsApp`.
 
 Email settings come from environment variables: `GMAIL_USER`, `GMAIL_APP_PSWD`, `COSEIS_PRIMARY_RECIPIENTS` (new events) and `COSEIS_SECONDARY_RECIPIENTS` (processing results).
 
-`COSEIS_DATA_DIR`, `COSEIS_TRACKING_DIR` and `COSEIS_LOCK_FILE` override the output directory, the tracker directory and the lock file.
+`COSEIS_LOCK_FILE` overrides the lock file that prevents overlapping forward runs (default `/tmp/coseis_processing.lock`).
 
 ## Code layout
 ```
 src/aria_coseis/   package: config, usgs, significance, aoi, notify,
-                   sar/ (search, pairing, topsapp), optical/ (copernicus, element84, gee, jobs),
-                   tracking, pipeline, modes, cli
-scripts/coseis.py  command-line entry point (adds src/ to the path and calls aria_coseis.cli)
+                   sar/ (search, pairing, topsapp), optical/ (copernicus, element84, gee, jobs, autorift),
+                   tracking, pipeline, modes, cli (python -m aria_coseis)
 tests/             pytest suite; HTTP is replayed from recorded cassettes
+active_jobs/       forward-mode tracker (written by the runners)
+docs/maps/         overpass maps on GitHub Pages (written by the runners)
+ops/               processing-machine cron wrapper
 ```
 
 ## Development
 ```bash
-pip install -r requirements-test.txt
+pip install -e ".[test]"
 pytest                                   # offline: replays tests/cassettes/
-ruff check src tests scripts/coseis.py && ruff format --check src tests scripts/coseis.py
+ruff check src tests && ruff format --check src tests
 ```
 - To record a cassette for a new test, run `pytest --record-mode=new_episodes`.
 - To refresh golden files after an intended output change, run `UPDATE_GOLDEN=1 pytest` and review the diff.
