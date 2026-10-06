@@ -22,7 +22,7 @@ dependencies:
   - google-cloud-storage
   - pystac-client
   - gdal
-  # scripts/batch_autorift.py additionally requires hyp3_autorift
+  # aria_coseis.optical.autorift additionally requires hyp3_autorift
   - pip
   - pip:
-      - git+https://github.com/OPERA-Cal-Val/next_pass.git
+      - -e .[forward]   # aria_coseis itself (editable) + next_pass

@@ -27,12 +27,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Same packages as coseis-cron.yml, so a new import that the cron workflow
-          # would lack also fails here (next_pass is faked in the tests)
-          pip install asf_search beautifulsoup4 python-dateutil requests folium geojson geopandas lxml premailer shapely tabulate yagmail
-          # Historic mode's frame map (GeoDataFrame.explore) also needs these
-          pip install matplotlib mapclassify
-          pip install -r requirements-test.txt
+          # The package's core dependencies (as declared in pyproject.toml) plus test tools;
+          # next_pass is faked in the tests and optical packages are imported lazily
+          pip install -e ".[test]"
 
       - name: Lint and format check (ruff)
         run: |

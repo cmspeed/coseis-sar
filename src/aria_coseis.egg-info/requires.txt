@@ -1,0 +1,23 @@
+folium
+geojson
+geopandas
+mapclassify
+matplotlib
+python-dateutil
+requests
+shapely
+yagmail
+
+[forward]
+next-pass @ git+https://github.com/OPERA-Cal-Val/next_pass.git
+
+[optical]
+earthengine-api
+google-cloud-storage
+pystac-client
+
+[test]
+pytest
+pytest-recording
+time-machine
+ruff

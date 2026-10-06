@@ -22,7 +22,8 @@ def main() -> None:
         python coseis.py --forward --pairing coseismic --send_email
     """
     parser = argparse.ArgumentParser(
-        description="Run historic, forward, or custom-list processing based on input arguments."
+        prog="aria-coseis",
+        description="Run historic, forward, or custom-list processing based on input arguments.",
     )
 
     # Use a mutually exclusive group so users must pick only processing mode

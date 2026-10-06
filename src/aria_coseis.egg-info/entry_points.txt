@@ -1,0 +1,2 @@
+[console_scripts]
+aria-coseis = aria_coseis.cli:main
