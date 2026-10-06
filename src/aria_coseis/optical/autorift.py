@@ -1,3 +1,4 @@
+"""Batch autoRIFT on Google Earth Engine composites: `python -m aria_coseis.optical.autorift`."""
 import os
 import json
 import glob
@@ -12,6 +13,8 @@ from hyp3_autorift.vend.testautoRIFT import generateAutoriftProduct
 from hyp3_autorift.process import apply_fft_filter, apply_wallis_nodata_fill_filter
 
 import numpy as np
+
+from aria_coseis import config
 if not hasattr(np.lib, 'pad'):
     np.lib.pad = np.pad
 
@@ -566,11 +569,14 @@ def process_event(manifest_path, enable_filtering=False):
         os.chdir(original_dir)
 
 def main():
-    parser = argparse.ArgumentParser(description="Run autoRIFT batch processing on GEE optical downloads.")
+    parser = argparse.ArgumentParser(
+        prog="aria-coseis-autorift",
+        description="Run autoRIFT batch processing on GEE optical downloads.",
+    )
     parser.add_argument("--filter", action="store_true", help="Enable FFT/Wallis pre-filtering for optical imagery.")
-    parser.add_argument("--data_dir", type=Path, default=Path(__file__).resolve().parent / "data",
-                        help="coseis.py data directory containing GEE_Optical_Downloads/. "
-                             "Default: scripts/data (where coseis.py writes when run from scripts/).")
+    parser.add_argument("--data_dir", type=Path, default=Path(config.root_dir),
+                        help="Data directory containing GEE_Optical_Downloads/. "
+                             "Default: the aria_coseis data directory (COSEIS_DATA_DIR, or ./data).")
     args = parser.parse_args()
 
     # Start timer

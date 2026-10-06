@@ -29,6 +29,7 @@ test = ["pytest", "pytest-recording", "time-machine", "ruff"]
 
 [project.scripts]
 aria-coseis = "aria_coseis.cli:main"
+aria-coseis-autorift = "aria_coseis.optical.autorift:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
