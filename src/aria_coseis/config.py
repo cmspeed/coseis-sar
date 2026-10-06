@@ -27,8 +27,18 @@ root_dir = os.environ.get("COSEIS_DATA_DIR") or os.path.join(os.getcwd(), "data"
 # Global variables
 OPTICAL_CLOUD_THRESHOLD = 20.0  # Maximum cloud cover percentage for optical data
 
-# Forward-mode tracker directory (relative to the working directory unless absolute)
+# Paths below are relative to the working directory unless absolute; cron and GitHub Actions
+# run from the repository root.
+
+# Forward-mode tracker (one JSON per event) and partial HyP3 job files awaiting post-event data
 TRACKING_DIR = os.environ.get("COSEIS_TRACKING_DIR") or "active_jobs"
+PARTIALS_DIR = os.environ.get("COSEIS_PARTIALS_DIR") or os.path.join(TRACKING_DIR, "partials")
+
+# Overpass maps published on GitHub Pages (served from docs/ on main)
+MAPS_DIR = os.environ.get("COSEIS_MAPS_DIR") or os.path.join("docs", "maps")
+
+# Untracked run outputs: AOIs, frame maps, job lists, significance tables, next-pass results
+OUTPUT_DIR = os.environ.get("COSEIS_OUTPUT_DIR") or "outputs"
 
 # Prevents overlapping forward runs; run_coseis_forward.sh checks the default path too
 LOCK_FILE = os.environ.get("COSEIS_LOCK_FILE") or "/tmp/coseis_processing.lock"
@@ -46,3 +56,9 @@ def get_recipients_from_env(var_name: str) -> list[str]:
 # Load recipients from environment variables
 PRIMARY_RECIPIENTS = get_recipients_from_env("COSEIS_PRIMARY_RECIPIENTS")
 SECONDARY_RECIPIENTS = get_recipients_from_env("COSEIS_SECONDARY_RECIPIENTS")
+
+
+def output_path(filename: str) -> str:
+    """Path for a run output file inside OUTPUT_DIR (created if needed)."""
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    return os.path.join(OUTPUT_DIR, filename)

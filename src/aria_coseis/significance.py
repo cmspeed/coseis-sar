@@ -12,6 +12,7 @@ from shapely.geometry import LineString, MultiPolygon, Point, Polygon, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import linemerge
 
+from aria_coseis import config
 from aria_coseis.config import coastline_api
 from aria_coseis.usgs import get_event_rake
 from aria_coseis.utils import convert_time
@@ -79,7 +80,7 @@ def get_coastline(coastline_api: str) -> BaseGeometry | None:
         }
 
         # Save to a GeoJSON file
-        output_file = "coastline_buffered.geojson"
+        output_file = config.output_path("coastline_buffered.geojson")
         with open(output_file, "w") as f:
             json.dump(geojson_data, f, indent=2)
 
@@ -259,10 +260,17 @@ def significant_earthquakes_to_geojson_and_csv(
 
     # Output the data to GeoJSON and CSV files
     if start_date and end_date:
-        with open(f"significant_earthquakes_{start_date}_to_{end_date}_M6.geojson", "w") as f:
+        with open(
+            config.output_path(f"significant_earthquakes_{start_date}_to_{end_date}_M6.geojson"),
+            "w",
+        ) as f:
             geojson.dump(geojson_data, f)
 
-        with open(f"significant_earthquakes_{start_date}_to_{end_date}.csv", "w", newline="") as f:
+        with open(
+            config.output_path(f"significant_earthquakes_{start_date}_to_{end_date}.csv"),
+            "w",
+            newline="",
+        ) as f:
             writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
             writer.writerow(
                 [
@@ -294,10 +302,12 @@ def significant_earthquakes_to_geojson_and_csv(
                     ]
                 )
     else:
-        with open(f"significant_earthquakes_{start_date}.geojson", "w") as f:
+        with open(config.output_path(f"significant_earthquakes_{start_date}.geojson"), "w") as f:
             geojson.dump(geojson_data, f)
 
-        with open(f"significant_earthquakes_{start_date}.csv", "w", newline="") as f:
+        with open(
+            config.output_path(f"significant_earthquakes_{start_date}.csv"), "w", newline=""
+        ) as f:
             writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
             writer.writerow(
                 [

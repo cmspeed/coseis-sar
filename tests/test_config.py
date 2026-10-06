@@ -9,7 +9,14 @@ import pytest
 
 import coseis_api as api
 
-OVERRIDES = ("COSEIS_DATA_DIR", "COSEIS_TRACKING_DIR", "COSEIS_LOCK_FILE")
+OVERRIDES = (
+    "COSEIS_DATA_DIR",
+    "COSEIS_TRACKING_DIR",
+    "COSEIS_PARTIALS_DIR",
+    "COSEIS_MAPS_DIR",
+    "COSEIS_OUTPUT_DIR",
+    "COSEIS_LOCK_FILE",
+)
 
 
 @pytest.fixture
@@ -34,6 +41,9 @@ def test_defaults(reload_config, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     config = reload_config({})
     assert config.root_dir == os.path.join(str(tmp_path), "data")
     assert config.TRACKING_DIR == "active_jobs"
+    assert config.PARTIALS_DIR == os.path.join("active_jobs", "partials")
+    assert config.MAPS_DIR == os.path.join("docs", "maps")
+    assert config.OUTPUT_DIR == "outputs"
     assert config.LOCK_FILE == "/tmp/coseis_processing.lock"
 
 
@@ -43,11 +53,18 @@ def test_environment_overrides(reload_config, tmp_path: Path) -> None:
             "COSEIS_DATA_DIR": str(tmp_path / "shadow_data"),
             "COSEIS_TRACKING_DIR": str(tmp_path / "shadow_jobs"),
             "COSEIS_LOCK_FILE": str(tmp_path / "shadow.lock"),
+            "COSEIS_MAPS_DIR": str(tmp_path / "shadow_maps"),
+            "COSEIS_OUTPUT_DIR": str(tmp_path / "shadow_outputs"),
         }
     )
     assert config.root_dir == str(tmp_path / "shadow_data")
     assert config.TRACKING_DIR == str(tmp_path / "shadow_jobs")
+    assert config.PARTIALS_DIR == str(
+        tmp_path / "shadow_jobs" / "partials"
+    )  # follows TRACKING_DIR
     assert config.LOCK_FILE == str(tmp_path / "shadow.lock")
+    assert config.MAPS_DIR == str(tmp_path / "shadow_maps")
+    assert config.output_path("x.json") == str(tmp_path / "shadow_outputs" / "x.json")
 
 
 def test_forward_run_uses_configured_lock_file(

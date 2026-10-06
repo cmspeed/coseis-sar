@@ -22,7 +22,7 @@ EVENT_DATES = {
 
 def collect_outputs(workdir: Path) -> Dict[str, Any]:
     def only(pattern: str) -> Any:
-        matches = glob.glob(str(workdir / pattern))
+        matches = glob.glob(str(workdir / "outputs" / pattern))
         assert len(matches) == 1, f"expected one {pattern}, found {matches}"
         return read_json(Path(matches[0]))
 
@@ -31,7 +31,7 @@ def collect_outputs(workdir: Path) -> Dict[str, Any]:
         "earthquake_info": only("earthquake_info_*.json"),
         "aois": {
             Path(p).name: read_json(Path(p))
-            for p in sorted(glob.glob(str(workdir / "*_AOI.geojson")))
+            for p in sorted(glob.glob(str(workdir / "outputs" / "*_AOI.geojson")))
         },
     }
 
@@ -62,5 +62,5 @@ def test_without_job_list_writes_pair_json_and_runs_nothing(
     outputs = collect_outputs(workdir)
     # Without --job_list, historic mode writes topsApp pair JSON plus frame map files; it does not run topsApp
     assert topsapp["calls"] == []
-    assert glob.glob(str(workdir / "*_frames.geojson"))
+    assert glob.glob(str(workdir / "outputs" / "*_frames.geojson"))
     golden("historic_sar/tibet_2025_pair_json", outputs)
