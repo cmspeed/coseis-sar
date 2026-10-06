@@ -19,6 +19,7 @@ src/aria_coseis.egg-info/entry_points.txt
 src/aria_coseis.egg-info/requires.txt
 src/aria_coseis.egg-info/top_level.txt
 src/aria_coseis/optical/__init__.py
+src/aria_coseis/optical/autorift.py
 src/aria_coseis/optical/copernicus.py
 src/aria_coseis/optical/element84.py
 src/aria_coseis/optical/gee.py
