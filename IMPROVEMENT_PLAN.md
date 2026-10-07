@@ -20,10 +20,10 @@
 | Phase | State | Branch / PR |
 |---|---|---|
 | 1. Reconcile `develop` with `main` | **done** 2026-10-01 | issue #27 → PR #28 |
-| 2. Tests, package, layout | 2a–2c **done** 2026-10-05; 2d in review | 2a: #29 → PR #31; 2b: #30 → PR #32; 2c: #33 → PR #34; 2d: #35 → PR |
+| 2. Tests, package, layout | **done** (2a–2c 2026-10-05, 2d 2026-10-06) | 2a: #29 → PR #31; 2b: #30 → PR #32; 2c: #33 → PR #34; 2d: #35 → PR #36 |
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
-| 5. Validation + cutover | not started | — |
+| 5. Validation + cutover | cutover in progress 2026-10-07 | branch `cutover` → PR into `main` |
 
 Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
 
@@ -112,7 +112,7 @@ Two issues, two PRs into `develop`. 2a must merge before 2b starts.
 - [x] Dead code removed: `scripts/coseis_sar.py`, `check_for_new_data`, a commented-out debug print. `create_directories_from_json` is kept pending a decision (see backlog).
 - [x] `README.md` rewritten for the package layout and current CLI.
 
-**2d. Repository layout.** **DONE 2026-10-06 (issue #35)**: GitHub holds only what historic and forward mode need. Decisions (2026-10-06): partial jobs in `active_jobs/partials/`, untracked outputs in `outputs/`, cron wrapper tracked in `ops/`, archive tag plus a local copy, and no routine `main` → `develop` syncs.
+**2d. Repository layout.** **DONE 2026-10-06 (issue #35 → PR #36)**: GitHub holds only what historic and forward mode need. Decisions (2026-10-06): partial jobs in `active_jobs/partials/`, untracked outputs in `outputs/`, cron wrapper tracked in `ops/`, archive tag plus a local copy, and no routine `main` → `develop` syncs.
 ```
 .github/workflows/   coseis-cron.yml, tests.yml, test-email.yml
 src/aria_coseis/     package; python -m aria_coseis (aria-coseis); optical/autorift.py (was scripts/batch_autorift.py)
@@ -158,28 +158,30 @@ Remaining gaps:
 - Lint (`ruff`) in CI moved to 2c.
 
 ## Phase 5: Validation and cutover to `main`
-- [ ] **Shadow-run** `develop`'s forward mode on the processing machine for 1–2 weeks:
-  - separate worktree
-  - separate tracking dir
-  - `--do_processing` against a scratch data dir
-  - emails to the test-recipient workflow only
-  - no git push
-- [ ] Compare its tracker and outputs against `main`'s production run for the same events.
-- [ ] Run historic SAR and optical on known events and compare against existing products.
-- [ ] Cutover (layout migration since Phase 2d):
-  - tag `main` (`pre-integration`)
-  - pick a quiet window: no lock file and no events in `READY_FOR_EMAIL`; pause the local cron and disable the `coseis-cron.yml` schedule
-  - on a cutover branch from `main`: merge `develop`, keeping `develop`'s layout
-  - move the live tracker data on that branch: `git mv scripts/active_jobs/*.json active_jobs/` and `git mv scripts/job_*_partial.json active_jobs/partials/`; keep `main`'s newest `docs/maps/`
-  - merge the cutover PR into `main`
-  - processing machine:
-    - back up anything there that the cutover pull deletes (only `scripts/` utilities, if any are used there; `hyp3/`, `job_lists/` and `s3_upload_aria_share/` are not used there)
-    - pull, then `pip install -e ".[forward]"` in the `coseis-sar` env
-    - point the crontab at `ops/run_coseis_forward.sh`
-    - keep the existing topsApp products: set `COSEIS_DATA_DIR=<repo>/scripts/data` in the crontab, or move `scripts/data/` to `data/`
-  - re-enable both runners and watch the next few cron cycles
-- [ ] Rollback: revert the cutover merge commit on `main` (git also reverses the tracker-data moves) and point the crontab back at `scripts/run_coseis_forward.sh`. The tracker format is unchanged.
-- [ ] Update `CLAUDE.md` and `README.md` to describe the single unified branch.
+**Decision (2026-10-06): cut over directly, without a week-long shadow run.** Forward discovery and processing are already checked against real production runs (Phase 2a), and they also passed against `main`'s own code. A smoke test on the processing machine covers its environment instead, and a brief cron hiccup is acceptable. The significance criteria are deliberately left as they are, to be revisited later together with the manuscript.
+
+- [x] Health check: no job running, no lock file; the next Tamarindo acquisition (2026-10-08) is after the cutover. **DONE 2026-10-07**
+- [x] Smoke test on the processing machine: temporary clone of `develop` run with `PYTHONPATH=src` and the `COSEIS_*` overrides on a scratch copy of the live tracker, `--forward --process_only --do_processing`. Ran cleanly: no post-event data, tracker unchanged. **DONE 2026-10-07**
+- [x] Paused the local cron and disabled the `coseis-cron.yml` workflow. **DONE 2026-10-07**
+- [x] Tagged `main` as `pre-cutover` (595ed24). **DONE 2026-10-07**
+- [x] Cutover branch from `main`:
+  - `develop` merged with an explicit merge commit, so the cutover can be reverted as a single commit
+  - the merge removes `scripts/`, so the live tracker (`us6000tymj.json`) and its two partial jobs were restored from `pre-cutover`, byte-identical, and moved into `active_jobs/` and `active_jobs/partials/`
+  - verified that each tracker entry's partial file resolves, and that a `--process_only` run through the new code on a copy leaves the tracker unchanged
+
+  **DONE 2026-10-07**
+- [ ] Cutover PR into `main`: CI green, then merge with a merge commit.
+- [ ] Processing machine:
+  - `git pull` on `main`
+  - `pip install -e . --no-deps` in `coseis-sar` (`--no-deps` so pip doesn't replace conda-installed packages)
+  - check `python -m aria_coseis --help`
+  - crontab: `COSEIS_DATA_DIR=<repo>/scripts/data <repo>/ops/run_coseis_forward.sh`, keeping the existing topsApp products in place
+  - run the wrapper once by hand; check `logs/forward.log` and `git log`
+- [ ] Re-enable the `coseis-cron.yml` workflow and trigger it once by hand (exercises discovery and the `.[forward]` install); watch the next few cycles.
+- [ ] First real processing on the new code: Tamarindo (A165/D157) once the 2026-10-08 acquisition is available.
+- [ ] Rollback if needed: revert the cutover merge commit on `main` (this also reverses the tracker moves) and point the crontab back at `scripts/run_coseis_forward.sh`.
+- [ ] After cutover: decide whether to keep `develop` as the integration branch or merge issue branches directly into `main`; update `CLAUDE.md` and the ground rules accordingly.
+- Deferred: historic SAR and optical comparisons against existing products (covered for SAR by the golden tests; optical with Phase 4).
 
 ## Backlog: longer-term improvements
 Proposed along the way and not yet scheduled. Move items into a phase when picked up.
