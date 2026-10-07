@@ -1,11 +1,11 @@
 name: Tests
 
-# Runs on pull requests and on pushes to develop only; never on a schedule,
-# so it cannot interfere with the forward-mode cron workflow.
+# Runs on pull requests and on pushes to main (e.g. merges); never on a schedule.
+# Bot commits from the forward-mode runners carry [skip ci], so they don't trigger it.
 on:
   pull_request:
   push:
-    branches: [develop]
+    branches: [main]
 
 jobs:
   pytest:

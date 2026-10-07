@@ -1,20 +1,18 @@
 # COSEIS Improvement Plan
 
-**Goal:** a single `main` that does SAR and optical, is modular and tested, and supports optical in forward mode. Get there without touching `main` until the full set of changes has been tested.
+**Goal:** a single `main` that does SAR and optical, is modular and tested, and supports optical in forward mode. Phases 1–2 built this on a separate `develop` branch; Phase 5 cut it over into production on 2026-10-07. Remaining: Phase 3 (optical forward mode) and Phase 4 (test gaps).
 
-## Ground rules
-1. **`main` is frozen for code** until the cutover (Phase 5). Only bot commits (`active_jobs/`, maps) and urgent SAR hotfixes go to `main`.
-2. **`develop` is the integration branch.** Every phase is one or more GitHub issues. Each issue gets a branch named by its issue number, cut from `develop`, with a PR back into `develop` (merge commit, not squash/rebase). No PR targets `main` until Phase 5.
-3. **Hotfix flow:** fix on `main` in a small PR, then bring it to `develop` right away.
-   - **Since Phase 2b, git can't carry `coseis.py` edits across.** `main` still has the single `scripts/coseis.py`, while `develop`'s code lives in `src/aria_coseis/`.
-   - So **port the fix by hand** into the matching `aria_coseis` module on a `develop` branch, with a test that covers it. Don't merge `main` into `develop` (see rule 4).
-   - Keep `main` hotfixes rare and small until cutover.
-4. **No routine `main` → `develop` syncs** *(since Phase 2d, decided 2026-10-06)*. `main`'s new commits are bot tracker/map data, which `develop` doesn't carry: its `active_jobs/` holds only placeholders. Hotfixes are ported by hand (rule 3). The live tracker data moves into the new layout at cutover (Phase 5).
-5. **Commits within a PR are small and single-purpose.** In refactor PRs, a commit that moves code never also changes behavior.
-6. **For SAR and shared code, `main` wins.** `main` is the stable reference for SAR and for logic both modes share. `develop` may add optical-only behavior but must not change SAR results. *(decided 2026-10-01)*
-7. **SAR/forward output changes must be deliberate.** The Phase 2a tests check output against `main`'s production states (`tests/fixtures/production/`) and golden files. A change that alters them must update them in the same PR, with the reason in the commit message.
-8. **Recorded HTTP is a snapshot.** Tests replay USGS/ASF/Copernicus as recorded. Re-recording a cassette (e.g. after USGS revises an event) can change golden files; review those diffs as data updates, not regressions.
-9. **Keep the external interface stable.** The CLI flags, the tracker JSON format and the email env vars must keep working through every phase. Since Phase 2d, `develop` runs as `python -m aria_coseis ...` from the repository root (`ops/run_coseis_forward.sh`, `coseis-cron.yml`); production keeps `cd scripts && python coseis.py ...` on `main` until the cutover switches both runners together.
+## Ground rules (since the cutover, 2026-10-07)
+1. **Feature branches into `main`.** Each change gets a branch (named by its GitHub issue number when there is one) and a PR into `main`, merged with a merge commit after CI passes. The `develop` branch is retired.
+2. **Merging to `main` deploys.** The GitHub Action runs `main` on its next scheduled run, and the processing machine pulls `main` at the start of every cron cycle (the package is installed editable, so code changes need no reinstall).
+   - For changes to forward mode, the tracker or the runners: merge right after a cron cycle, or pause the runners first. Then watch the next cycle (`logs/forward.log`, the Actions tab).
+   - A new dependency must be added to `pyproject.toml` and installed on the processing machine (`pip install <pkg>` or conda) before merging.
+3. **Commits within a PR are small and single-purpose.** In refactor PRs, a commit that moves code never also changes behavior.
+4. **SAR/forward output changes must be deliberate.** Tests check output against real production states (`tests/fixtures/production/`) and golden files. A change that alters them must update them in the same PR, with the reason in the commit message.
+5. **Recorded HTTP is a snapshot.** Tests replay USGS/ASF/Copernicus as recorded. Re-recording a cassette (e.g. after USGS revises an event) can change golden files; review those diffs as data updates, not regressions.
+6. **Keep the external interface stable.** The CLI flags, the email env vars and the tracker JSON format must keep working. A tracker format change needs a migration of the live files in `active_jobs/`, done in the same PR.
+
+*Before the cutover, `main` was frozen and work went through a `develop` integration branch, with hand-ported hotfixes and "`main` wins" for SAR behavior. Those rules are retired; the phase notes below still refer to them.*
 
 ## Status
 | Phase | State | Branch / PR |
@@ -23,15 +21,9 @@
 | 2. Tests, package, layout | **done** (2a–2c 2026-10-05, 2d 2026-10-06) | 2a: #29 → PR #31; 2b: #30 → PR #32; 2c: #33 → PR #34; 2d: #35 → PR #36 |
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
-| 5. Validation + cutover | cutover in progress 2026-10-07 | branch `cutover` → PR into `main` |
+| 5. Validation + cutover | **done** 2026-10-07 | branch `cutover` → PR #37; housekeeping → PR |
 
 Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
-
-### Why `main` stays safe
-- Scheduled GitHub Actions only run on the default branch (`main`), so PRs and pushes to `develop` never trigger the email workflow.
-- The local cron runs `git checkout main && git pull` in its own clone, so branch work done in another clone (e.g. this laptop) can't affect it.
-- If optical work must happen on the processing machine, use a separate worktree (`git worktree add ../coseis-dev develop`) so cron's `git checkout main` doesn't switch away from it.
-- CI (`.github/workflows/tests.yml`) runs only on pull requests and pushes to `develop`.
 
 ## Phase 1: Reconcile `develop` with `main`
 Make `develop` a strict superset of `main` (all of `main`'s SAR and forward fixes plus the optical work) before doing anything else. Refactoring two diverged codebases is much harder than refactoring one.
@@ -170,17 +162,18 @@ Remaining gaps:
   - verified that each tracker entry's partial file resolves, and that a `--process_only` run through the new code on a copy leaves the tracker unchanged
 
   **DONE 2026-10-07**
-- [ ] Cutover PR into `main`: CI green, then merge with a merge commit.
-- [ ] Processing machine:
-  - `git pull` on `main`
+- [x] Cutover PR into `main`: CI green, merged with a merge commit. **DONE 2026-10-07 (PR #37, 3b9a0c5)**
+  - A temporary GitHub server error blocked creating branches for about 30 minutes; nothing was affected.
+- [x] Processing machine: **DONE 2026-10-07**
+  - `origin` set to `cmspeed/coseis-sar`; `git pull` on `main`
   - `pip install -e . --no-deps` in `coseis-sar` (`--no-deps` so pip doesn't replace conda-installed packages)
   - check `python -m aria_coseis --help`
   - crontab: `COSEIS_DATA_DIR=<repo>/scripts/data <repo>/ops/run_coseis_forward.sh`, keeping the existing topsApp products in place
-  - run the wrapper once by hand; check `logs/forward.log` and `git log`
-- [ ] Re-enable the `coseis-cron.yml` workflow and trigger it once by hand (exercises discovery and the `.[forward]` install); watch the next few cycles.
+  - run the wrapper once by hand; check `logs/forward.log` and `git log`. The first attempt failed on stale smoke-test `COSEIS_*` exports in that shell; it was clean after unsetting them.
+- [x] Re-enabled the `coseis-cron.yml` workflow and triggered it once by hand: install of `.[forward]`, discovery, no changes to commit. **DONE 2026-10-07**
 - [ ] First real processing on the new code: Tamarindo (A165/D157) once the 2026-10-08 acquisition is available.
-- [ ] Rollback if needed: revert the cutover merge commit on `main` (this also reverses the tracker moves) and point the crontab back at `scripts/run_coseis_forward.sh`.
-- [ ] After cutover: decide whether to keep `develop` as the integration branch or merge issue branches directly into `main`; update `CLAUDE.md` and the ground rules accordingly.
+- Rollback (not needed so far): revert the cutover merge commit 3b9a0c5 on `main` (this also reverses the tracker moves) and point the crontab back at `scripts/run_coseis_forward.sh`. The `pre-cutover` tag marks the old state.
+- [x] Branch model after cutover: feature branches with PRs into `main`; `develop` retired and deleted. Ground rules, README (with a new `ops/README.md`), CI trigger and the wrapper's conda setup updated in the housekeeping PR. **DONE 2026-10-07**
 - Deferred: historic SAR and optical comparisons against existing products (covered for SAR by the golden tests; optical with Phase 4).
 
 ## Backlog: longer-term improvements
