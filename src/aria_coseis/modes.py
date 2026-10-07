@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -163,6 +164,39 @@ def main_historic(
             print(f"No significant earthquakes found between {start_date} and {end_date}.")
 
 
+# A legacy lock file without a process ID is treated as stale after this long
+LEGACY_LOCK_MAX_AGE_HOURS = 12.0
+
+
+def lock_is_held(lock_file: str) -> bool:
+    """
+    True if another forward run holds `lock_file`. The lock records the owner's process ID; if that
+    process no longer exists (e.g. the run was killed), the lock is stale and is removed.
+    """
+    try:
+        with open(lock_file) as f:
+            fields = f.read().split()
+    except FileNotFoundError:
+        return False
+
+    if fields and fields[0].isdigit():
+        try:
+            os.kill(int(fields[0]), 0)  # signal 0: existence check only
+            return True
+        except PermissionError:  # exists, owned by another user
+            return True
+        except ProcessLookupError:
+            pass
+    else:
+        age_hours = (time.time() - os.path.getmtime(lock_file)) / 3600
+        if age_hours < LEGACY_LOCK_MAX_AGE_HOURS:
+            return True
+
+    print(f"Removing stale lock file {lock_file}: the run that created it is no longer active.")
+    os.remove(lock_file)
+    return False
+
+
 def main_forward(
     pairing_mode: str | None = None,
     resolution: int = 30,
@@ -184,12 +218,12 @@ def main_forward(
     # A lock file to prevent overlapping runs
     lock_file = config.LOCK_FILE
 
-    if os.path.exists(lock_file):
+    if lock_is_held(lock_file):
         print("Previous processing run still active. Exiting.")
         return
     try:
         with open(lock_file, "w") as f:
-            f.write("running")
+            f.write(f"{os.getpid()} {datetime.now(timezone.utc).isoformat()}\n")
 
         print("=========================================")
         print("Running cronjob to check for new earthquakes...")

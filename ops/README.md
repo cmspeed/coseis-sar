@@ -47,6 +47,7 @@ Repository secrets used by `coseis-cron.yml`:
   - recent `[skip ci]` commits on `main`
 - **Stuck runs:** the lock file `/tmp/coseis_processing.lock` (override with `COSEIS_LOCK_FILE`) prevents overlapping runs. If a run was killed, the lock stays behind and every later run exits immediately. Delete it once you're sure nothing is running.
 - **Don't hand-edit `active_jobs/` while the runners are active.** Both commit to it.
+- **Push conflicts:** both runners retry their push, rebasing onto each other's commits. If the processing machine can't push because of a real conflict (both edited the same tracker lines), `logs/forward.log` shows "WARNING: local tracker commits are not on GitHub yet". In that case, resolve it by hand in the production clone (`git pull --rebase origin main`, fix the JSON, `git rebase --continue`, `git push`) while the cron is paused. A failed push in the Action fails that workflow run.
 
 ## Overrides
 Every path is relative to the repository root and can be overridden with an environment variable:

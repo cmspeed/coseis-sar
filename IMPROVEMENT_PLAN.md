@@ -182,9 +182,9 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 **Operations / reliability**
 - [x] The forward lock file is configurable in both Python and `ops/run_coseis_forward.sh` (`COSEIS_LOCK_FILE`). **DONE 2026-10-06 (Phase 2d)**
 - [ ] **Pin forward-mode dependencies.** The email workflow installs `.[forward]`, which pulls `next_pass` from git HEAD and unpinned core packages; an upstream change already broke it once (`main` e71d3d0 "Fix next_pass import path"). Pin `next_pass` to a commit or release in `pyproject.toml` and add a constraints file for the workflow.
-- [ ] **Stale-lock detection.** If the local run is killed (SIGKILL, reboot), `/tmp/coseis_processing.lock` survives and both the bash script and Python silently skip every later run. Store the PID and timestamp in the lock and clear it if the process is gone or the lock is older than N hours.
+- [x] **Stale-lock detection.** The lock records its owner's process ID; a lock whose process is gone (or a legacy lock older than 12 h) is removed by both the wrapper and Python. **DONE 2026-10-07**
 - [ ] **Alert on `FAILED_NEEDS_ATTENTION`** and on repeated cron failures (e.g. an email to secondary recipients), instead of relying on someone reading `log_tracking.txt`.
-- [ ] **Push-race retry.** The GitHub Action and the local cron both `pull --rebase && push` to `main`, so a simultaneous push fails that run's commit. Add a retry loop.
+- [x] **Push-race retry.** Both runners rebase and retry their push up to three times. The wrapper also pushes commits left from an earlier failed push and aborts cleanly on a real conflict (logged); the Action fails visibly. **DONE 2026-10-07**
 - [ ] Rotate or trim `logs/forward.log` (formerly `scripts/log_tracking.txt`).
 - [x] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes. **DONE 2026-10-06 (Phase 2d)**
 

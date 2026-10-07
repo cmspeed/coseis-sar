@@ -6,7 +6,9 @@ so these tests also check that this branch reproduces what `main` did.
 """
 
 import glob
+import os
 import shutil
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -243,3 +245,48 @@ def test_lock_file_blocks_a_second_run(workdir: Path, no_lock: None, http_log: L
         assert not (workdir / "active_jobs").exists()
     finally:
         LOCK_FILE.unlink()
+
+
+def dead_pid() -> int:
+    """Process ID of a process that has already exited."""
+    import subprocess
+    import sys
+
+    # Popen, not subprocess.run: run() is replaced by the topsApp fake
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    proc.wait()
+    return proc.pid
+
+
+@pytest.mark.parametrize(
+    "lock_content, age_hours, removed",
+    [
+        (f"{dead_pid()} 2026-10-07T00:00:00+00:00\n", 0, True),  # owner process is gone: stale
+        (f"{os.getpid()} 2026-10-07T00:00:00+00:00\n", 0, False),  # owner still running: held
+        ("running", 13, True),  # legacy lock, older than 12 h: stale
+        ("running", 1, False),  # legacy lock, recent: held
+    ],
+)
+def test_stale_lock_is_removed_and_live_lock_blocks(
+    lock_content: str,
+    age_hours: float,
+    removed: bool,
+    workdir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    lock = workdir / "forward.lock"
+    lock.write_text(lock_content)
+    old = time.time() - age_hours * 3600
+    os.utime(lock, (old, old))
+    monkeypatch.setattr(api.settings, "LOCK_FILE", str(lock))
+
+    api.main_forward(pairing_mode="coseismic", process_only=True)  # no tracker: no network needed
+
+    out = capsys.readouterr().out
+    if removed:
+        assert "Removing stale lock file" in out
+        assert not lock.exists()  # removed, then the run's own lock released at the end
+    else:
+        assert "Previous processing run still active" in out
+        assert lock.read_text() == lock_content
