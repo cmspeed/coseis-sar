@@ -27,18 +27,37 @@ cd "$REPO_DIR"
 mkdir -p logs
 LOG_FILE="logs/forward.log"
 
-# Check the lock file BEFORE doing anything with Git (same default as aria_coseis.config.LOCK_FILE)
+# Check the lock file BEFORE doing anything with Git (same default as aria_coseis.config.LOCK_FILE).
+# The lock holds the owning process ID; if that process is gone (e.g. a killed run), the lock is
+# stale and is removed. A legacy lock without a process ID counts as stale after 12 hours.
 LOCK_FILE="${COSEIS_LOCK_FILE:-/tmp/coseis_processing.lock}"
 if [ -f "$LOCK_FILE" ]; then
-    echo "$(date): Previous processing run still active. Bash script exiting." >> "$LOG_FILE"
-    exit 0
+    LOCK_PID="$(awk 'NR==1 {print $1}' "$LOCK_FILE")"
+    if [[ "$LOCK_PID" =~ ^[0-9]+$ ]] && ! ps -p "$LOCK_PID" > /dev/null 2>&1; then
+        STALE=yes
+    elif [[ ! "$LOCK_PID" =~ ^[0-9]+$ ]] && [ -n "$(find "$LOCK_FILE" -mmin +720 2> /dev/null)" ]; then
+        STALE=yes
+    else
+        STALE=no
+    fi
+    if [ "$STALE" = yes ]; then
+        echo "$(date): Removing stale lock file $LOCK_FILE (the run that created it is no longer active)." >> "$LOG_FILE"
+        rm -f "$LOCK_FILE"
+    else
+        echo "$(date): Previous processing run still active. Bash script exiting." >> "$LOG_FILE"
+        exit 0
+    fi
 fi
 
 # Sync with Github
 git checkout main
 
-# Pull the latest tracker state that the GitHub Action just updated
-git pull --rebase origin main
+# Pull the latest tracker state that the GitHub Action just updated (keeps any local commits
+# left from an earlier failed push on top). On a conflict, abort and leave things as they were.
+if ! git pull --rebase origin main; then
+    git rebase --abort 2> /dev/null || true
+    echo "$(date): git pull failed; processing anyway, will retry the push below." >> "$LOG_FILE"
+fi
 
 # Execute local processing (discovery disabled via --process_only)
 python -m aria_coseis --forward --pairing coseismic --resolution 30 --do_processing --process_only >> "$LOG_FILE" 2>&1
@@ -48,8 +67,24 @@ git add -A active_jobs/ || true
 
 if ! git diff --cached --quiet; then
     git commit -m "Local processing: update COSEIS tracking state and remove finished partials [skip ci]"
-    git pull --rebase origin main
-    git push origin main
 else
     echo "No processing completed this run; tracking state unchanged." >> "$LOG_FILE"
+fi
+
+# Push any local tracker commits, including ones left from an earlier failed push. If the GitHub
+# Action pushed in between, rebase onto it and try again.
+for ATTEMPT in 1 2 3; do
+    git fetch -q origin main
+    if [ -z "$(git rev-list origin/main..HEAD)" ]; then
+        break
+    fi
+    if git pull --rebase origin main && git push origin main; then
+        break
+    fi
+    git rebase --abort 2> /dev/null || true
+    echo "$(date): Push attempt $ATTEMPT failed; retrying." >> "$LOG_FILE"
+    sleep 30
+done
+if [ -n "$(git rev-list origin/main..HEAD)" ]; then
+    echo "$(date): WARNING: local tracker commits are not on GitHub yet; the next run will retry." >> "$LOG_FILE"
 fi
