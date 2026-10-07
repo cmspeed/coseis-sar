@@ -1,0 +1,40 @@
+name: Tests
+
+# Runs on pull requests and on pushes to develop only; never on a schedule,
+# so it cannot interfere with the forward-mode cron workflow.
+on:
+  pull_request:
+  push:
+    branches: [develop]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        # 3.11: processing machine env (environment.yml); 3.12: coseis-cron.yml
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # The package's core dependencies (as declared in pyproject.toml) plus test tools;
+          # next_pass is faked in the tests and optical packages are imported lazily
+          pip install -e ".[test]"
+
+      - name: Lint and format check (ruff)
+        run: |
+          ruff check src tests
+          ruff format --check src tests
+
+      - name: Run tests (HTTP replayed from cassettes; network requests not in a cassette fail)
+        run: pytest -q

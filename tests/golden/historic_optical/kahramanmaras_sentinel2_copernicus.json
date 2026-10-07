@@ -1,0 +1,281 @@
+{
+  "aois": {
+    "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence_sentinel-2_toa_AOI.geojson": {
+      "coordinates": [
+        [
+          [
+            36.1139,
+            37.7626
+          ],
+          [
+            38.546,
+            37.7626
+          ],
+          [
+            38.546,
+            38.4631
+          ],
+          [
+            36.1139,
+            38.4631
+          ],
+          [
+            36.1139,
+            37.7626
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    },
+    "m_78_pazarcik_earthquake_kahramanmaras_earthquake_sequence_sentinel-2_toa_AOI.geojson": {
+      "coordinates": [
+        [
+          [
+            35.9028,
+            35.8838
+          ],
+          [
+            38.8625,
+            35.8838
+          ],
+          [
+            38.8625,
+            38.3746
+          ],
+          [
+            35.9028,
+            38.3746
+          ],
+          [
+            35.9028,
+            35.8838
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    }
+  },
+  "jobs": {
+    "jobs_list": [
+      {
+        "event_id": "us6000jlqa",
+        "job_parameters": {
+          "chip_size": 24,
+          "reference": [
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SBB_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SBC_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SDB_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SDC_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SCB_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SCC_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T36SYG_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T36SYH_20240808T123333"
+          ],
+          "search_range": 64,
+          "secondary": [
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T36SYG_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SDC_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SBB_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T36SYH_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SBC_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SDB_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SCB_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SCC_20240819T073208"
+          ]
+        },
+        "job_type": "AUTORIFT",
+        "name": "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence-S2-R121-2022-12-31_2023-02-24",
+        "post_cloud_cover": null,
+        "pre_cloud_cover": null
+      },
+      {
+        "event_id": "us6000jlqa",
+        "job_parameters": {
+          "chip_size": 24,
+          "reference": [
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SDC_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SDB_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SCC_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SCB_20240805T125704"
+          ],
+          "search_range": 64,
+          "secondary": [
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SDC_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SDB_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SCB_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SCC_20240902T130129"
+          ]
+        },
+        "job_type": "AUTORIFT",
+        "name": "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence-S2-R078-2022-11-13_2023-04-17",
+        "post_cloud_cover": null,
+        "pre_cloud_cover": null
+      },
+      {
+        "event_id": "us6000jlqa",
+        "job_parameters": {
+          "chip_size": 24,
+          "reference": [
+            "S2B_MSIL1C_20230118T083159_N0510_R021_T36SYH_20240813T114111"
+          ],
+          "search_range": 64,
+          "secondary": [
+            "S2B_MSIL1C_20230217T082919_N0510_R021_T37SBC_20240819T212555",
+            "S2B_MSIL1C_20230217T082919_N0510_R021_T36SYH_20240819T212555"
+          ]
+        },
+        "job_type": "AUTORIFT",
+        "name": "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence-S2-R021-2023-01-18_2023-02-17",
+        "post_cloud_cover": null,
+        "pre_cloud_cover": null
+      },
+      {
+        "event_id": "us6000jllz",
+        "job_parameters": {
+          "chip_size": 24,
+          "reference": [
+            "S2B_MSIL1C_20221209T083239_N0510_R021_T37SBB_20240808T031530",
+            "S2B_MSIL1C_20221209T083239_N0510_R021_T37SBC_20240808T031530",
+            "S2B_MSIL1C_20221209T083239_N0510_R021_T36SYG_20240808T031530",
+            "S2B_MSIL1C_20221209T083239_N0510_R021_T36SYH_20240808T031530"
+          ],
+          "search_range": 64,
+          "secondary": [
+            "S2B_MSIL1C_20230217T082919_N0510_R021_T37SBC_20240819T212555",
+            "S2B_MSIL1C_20230217T082919_N0510_R021_T37SBB_20240819T212555",
+            "S2B_MSIL1C_20230217T082919_N0510_R021_T36SYH_20240819T212555",
+            "S2B_MSIL1C_20230217T082919_N0510_R021_T36SYG_20240819T212555"
+          ]
+        },
+        "job_type": "AUTORIFT",
+        "name": "m_78_pazarcik_earthquake_kahramanmaras_earthquake_sequence-S2-R021-2022-12-09_2023-02-17",
+        "post_cloud_cover": null,
+        "pre_cloud_cover": null
+      },
+      {
+        "event_id": "us6000jllz",
+        "job_parameters": {
+          "chip_size": 24,
+          "reference": [
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SDV_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SBB_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SBA_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SCA_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SBC_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SDB_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T36SYE_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SDA_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SDC_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SCB_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T36SYF_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SCC_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T36SYG_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T36SYH_20240808T123333",
+            "S2A_MSIL1C_20221231T082341_N0510_R121_T37SBV_20240808T123333"
+          ],
+          "search_range": 64,
+          "secondary": [
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SCA_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T36SYG_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SDV_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SDC_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T36SYE_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SDA_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T36SYF_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SBB_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T36SYH_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SBA_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SCV_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SBC_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SDB_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SCB_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SCC_20240819T073208",
+            "S2B_MSIL1C_20230224T081829_N0510_R121_T37SBV_20240819T073208"
+          ]
+        },
+        "job_type": "AUTORIFT",
+        "name": "m_78_pazarcik_earthquake_kahramanmaras_earthquake_sequence-S2-R121-2022-12-31_2023-02-24",
+        "post_cloud_cover": null,
+        "pre_cloud_cover": null
+      },
+      {
+        "event_id": "us6000jllz",
+        "job_parameters": {
+          "chip_size": 24,
+          "reference": [
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SDV_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SDC_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SDB_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SCC_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SCA_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SCV_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SDA_20240805T125704",
+            "S2B_MSIL1C_20221113T081109_N0510_R078_T37SCB_20240805T125704"
+          ],
+          "search_range": 64,
+          "secondary": [
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SDV_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SCV_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SDC_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SDB_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SCB_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SCC_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SDA_20240902T130129",
+            "S2A_MSIL1C_20230417T080611_N0510_R078_T37SCA_20240902T130129"
+          ]
+        },
+        "job_type": "AUTORIFT",
+        "name": "m_78_pazarcik_earthquake_kahramanmaras_earthquake_sequence-S2-R078-2022-11-13_2023-04-17",
+        "post_cloud_cover": null,
+        "pre_cloud_cover": null
+      }
+    ]
+  },
+  "significant": {
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            37.1962,
+            38.0106
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "alert": "red",
+          "date": "2023-02-06",
+          "depth_km": 7.432,
+          "latitude": 38.0106,
+          "longitude": 37.1962,
+          "magnitude": 7.5,
+          "place": "Elbistan earthquake, Kahramanmaras earthquake sequence",
+          "time_utc": "10:24:48",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000jlqa"
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            37.0143,
+            37.2256
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "alert": "red",
+          "date": "2023-02-06",
+          "depth_km": 10,
+          "latitude": 37.2256,
+          "longitude": 37.0143,
+          "magnitude": 7.8,
+          "place": "Pazarcik earthquake, Kahramanmaras earthquake sequence",
+          "time_utc": "01:17:34",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000jllz"
+        },
+        "type": "Feature"
+      }
+    ],
+    "type": "FeatureCollection"
+  }
+}

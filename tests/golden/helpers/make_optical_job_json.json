@@ -1,0 +1,17 @@
+{
+  "event_id": "us0000test",
+  "job_parameters": {
+    "chip_size": 24,
+    "reference": [
+      "S2A_REF"
+    ],
+    "search_range": 64,
+    "secondary": [
+      "S2B_SEC"
+    ]
+  },
+  "job_type": "AUTORIFT",
+  "name": "m_78_test_event-S2-R021-Z37-2023-01-28_2023-02-12",
+  "post_cloud_cover": 5.68,
+  "pre_cloud_cover": 1.23
+}
