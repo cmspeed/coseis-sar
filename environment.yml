@@ -15,3 +15,14 @@ dependencies:
   - shapely
   - tabulate
   - yagmail
+  - matplotlib   # historic frame map (GeoDataFrame.explore)
+  - mapclassify
+  # Optical (--sensor sentinel-2/landsat); imported lazily, not needed for SAR-only runs
+  - earthengine-api
+  - google-cloud-storage
+  - pystac-client
+  - gdal
+  # aria_coseis.optical.autorift additionally requires hyp3_autorift
+  - pip
+  - pip:
+      - -e .[forward]   # aria_coseis itself (editable) + next_pass

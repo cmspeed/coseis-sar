@@ -1,1 +1,19 @@
-scripts/run_coseis_forward.sh
+# Runtime outputs (see aria_coseis.config)
+data/
+outputs/
+logs/
+
+# Kept locally but no longer tracked (archived at tag archive/pre-layout)
+scripts/
+hyp3/
+job_lists/
+s3_upload_aria_share/
+docs/*.txt
+requirements.txt
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/

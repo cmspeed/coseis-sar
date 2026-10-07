@@ -1,0 +1,237 @@
+{
+  "aois": {
+    "m_61_62_km_n_of_ende_indonesia_sar_toa_AOI.geojson": {
+      "coordinates": [
+        [
+          [
+            121.0625,
+            -8.7904
+          ],
+          [
+            122.0625,
+            -8.7904
+          ],
+          [
+            122.0625,
+            -7.7904
+          ],
+          [
+            121.0625,
+            -7.7904
+          ],
+          [
+            121.0625,
+            -8.7904
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    },
+    "m_78_66_km_nnw_of_ende_indonesia_sar_toa_AOI.geojson": {
+      "coordinates": [
+        [
+          [
+            122.3067,
+            -8.6726
+          ],
+          [
+            122.3067,
+            -8.1765
+          ],
+          [
+            120.0329,
+            -8.1765
+          ],
+          [
+            120.0329,
+            -8.6726
+          ],
+          [
+            122.3067,
+            -8.6726
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    }
+  },
+  "earthquake_info": [
+    {
+      "epicenter": {
+        "depth_km": 10,
+        "latitude": -8.2904,
+        "longitude": 121.5625,
+        "usgs_event_url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tkuc"
+      },
+      "time": "2026-08-14 22:28:37 UTC",
+      "title": "M 6.1 - 62 km N of Ende, Indonesia"
+    },
+    {
+      "epicenter": {
+        "depth_km": 10,
+        "latitude": -8.3358,
+        "longitude": 121.3446,
+        "usgs_event_url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tkt2"
+      },
+      "time": "2026-08-14 21:58:21 UTC",
+      "title": "M 7.8 - 66 km NNW of Ende, Indonesia"
+    }
+  ],
+  "jobs": [
+    {
+      "event_id": "us6000tkuc",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1D_IW_SLC__1SDV_20260818T101628_20260818T101655_004178_007A70_D74C",
+          "S1D_IW_SLC__1SDV_20260818T101604_20260818T101631_004178_007A70_1384"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1D_IW_SLC__1SDV_20260806T101628_20260806T101655_004003_00746B_356A",
+          "S1D_IW_SLC__1SDV_20260806T101603_20260806T101630_004003_00746B_959A"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_61_62_km_n_of_ende_indonesia-A112"
+    },
+    {
+      "event_id": "us6000tkuc",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1D_IW_SLC__1SDV_20260826T213614_20260826T213642_004302_007ED2_B34E",
+          "S1D_IW_SLC__1SDV_20260826T213549_20260826T213616_004302_007ED2_4EDA"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1D_IW_SLC__1SDV_20260802T213613_20260802T213641_003952_0072AB_334E",
+          "S1D_IW_SLC__1SDV_20260802T213548_20260802T213615_003952_0072AB_77BF"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_61_62_km_n_of_ende_indonesia-D061"
+    },
+    {
+      "event_id": "us6000tkuc",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1D_IW_SLC__1SDV_20260821T212753_20260821T212820_004229_007C3F_5A26"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1D_IW_SLC__1SDV_20260809T212752_20260809T212819_004054_007626_B08B"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_61_62_km_n_of_ende_indonesia-D163"
+    },
+    {
+      "event_id": "us6000tkt2",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1D_IW_SLC__1SDV_20260818T101628_20260818T101655_004178_007A70_D74C",
+          "S1D_IW_SLC__1SDV_20260818T101604_20260818T101631_004178_007A70_1384"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1D_IW_SLC__1SDV_20260806T101628_20260806T101655_004003_00746B_356A",
+          "S1D_IW_SLC__1SDV_20260806T101603_20260806T101630_004003_00746B_959A"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_78_66_km_nnw_of_ende_indonesia-A112"
+    },
+    {
+      "event_id": "us6000tkt2",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1D_IW_SLC__1SDV_20260823T102431_20260823T102458_004251_007D0E_E8A5"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1A_IW_SLC__1SDV_20260617T102508_20260617T102537_065007_083168_4F33"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_78_66_km_nnw_of_ende_indonesia-A010"
+    },
+    {
+      "event_id": "us6000tkt2",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1C_IW_SLC__1SDV_20260820T213556_20260820T213631_009084_01208A_BC33",
+          "S1C_IW_SLC__1SDV_20260820T213528_20260820T213558_009084_01208A_0DB0"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1D_IW_SLC__1SDV_20260802T213613_20260802T213641_003952_0072AB_334E",
+          "S1D_IW_SLC__1SDV_20260802T213548_20260802T213615_003952_0072AB_77BF"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_78_66_km_nnw_of_ende_indonesia-D061"
+    },
+    {
+      "event_id": "us6000tkt2",
+      "job_parameters": {
+        "compute_solid_earth_tide": true,
+        "dense_offsets": true,
+        "esd_coherence_threshold": -1,
+        "estimate_ionosphere_delay": true,
+        "frame_id": -1,
+        "goldstein_filter_power": 0.5,
+        "granules": [
+          "S1D_IW_SLC__1SDV_20260821T212753_20260821T212820_004229_007C3F_5A26"
+        ],
+        "output_resolution": 30,
+        "secondary_granules": [
+          "S1D_IW_SLC__1SDV_20260809T212752_20260809T212819_004054_007626_B08B"
+        ],
+        "unfiltered_coherence": true
+      },
+      "job_type": "ARIA_S1_COSEIS",
+      "name": "m_78_66_km_nnw_of_ende_indonesia-D163"
+    }
+  ]
+}
