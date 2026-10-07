@@ -149,8 +149,9 @@ def add_to_tracker(eq: dict[str, Any], aoi: BaseGeometry, resolution: int = 30) 
             title, event_id, flight_direction, path_number, [], pre_slcs, resolution
         )
 
-        # Save Partial File
-        with open(job_filename, "w") as f:
+        # Save Partial File (the tracker stores the bare file name, resolved against PARTIALS_DIR)
+        os.makedirs(config.PARTIALS_DIR, exist_ok=True)
+        with open(os.path.join(config.PARTIALS_DIR, job_filename), "w") as f:
             json.dump([job_json], f, indent=4)  # List of 1 job
 
         # Add to tracks info
@@ -267,7 +268,9 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                     pre_seismic_date = track_info["reference_date"]
                     post_seismic_date = secondary_date
 
-                    partial_file = track_info["partial_job_file"]
+                    partial_file = os.path.join(
+                        config.PARTIALS_DIR, os.path.basename(track_info["partial_job_file"])
+                    )
                     try:
                         with open(partial_file, "r") as f:
                             job_list = json.load(f)

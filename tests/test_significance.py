@@ -80,8 +80,8 @@ def test_historic_sar_writes_csv_and_geojson(workdir) -> None:
     api.check_significance(
         [make_event("m65_d10", 6.5, 10.0)], "2025-01-01", sensor="sar", mode="historic"
     )
-    assert (workdir / "significant_earthquakes_2025-01-01.csv").exists()
-    assert (workdir / "significant_earthquakes_2025-01-01.geojson").exists()
+    assert (workdir / "outputs" / "significant_earthquakes_2025-01-01.csv").exists()
+    assert (workdir / "outputs" / "significant_earthquakes_2025-01-01.geojson").exists()
 
 
 @pytest.mark.vcr

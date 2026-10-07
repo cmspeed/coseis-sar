@@ -2,7 +2,7 @@ name: COSEIS Forward Email Notifications
 
 on:
   schedule:
-    # Runs every 50 minutes
+    # Minutes 0 and 50 of every hour
     - cron: '*/50 * * * *'
   workflow_dispatch:
 
@@ -27,9 +27,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install asf_search beautifulsoup4 python-dateutil requests folium geojson geopandas lxml premailer shapely tabulate yagmail
-          # Install next_pass directly from the GitHub repository
-          pip install git+https://github.com/OPERA-Cal-Val/next_pass.git
+          # aria_coseis and its core dependencies, plus next_pass (forward extra)
+          pip install -e ".[forward]"
 
       - name: Run COSEIS Forward Script (Email Only)
         env:
@@ -37,22 +36,16 @@ jobs:
           COSEIS_SECONDARY_RECIPIENTS: ${{ secrets.COSEIS_SECONDARY_RECIPIENTS }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PSWD: ${{ secrets.GMAIL_APP_PSWD }}
-        run: |
-          # Navigate to the scripts directory
-          cd scripts
-          
-          # Execute the Python script
-          python coseis.py --forward --pairing coseismic --send_email
+        run: python -m aria_coseis --forward --pairing coseismic --send_email
 
       - name: Save Tracking State
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          # Stage the tracking directory (catches additions, edits, and deletions), partial jobs, and maps
-          git add scripts/active_jobs/ || true
-          git add scripts/*_partial.json || true
-          git add docs/maps/*.html || true          
+          # Stage the tracker (additions, edits and deletions, including active_jobs/partials/) and new maps
+          git add -A active_jobs/ || true
+          git add docs/maps/*.html || true
           
           # Check if the file actually changed before trying to commit and push
           if ! git diff --cached --quiet; then

@@ -22,14 +22,14 @@ def collect_outputs(workdir: Path) -> Dict[str, Any]:
     def all_json(pattern: str) -> Dict[str, Any]:
         return {
             Path(p).name.split("_20")[0] if "jobs_list" in p else Path(p).name: read_json(Path(p))
-            for p in sorted(glob.glob(str(workdir / pattern)))
+            for p in sorted(glob.glob(str(workdir / "outputs" / pattern)))
         }
 
     return {
         "jobs": all_json("jobs_list_*.json"),
         "aois": all_json("*_AOI.geojson"),
         "significant": read_json(
-            workdir / f"significant_earthquakes_{KAHRAMANMARAS_DATE}.geojson"
+            workdir / "outputs" / f"significant_earthquakes_{KAHRAMANMARAS_DATE}.geojson"
         ),
     }
 

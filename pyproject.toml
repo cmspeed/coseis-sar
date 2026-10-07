@@ -7,6 +7,29 @@ name = "aria-coseis"
 version = "0.1.0"
 description = "Automated coseismic displacement from Sentinel-1 SAR and optical imagery"
 requires-python = ">=3.11"
+dependencies = [
+    "folium",
+    "geojson",
+    "geopandas",
+    "mapclassify",  # GeoDataFrame.explore() frame maps (historic mode)
+    "matplotlib",
+    "python-dateutil",
+    "requests",
+    "shapely",
+    "yagmail",
+]
+
+[project.optional-dependencies]
+# Forward mode: satellite overpass predictions for alert emails
+forward = ["next-pass @ git+https://github.com/OPERA-Cal-Val/next_pass.git"]
+# Optical backends (imported lazily). GDAL comes from conda (environment.yml);
+# aria_coseis.optical.autorift also needs hyp3_autorift.
+optical = ["earthengine-api", "google-cloud-storage", "pystac-client"]
+test = ["pytest", "pytest-recording", "time-machine", "ruff"]
+
+[project.scripts]
+aria-coseis = "aria_coseis.cli:main"
+aria-coseis-autorift = "aria_coseis.optical.autorift:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

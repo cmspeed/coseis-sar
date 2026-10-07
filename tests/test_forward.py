@@ -37,9 +37,13 @@ def no_lock() -> None:
 
 def seed(workdir: Path, fixture: str) -> None:
     """Copy a production tracker state into the working directory (tracker JSONs + partial job files)."""
-    (workdir / "active_jobs").mkdir(exist_ok=True)
+    (workdir / "active_jobs" / "partials").mkdir(parents=True, exist_ok=True)
     for path in (PRODUCTION / fixture).glob("*.json"):
-        target = workdir / ("" if path.name.startswith("job_") else "active_jobs") / path.name
+        target = (
+            workdir
+            / ("active_jobs/partials" if path.name.startswith("job_") else "active_jobs")
+            / path.name
+        )
         shutil.copy(path, target)
 
 
@@ -53,7 +57,9 @@ def tracker_files(workdir: Path) -> Dict[str, Any]:
 def partial_files(workdir: Path) -> Dict[str, Any]:
     return {
         Path(p).name: read_json(Path(p))
-        for p in sorted(glob.glob(str(workdir / "job_*_partial.json")))
+        for p in sorted(
+            glob.glob(str(workdir / "active_jobs" / "partials" / "job_*_partial.json"))
+        )
     }
 
 
@@ -97,7 +103,7 @@ def test_discovery_matches_production(
     assert tamarindo[0]["subject"] == "New Event: M 5.6 - 94 km SW of Tamarindo, Costa Rica"
     assert tamarindo[0]["bcc"] == ["primary@example.com"]
     map_name = "m_56_94_km_sw_of_tamarindo_costa_rica_us6000tymj_overpass_map.html"
-    assert (workdir.parent / "docs" / "maps" / map_name).exists()
+    assert (workdir / "docs" / "maps" / map_name).exists()
     assert f"https://cmspeed.github.io/coseis-sar/maps/{map_name}" in tamarindo[0]["contents"][0]
 
 

@@ -1,9 +1,0 @@
-argparse
-asf_search
-requests
-folium
-geojson
-geopandas
-shapely
-subprocess
-yagmail

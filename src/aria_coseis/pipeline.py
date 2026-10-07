@@ -84,7 +84,7 @@ def process_earthquake(
         aoi = make_aoi(coords)  # Create AOI if not provided
 
     # Write AOI to a geojson file
-    with open(f"{title}_{sensor}_{optical_level}_AOI.geojson", "w") as f:
+    with open(config.output_path(f"{title}_{sensor}_{optical_level}_AOI.geojson"), "w") as f:
         geojson.dump(mapping(aoi), f, indent=2)
 
     all_jobs = []
@@ -99,7 +99,7 @@ def process_earthquake(
             for col in frame_gdf.columns:
                 if frame_gdf[col].apply(lambda x: isinstance(x, list)).any():
                     frame_gdf[col] = frame_gdf[col].astype(str)
-            frame_gdf.to_file(f"{title}_frames.geojson", driver="GeoJSON")
+            frame_gdf.to_file(config.output_path(f"{title}_frames.geojson"), driver="GeoJSON")
             make_interactive_map(
                 frame_dataframe, eq.get("title", ""), eq.get("coordinates", []), eq.get("url", "")
             )
@@ -463,7 +463,7 @@ def process_earthquake(
 
             if s2_features:
                 fc = {"type": "FeatureCollection", "features": s2_features}
-                scene_filename = f"{title}_selected_scenes.geojson"
+                scene_filename = config.output_path(f"{title}_selected_scenes.geojson")
                 with open(scene_filename, "w") as f:
                     json.dump(fc, f, indent=2)
                 print(f"Saved selected scene footprints to {scene_filename}")

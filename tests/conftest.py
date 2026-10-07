@@ -61,12 +61,12 @@ def http_log(monkeypatch: pytest.MonkeyPatch) -> List[str]:
 
 @pytest.fixture
 def workdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Run in an empty <tmp>/scripts directory, mirroring production's cwd of scripts/."""
-    scripts_dir = tmp_path / "scripts"
-    scripts_dir.mkdir()
-    monkeypatch.chdir(scripts_dir)
-    monkeypatch.setattr(api.settings, "root_dir", str(scripts_dir / "data"))
-    return scripts_dir
+    """Run in an empty <tmp>/repo directory, mirroring production's cwd of the repository root."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    monkeypatch.chdir(repo_dir)
+    monkeypatch.setattr(api.settings, "root_dir", str(repo_dir / "data"))
+    return repo_dir
 
 
 @pytest.fixture(autouse=True)

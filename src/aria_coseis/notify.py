@@ -99,7 +99,7 @@ def make_interactive_map(
     ).add_to(map_object)
 
     # Save to an HTML file
-    map_filename = f"{title}_SLC_Map.html"
+    map_filename = config.output_path(f"{title}_SLC_Map.html")
     map_object.save(map_filename)
 
     return map_filename

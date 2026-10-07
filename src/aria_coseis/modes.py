@@ -139,15 +139,17 @@ def main_historic(
         if jobs_dict:
             current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S_UTC")
 
-            with open(f"jobs_list_{current_time}.json", "w") as f:
+            with open(config.output_path(f"jobs_list_{current_time}.json"), "w") as f:
                 json.dump(jobs_dict, f, indent=4)
 
-            with open(f"earthquake_info_{current_time}.json", "w", encoding="utf-8") as f:
+            with open(
+                config.output_path(f"earthquake_info_{current_time}.json"), "w", encoding="utf-8"
+            ) as f:
                 json.dump(earthquake_infos, f, indent=4, ensure_ascii=False)
 
         if master_scene_features:
             current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
-            feature_filename = (
+            feature_filename = config.output_path(
                 f"all_selected_scenes_{sensor}_{optical_backend}_{current_time}.geojson"
             )
             fc = {"type": "FeatureCollection", "features": master_scene_features}
@@ -239,7 +241,7 @@ def main_forward(
                         aoi = make_aoi(coords)
 
                         # Write AOI to a geojson file
-                        with open(f"{title}_AOI.geojson", "w") as f:
+                        with open(config.output_path(f"{title}_AOI.geojson"), "w") as f:
                             geojson.dump(aoi, f, indent=2)
 
                         # Get path/frame numbers for the initial AOI
@@ -251,14 +253,14 @@ def main_forward(
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
                         # Create the output directory
-                        timestamp_dir = Path(f"nextpass_outputs_{timestamp}")
+                        timestamp_dir = Path(config.output_path(f"nextpass_outputs_{timestamp}"))
                         timestamp_dir.mkdir(parents=True, exist_ok=True)
 
                         # Run next_pass to get the next overpasses
                         s1_info, nisar_info, overpass_map = get_next_pass(aoi, timestamp_dir)
 
                         # Setup Github pages directory
-                        docs_maps_dir = Path(os.getcwd()).parent / "docs" / "maps"
+                        docs_maps_dir = Path(config.MAPS_DIR)
                         docs_maps_dir.mkdir(parents=True, exist_ok=True)
 
                         # Create a unique ID for the filenames so they aren't overwritten
