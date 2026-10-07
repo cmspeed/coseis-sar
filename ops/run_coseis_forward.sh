@@ -7,14 +7,16 @@
 # Optional environment overrides (see aria_coseis.config): COSEIS_DATA_DIR for topsApp
 # products (default <repo>/data), COSEIS_LOCK_FILE (default /tmp/coseis_processing.lock).
 
-# Setup Environment
+# Setup Environment: ~/.bashrc normally initializes conda/mamba ("conda init")
 source ~/.bashrc
 
-# Dynamically find the Conda/Miniforge installation in the user's home directory
-if [ -f "$HOME/tools/miniforge3/etc/profile.d/mamba.sh" ]; then
-    source "$HOME/tools/miniforge3/etc/profile.d/mamba.sh"
-else
-    source "$HOME/tools/miniforge3/etc/profile.d/conda.sh"
+# Fallback if ~/.bashrc didn't define the mamba shell function: load it from the conda install
+if ! type mamba &> /dev/null; then
+    CONDA_BASE="$(conda info --base 2> /dev/null)"
+    if [ -n "$CONDA_BASE" ] && [ -f "$CONDA_BASE/etc/profile.d/mamba.sh" ]; then
+        source "$CONDA_BASE/etc/profile.d/conda.sh"
+        source "$CONDA_BASE/etc/profile.d/mamba.sh"
+    fi
 fi
 
 mamba activate coseis-sar
