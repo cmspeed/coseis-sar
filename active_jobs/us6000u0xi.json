@@ -1,0 +1,65 @@
+{
+    "title": "m_63_102_km_ne_of_norsup_vanuatu",
+    "time": 1791450007768,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    167.6889,
+                    -16.0411
+                ],
+                [
+                    168.6889,
+                    -16.0411
+                ],
+                [
+                    168.6889,
+                    -15.0411
+                ],
+                [
+                    167.6889,
+                    -15.0411
+                ],
+                [
+                    167.6889,
+                    -16.0411
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_154": {
+            "flight_direction": "ASCENDING",
+            "path_number": 154,
+            "frame_numbers": [
+                1128,
+                1122
+            ],
+            "partial_job_file": "job_m_63_102_km_ne_of_norsup_vanuatu_ASCENDING_154_partial.json",
+            "reference_date": "2026-09-26",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_81": {
+            "flight_direction": "ASCENDING",
+            "path_number": 81,
+            "frame_numbers": [
+                1127
+            ],
+            "partial_job_file": "job_m_63_102_km_ne_of_norsup_vanuatu_ASCENDING_81_partial.json",
+            "reference_date": "2026-10-03",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_59": {
+            "flight_direction": "DESCENDING",
+            "path_number": 59,
+            "frame_numbers": [
+                644,
+                639
+            ],
+            "partial_job_file": "job_m_63_102_km_ne_of_norsup_vanuatu_DESCENDING_59_partial.json",
+            "reference_date": "2026-09-25",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

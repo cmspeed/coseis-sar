@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_63_102_km_ne_of_norsup_vanuatu-DESCENDING59",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us6000u0xi",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20260925T182029_20260925T182056_009607_0131EF_B672",
+                "S1C_IW_SLC__1SDV_20260925T182001_20260925T182031_009607_0131EF_8962"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]
