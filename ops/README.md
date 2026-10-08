@@ -18,7 +18,7 @@ Tracker states, per event and track:
 
 ## Processing machine setup
 ```bash
-git clone https://github.com/cmspeed/coseis-sar.git && cd coseis-sar
+git clone git@github.com:cmspeed/coseis-sar.git && cd coseis-sar   # SSH: cron pushes with a key
 mamba env create -f environment.yml          # or, in an existing env: pip install -e . --no-deps
 crontab -e
 ```
@@ -28,6 +28,12 @@ Crontab entry (runs at minutes 5 and 15):
 ```
 - `COSEIS_DATA_DIR` sets where topsApp products go. The current machine keeps them in `scripts/data/` from before the 2026 layout change; without the variable they go to `<repo>/data/`.
 - The wrapper loads conda through `~/.bashrc`, activates `coseis-sar`, pulls `main`, runs processing, and pushes tracker changes. Its log is `logs/forward.log`.
+- **Pushing from cron needs SSH.** `origin` must be the SSH URL, with a key that GitHub accepts for writing (currently a deploy key on `coseis-sar` with write access) and no passphrase, since cron has no SSH agent. An HTTPS remote can appear to work in an interactive terminal (for example through an editor's login helper) and still fail under cron. To test it the way cron runs:
+  ```bash
+  env -i HOME="$HOME" PATH=/usr/bin:/bin GIT_TERMINAL_PROMPT=0 \
+    bash -c 'cd <repo> && git fetch origin && git push --dry-run origin main'
+  ```
+  "Everything up-to-date" means it works.
 - topsApp runs through `conda run -n topsapp_env_trappist_python11 isce2_topsapp ...`, so that environment must exist. It also needs NASA Earthdata credentials (e.g. `~/.netrc`) to download SLCs.
 
 ## GitHub Actions setup
@@ -47,6 +53,7 @@ Repository secrets used by `coseis-cron.yml`:
   - recent `[skip ci]` commits on `main`
 - **Stuck runs:** the lock file `/tmp/coseis_processing.lock` (override with `COSEIS_LOCK_FILE`) prevents overlapping runs. If a run was killed, the lock stays behind and every later run exits immediately. Delete it once you're sure nothing is running.
 - **Don't hand-edit `active_jobs/` while the runners are active.** Both commit to it.
+- **Push failures:** git's own output, including errors, goes to `logs/forward.log` just above the "Push attempt N failed" lines. "Authentication failed", "could not read Username" or "Permission denied (publickey)" means a credentials problem (see setup above), not a conflict.
 - **Push conflicts:** both runners retry their push, rebasing onto each other's commits. If the processing machine can't push because of a real conflict (both edited the same tracker lines), `logs/forward.log` shows "WARNING: local tracker commits are not on GitHub yet". In that case, resolve it by hand in the production clone (`git pull --rebase origin main`, fix the JSON, `git rebase --continue`, `git push`) while the cron is paused. A failed push in the Action fails that workflow run.
 
 ## Overrides

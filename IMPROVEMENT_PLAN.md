@@ -171,7 +171,7 @@ Remaining gaps:
   - crontab: `COSEIS_DATA_DIR=<repo>/scripts/data <repo>/ops/run_coseis_forward.sh`, keeping the existing topsApp products in place
   - run the wrapper once by hand; check `logs/forward.log` and `git log`. The first attempt failed on stale smoke-test `COSEIS_*` exports in that shell; it was clean after unsetting them.
 - [x] Re-enabled the `coseis-cron.yml` workflow and triggered it once by hand: install of `.[forward]`, discovery, no changes to commit. **DONE 2026-10-07**
-- [ ] First real processing on the new code: Tamarindo (A165/D157) once the 2026-10-08 acquisition is available.
+- [x] First real processing on the new code: Tamarindo D157 (2026-09-26 → 2026-10-08) ran cleanly; the tracker push failed under cron (HTTPS remote, see backlog) until pushed by hand. A165 is still waiting for data. **DONE 2026-10-08**
 - Rollback (not needed so far): revert the cutover merge commit 3b9a0c5 on `main` (this also reverses the tracker moves) and point the crontab back at `scripts/run_coseis_forward.sh`. The `pre-cutover` tag marks the old state.
 - [x] Branch model after cutover: feature branches with PRs into `main`; `develop` retired and deleted. Ground rules, README (with a new `ops/README.md`), CI trigger and the wrapper's conda setup updated in the housekeeping PR. **DONE 2026-10-07**
 - Deferred: historic SAR and optical comparisons against existing products (covered for SAR by the golden tests; optical with Phase 4).
@@ -185,6 +185,7 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 - [x] **Stale-lock detection.** The lock records its owner's process ID; a lock whose process is gone (or a legacy lock older than 12 h) is removed by both the wrapper and Python. **DONE 2026-10-07**
 - [ ] **Alert on `FAILED_NEEDS_ATTENTION`** and on repeated cron failures (e.g. an email to secondary recipients), instead of relying on someone reading `log_tracking.txt`.
 - [x] **Push-race retry.** Both runners rebase and retry their push up to three times. The wrapper also pushes commits left from an earlier failed push and aborts cleanly on a real conflict (logged); the Action fails visibly. **DONE 2026-10-07**
+- [x] **Cron push authentication.** After the cutover `origin` was an HTTPS URL, which can't authenticate under cron, so every push failed from the first real processing (Tamarindo D157, 2026-10-08) until one was pushed by hand. The remote is back on SSH (deploy key); the wrapper now logs git's output and never waits for a password prompt; `ops/README.md` documents the SSH requirement and a cron-like test. **DONE 2026-10-08**
 - [ ] Rotate or trim `logs/forward.log` (formerly `scripts/log_tracking.txt`).
 - [x] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes. **DONE 2026-10-06 (Phase 2d)**
 
