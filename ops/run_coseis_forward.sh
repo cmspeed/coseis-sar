@@ -49,12 +49,16 @@ if [ -f "$LOCK_FILE" ]; then
     fi
 fi
 
+# Git runs unattended here: fail instead of waiting for a password prompt, and send its
+# output (including errors) to the log
+export GIT_TERMINAL_PROMPT=0
+
 # Sync with Github
-git checkout main
+git checkout -q main >> "$LOG_FILE" 2>&1
 
 # Pull the latest tracker state that the GitHub Action just updated (keeps any local commits
 # left from an earlier failed push on top). On a conflict, abort and leave things as they were.
-if ! git pull --rebase origin main; then
+if ! git pull -q --rebase origin main >> "$LOG_FILE" 2>&1; then
     git rebase --abort 2> /dev/null || true
     echo "$(date): git pull failed; processing anyway, will retry the push below." >> "$LOG_FILE"
 fi
@@ -66,7 +70,7 @@ python -m aria_coseis --forward --pairing coseismic --resolution 30 --do_process
 git add -A active_jobs/ || true
 
 if ! git diff --cached --quiet; then
-    git commit -m "Local processing: update COSEIS tracking state and remove finished partials [skip ci]"
+    git commit -q -m "Local processing: update COSEIS tracking state and remove finished partials [skip ci]" >> "$LOG_FILE" 2>&1
 else
     echo "No processing completed this run; tracking state unchanged." >> "$LOG_FILE"
 fi
@@ -74,11 +78,11 @@ fi
 # Push any local tracker commits, including ones left from an earlier failed push. If the GitHub
 # Action pushed in between, rebase onto it and try again.
 for ATTEMPT in 1 2 3; do
-    git fetch -q origin main
+    git fetch -q origin main >> "$LOG_FILE" 2>&1
     if [ -z "$(git rev-list origin/main..HEAD)" ]; then
         break
     fi
-    if git pull --rebase origin main && git push origin main; then
+    if git pull -q --rebase origin main >> "$LOG_FILE" 2>&1 && git push -q origin main >> "$LOG_FILE" 2>&1; then
         break
     fi
     git rebase --abort 2> /dev/null || true
