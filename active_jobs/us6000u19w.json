@@ -1,0 +1,54 @@
+{
+    "title": "m_66_14_km_w_of_rio_grande_panama",
+    "time": 1791577539080,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -81.9687,
+                    7.2176
+                ],
+                [
+                    -80.9687,
+                    7.2176
+                ],
+                [
+                    -80.9687,
+                    8.217600000000001
+                ],
+                [
+                    -81.9687,
+                    8.217600000000001
+                ],
+                [
+                    -81.9687,
+                    7.2176
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_113": {
+            "flight_direction": "DESCENDING",
+            "path_number": 113,
+            "frame_numbers": [
+                567
+            ],
+            "partial_job_file": "job_m_66_14_km_w_of_rio_grande_panama_DESCENDING_113_partial.json",
+            "reference_date": "2026-10-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_11": {
+            "flight_direction": "DESCENDING",
+            "path_number": 11,
+            "frame_numbers": [
+                561,
+                567
+            ],
+            "partial_job_file": "job_m_66_14_km_w_of_rio_grande_panama_DESCENDING_11_partial.json",
+            "reference_date": "2026-09-04",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
