@@ -1,0 +1,21 @@
+[
+    {
+        "name": "m_55_3_km_sw_of_bajo_corral_panama-ASCENDING121",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us6000u18t",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20261005T233041_20261005T233112_004887_00931E_9726"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]

@@ -1,0 +1,64 @@
+{
+    "title": "m_58_1_km_s_of_el_cacao_panama",
+    "time": 1791571066146,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -80.9012,
+                    6.9362
+                ],
+                [
+                    -79.9012,
+                    6.9362
+                ],
+                [
+                    -79.9012,
+                    7.9362
+                ],
+                [
+                    -80.9012,
+                    7.9362
+                ],
+                [
+                    -80.9012,
+                    6.9362
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_121": {
+            "flight_direction": "ASCENDING",
+            "path_number": 121,
+            "frame_numbers": [
+                19
+            ],
+            "partial_job_file": "job_m_58_1_km_s_of_el_cacao_panama_ASCENDING_121_partial.json",
+            "reference_date": "2026-10-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_113": {
+            "flight_direction": "DESCENDING",
+            "path_number": 113,
+            "frame_numbers": [
+                567
+            ],
+            "partial_job_file": "job_m_58_1_km_s_of_el_cacao_panama_DESCENDING_113_partial.json",
+            "reference_date": "2026-10-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_11": {
+            "flight_direction": "DESCENDING",
+            "path_number": 11,
+            "frame_numbers": [
+                561,
+                567
+            ],
+            "partial_job_file": "job_m_58_1_km_s_of_el_cacao_panama_DESCENDING_11_partial.json",
+            "reference_date": "2026-09-04",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

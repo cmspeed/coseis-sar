@@ -1,0 +1,64 @@
+{
+    "title": "m_55_3_km_sw_of_bajo_corral_panama",
+    "time": 1791570135709,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -80.7885,
+                    7.086
+                ],
+                [
+                    -79.7885,
+                    7.086
+                ],
+                [
+                    -79.7885,
+                    8.086
+                ],
+                [
+                    -80.7885,
+                    8.086
+                ],
+                [
+                    -80.7885,
+                    7.086
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_121": {
+            "flight_direction": "ASCENDING",
+            "path_number": 121,
+            "frame_numbers": [
+                19
+            ],
+            "partial_job_file": "job_m_55_3_km_sw_of_bajo_corral_panama_ASCENDING_121_partial.json",
+            "reference_date": "2026-10-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_113": {
+            "flight_direction": "DESCENDING",
+            "path_number": 113,
+            "frame_numbers": [
+                567
+            ],
+            "partial_job_file": "job_m_55_3_km_sw_of_bajo_corral_panama_DESCENDING_113_partial.json",
+            "reference_date": "2026-10-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_11": {
+            "flight_direction": "DESCENDING",
+            "path_number": 11,
+            "frame_numbers": [
+                561,
+                567
+            ],
+            "partial_job_file": "job_m_55_3_km_sw_of_bajo_corral_panama_DESCENDING_11_partial.json",
+            "reference_date": "2026-09-28",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
