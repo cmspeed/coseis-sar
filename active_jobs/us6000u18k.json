@@ -1,0 +1,64 @@
+{
+    "title": "m_76_10_km_wsw_of_pitaloza_arriba_panama",
+    "time": 1791568565655,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -81.2572,
+                    7.0993
+                ],
+                [
+                    -80.2572,
+                    7.0993
+                ],
+                [
+                    -80.2572,
+                    8.0993
+                ],
+                [
+                    -81.2572,
+                    8.0993
+                ],
+                [
+                    -81.2572,
+                    7.0993
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_121": {
+            "flight_direction": "ASCENDING",
+            "path_number": 121,
+            "frame_numbers": [
+                19
+            ],
+            "partial_job_file": "job_m_76_10_km_wsw_of_pitaloza_arriba_panama_ASCENDING_121_partial.json",
+            "reference_date": "2026-10-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_113": {
+            "flight_direction": "DESCENDING",
+            "path_number": 113,
+            "frame_numbers": [
+                567
+            ],
+            "partial_job_file": "job_m_76_10_km_wsw_of_pitaloza_arriba_panama_DESCENDING_113_partial.json",
+            "reference_date": "2026-10-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_11": {
+            "flight_direction": "DESCENDING",
+            "path_number": 11,
+            "frame_numbers": [
+                561,
+                567
+            ],
+            "partial_job_file": "job_m_76_10_km_wsw_of_pitaloza_arriba_panama_DESCENDING_11_partial.json",
+            "reference_date": "2026-09-04",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
