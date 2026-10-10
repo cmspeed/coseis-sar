@@ -40,19 +40,6 @@
             "reference_date": "2026-09-26",
             "status": "AWAITING_POST_SEISMIC"
         },
-        "ASCENDING_81": {
-            "flight_direction": "ASCENDING",
-            "path_number": 81,
-            "frame_numbers": [
-                1127
-            ],
-            "partial_job_file": "job_m_63_102_km_ne_of_norsup_vanuatu_ASCENDING_81_partial.json",
-            "reference_date": "2026-10-03",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-10-03 (Pre) - 2026-10-09 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_63_102_km_ne_of_norsup_vanuatu/ASCENDING081/coseismic/ASCENDING081_20261003_20261009"
-        },
         "DESCENDING_59": {
             "flight_direction": "DESCENDING",
             "path_number": 59,
