@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_60_7_km_n_of_la_tronosa_panama-DESCENDING11",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us6000u1cf",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20260904T111435_20260904T111452_004427_00833A_B1CB",
+                "S1D_IW_SLC__1SDV_20260904T111406_20260904T111437_004427_00833A_7566"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]
