@@ -38,20 +38,6 @@
             "partial_job_file": "job_m_66_14_km_w_of_rio_grande_panama_DESCENDING_113_partial.json",
             "reference_date": "2026-10-05",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "DESCENDING_11": {
-            "flight_direction": "DESCENDING",
-            "path_number": 11,
-            "frame_numbers": [
-                561,
-                567
-            ],
-            "partial_job_file": "job_m_66_14_km_w_of_rio_grande_panama_DESCENDING_11_partial.json",
-            "reference_date": "2026-09-04",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-09-04 (Pre) - 2026-10-10 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_66_14_km_w_of_rio_grande_panama/DESCENDING011/coseismic/DESCENDING011_20260904_20261010"
         }
     }
 }
