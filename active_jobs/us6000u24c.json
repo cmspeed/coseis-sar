@@ -1,0 +1,55 @@
+{
+    "title": "m_60_126_km_s_of_kokopo_papua_new_guinea",
+    "time": 1791917103231,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    151.6364,
+                    -5.9832
+                ],
+                [
+                    152.6364,
+                    -5.9832
+                ],
+                [
+                    152.6364,
+                    -4.9832
+                ],
+                [
+                    151.6364,
+                    -4.9832
+                ],
+                [
+                    151.6364,
+                    -5.9832
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_16": {
+            "flight_direction": "DESCENDING",
+            "path_number": 16,
+            "frame_numbers": [
+                608,
+                613
+            ],
+            "partial_job_file": "job_m_60_126_km_s_of_kokopo_papua_new_guinea_DESCENDING_16_partial.json",
+            "reference_date": "2026-10-10",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_67": {
+            "flight_direction": "ASCENDING",
+            "path_number": 67,
+            "frame_numbers": [
+                1160,
+                1161
+            ],
+            "partial_job_file": "job_m_60_126_km_s_of_kokopo_papua_new_guinea_ASCENDING_67_partial.json",
+            "reference_date": "2026-10-02",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
