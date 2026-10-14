@@ -41,15 +41,20 @@ Writes `outputs/jobs_list_<timestamp>.json`, ready to submit to HyP3, plus a sum
 # 1. Build pre/post-event composites in Earth Engine and download them to data/
 python -m aria_coseis --historic --dates 2023-02-06 --sensor sentinel-2 --optical_backend gee --optical_level toa
 
-# 2. Run autoRIFT on everything downloaded so far
-python -m aria_coseis.optical.autorift --filter
+# 2. Register the downloaded composites in the optical data store (recipe med90)
+python -m aria_coseis.optical.store register data/GEE_Optical_Downloads
+
+# 3. Run autoRIFT into a product version (profile g90: 90 m, 360-720 m chips)
+python -m aria_coseis.optical.autorift --version exp-mytest --profile g90 --event <event folder>
 ```
 - **Requirements:**
   - an Earth Engine account authenticated with `earthengine authenticate`, with access to the Cloud project `coseis-1`
   - Google Cloud credentials for downloading (e.g. `gcloud auth application-default login`)
   - the export bucket set in `COSEIS_GCS_BUCKET`
 - **Event selection:** only strike-slip events are processed for optical.
-- **Results:** composites, manifests and autoRIFT offsets (in meters) go to `data/GEE_Optical_Downloads/<event>/`.
+- **Optical data store** (`aria_coseis.optical.store`, root `COSEIS_OPTICAL_DIR`): composites are kept by recipe and products by version, each version with the code, parameters and composites that made it (`products/<version>/VERSION.json`, `catalog.csv`, `<event>/run_info.json`). `python -m aria_coseis.optical.store info` lists what is there.
+- **Results:** one GeoTIFF per event, `products/<version>/<event>/<event>_<version>_offsets.tif`: dx and dy in metres (east and north positive, PRE to POST), NaN nodata, provenance in the metadata; per-path offsets in `paths/`.
+- **autoRIFT driver:** runs need hyp3-autorift from `cmspeed/hyp3-autorift`, branch `coseis`.
 - **Other backends:** `--optical_backend copernicus` or `element84` only search and pair Sentinel-2 scenes (they don't build composites) and write autoRIFT job JSON. Copernicus writes it only with `--job_list`.
 
 ### A custom list of events
@@ -91,7 +96,8 @@ Relative to the repository root; each location can be changed with an environmen
 | Location | Contents | Override |
 |---|---|---|
 | `outputs/` | job lists, event summaries, significance tables, AOIs, frame maps | `COSEIS_OUTPUT_DIR` |
-| `data/` | Earth Engine downloads, autoRIFT results, topsApp products | `COSEIS_DATA_DIR` |
+| `data/` | Earth Engine downloads, topsApp products | `COSEIS_DATA_DIR` |
+| `data/optical/` | optical data store: composites and autoRIFT product versions | `COSEIS_OPTICAL_DIR` |
 
 `outputs/` and `data/` are not tracked by git.
 

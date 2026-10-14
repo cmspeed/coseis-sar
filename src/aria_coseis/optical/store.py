@@ -287,7 +287,7 @@ def git_state(path: str | os.PathLike[str]) -> dict[str, Any]:
         ).stdout.strip()
 
     try:
-        return {
+        state: dict[str, Any] = {
             "repo": git("rev-parse", "--show-toplevel"),
             "commit": git("rev-parse", "HEAD"),
             "describe": git("describe", "--tags", "--always", "--dirty"),
@@ -295,6 +295,11 @@ def git_state(path: str | os.PathLike[str]) -> dict[str, Any]:
         }
     except (subprocess.CalledProcessError, FileNotFoundError, NotADirectoryError):
         return {"repo": None}
+    if state["dirty"]:
+        # Identifies the uncommitted changes, so two different dirty states never look the same
+        diff = git("diff", "HEAD", "--no-color")
+        state["diff_sha256"] = hashlib.sha256(diff.encode()).hexdigest()
+    return state
 
 
 def module_provenance(module: str) -> dict[str, Any]:
@@ -313,11 +318,17 @@ def code_provenance() -> dict[str, Any]:
     from importlib.metadata import PackageNotFoundError, version
 
     out = {name: module_provenance(name) for name in ("aria_coseis", "hyp3_autorift", "autoRIFT")}
-    for module, dist in (("hyp3_autorift", "hyp3_autorift"), ("autoRIFT", "autorift")):
+    # autoRIFT comes from conda-forge (distribution geo_autoRIFT), not from a git checkout
+    for module, dist in (("hyp3_autorift", "hyp3_autorift"), ("autoRIFT", "geo_autoRIFT")):
         try:
             out[module]["distribution_version"] = version(dist)
         except PackageNotFoundError:
             pass
+    prefix = os.environ.get("CONDA_PREFIX")
+    if prefix:
+        packages = sorted((Path(prefix) / "conda-meta").glob("autorift-*.json"))
+        if packages:
+            out["autoRIFT"]["conda_package"] = packages[0].stem
     out["python"] = sys.version.split()[0]
     out["environment"] = os.environ.get("CONDA_PREFIX") or sys.prefix
     return out
@@ -339,6 +350,65 @@ def write_environment_listing(dst: Path) -> None:
         ).stdout
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(text)
+
+
+def require_store(root: str | os.PathLike[str] | None = None) -> Path:
+    """The store root; raises if it has not been set up (avoids creating a second store)."""
+    store = store_root(root)
+    if not (store / "README.md").exists():
+        raise FileNotFoundError(
+            f"no optical data store at {store.resolve()}; set COSEIS_OPTICAL_DIR (production: "
+            "/u/trappist-r0/colespeed/work/coseis_optical) or pass --store"
+        )
+    return store
+
+
+def start_version(
+    root: Path, version: str, description: str, definition: dict[str, Any]
+) -> dict[str, Any]:
+    """
+    Create products/<version>/VERSION.json, or check that an existing version has the same
+    definition (code, parameters, recipe). Returns the version record.
+
+    Versions not named exp-* must be made from committed code: a dirty checkout in the
+    definition's "code" raises.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", version) or version == "v0":
+        raise ValueError(f"invalid version name {version!r}")
+    if not version.startswith("exp-"):
+        dirty = [
+            k
+            for k, v in definition.get("code", {}).items()
+            if isinstance(v, dict) and v.get("dirty")
+        ]
+        if dirty:
+            raise ValueError(
+                f"version {version} must be made from committed code; uncommitted changes in "
+                f"{', '.join(dirty)} (use an exp-* version for experiments)"
+            )
+    path = root / "products" / version / "VERSION.json"
+    definition = json.loads(json.dumps(definition, sort_keys=True))
+    existing = _read_json(path, None)
+    if existing is not None:
+        if existing.get("definition") != definition:
+            changed = sorted(
+                k
+                for k in set(existing.get("definition", {})) | set(definition)
+                if existing.get("definition", {}).get(k) != definition.get(k)
+            )
+            raise ValueError(
+                f"version {version} was made with a different {', '.join(changed)}; "
+                "use a new version name"
+            )
+        return existing
+    record = {
+        "version": version,
+        "description": description,
+        "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "definition": definition,
+    }
+    _write_json(path, record)
+    return record
 
 
 def write_version(root: Path, definition: dict[str, Any]) -> Path:
@@ -452,6 +522,76 @@ def _utc(stamp: str) -> datetime:
     return datetime.strptime(stamp, "%Y-%m-%d_%H%M%S").replace(tzinfo=timezone.utc)
 
 
+def register_event_composites(
+    root: Path, event_dir: Path, recipe: str, allow_copy: bool = False
+) -> tuple[datetime, float] | None:
+    """
+    Register the composites of one GEE download folder (<downloads>/<event>/, files named by
+    aria_coseis.optical.gee) under a recipe, with the acquisition times its manifest lists.
+    Returns the event's (origin time, magnitude), read from the composite names, if any.
+    """
+    event = event_dir.name
+    magnitude = int(event.split("_")[1]) / 10
+    origin = None
+    for tif in sorted(event_dir.glob("*.tif")):
+        m = V0_COMPOSITE.match(tif.name)
+        if not m or m["event"] != event:
+            continue
+        start, end = _utc(m["start"]), _utc(m["end"])
+        record = {
+            "sensor": m["sensor"],
+            "path": int(m["path"]),
+            "level": m["level"],
+            "band": m["band"],
+            "stage": m["stage"],
+            "recipe": recipe,
+            "start": start,
+            "end": end,
+        }
+        add_composite(root, event, tif, record, allow_copy)
+        origin = (end if m["stage"] == "PRE" else start, magnitude)
+    manifests = sorted(event_dir.glob("*_autorift_manifest.json"))
+    if manifests and origin is not None:
+        manifest = json.loads(manifests[0].read_text())
+        scene_times = {
+            k: manifest[k] for k in ("pre_dates_used", "post_dates_used") if k in manifest
+        }
+        if scene_times:
+            index_path = root / "composites" / event / "composites.json"
+            index = _read_json(index_path, {})
+            index["_scene_times_all_paths"] = scene_times
+            _write_json(index_path, index)
+    return origin
+
+
+def register_downloads(
+    downloads: str | os.PathLike[str],
+    root: str | os.PathLike[str] | None = None,
+    recipe: str = "med90",
+    events: list[str] | None = None,
+    allow_copy: bool = False,
+    resolve: bool = True,
+) -> list[str]:
+    """
+    Register new GEE downloads (<downloads>/<event>/ folders) under a recipe and look the events
+    up on USGS. Returns the events registered. For the frozen v0 folder use import_v0.
+    """
+    store = require_store(root)
+    if recipe not in COMPOSITE_RECIPES:
+        raise ValueError(f"unknown composite recipe {recipe!r}")
+    write_recipes(store)
+    origins = {}
+    for event_dir in sorted(p for p in Path(downloads).iterdir() if p.is_dir()):
+        if events and event_dir.name not in events:
+            continue
+        origin = register_event_composites(store, event_dir, recipe, allow_copy)
+        if origin is not None:
+            origins[event_dir.name] = origin
+    if resolve:
+        resolve_events(store, origins)
+    return sorted(origins)
+
+
 def catalogue_origins(eq_info: str | os.PathLike[str]) -> dict[str, tuple[datetime, float]]:
     """{event folder name: (origin time, magnitude)} from an earthquake_info_*.json list."""
     from aria_coseis.utils import to_snake_case
@@ -504,31 +644,9 @@ def import_v0(
         magnitude = int(event.split("_")[1]) / 10
         if manifest.get("event_id"):
             manifest_ids[event] = manifest["event_id"]
-        for tif in sorted(event_dir.glob("*.tif")):
-            m = V0_COMPOSITE.match(tif.name)
-            if not m or m["event"] != event:
-                continue
-            start, end = _utc(m["start"]), _utc(m["end"])
-            record = {
-                "sensor": m["sensor"],
-                "path": int(m["path"]),
-                "level": m["level"],
-                "band": m["band"],
-                "stage": m["stage"],
-                "recipe": "med90",
-                "start": start,
-                "end": end,
-            }
-            add_composite(store, event, tif, record, allow_copy)
-            origins[event] = (end if m["stage"] == "PRE" else start, magnitude)
-        scene_times = {
-            k: manifest[k] for k in ("pre_dates_used", "post_dates_used") if k in manifest
-        }
-        if scene_times:
-            index_path = store / "composites" / event / "composites.json"
-            index = _read_json(index_path, {})
-            index["_scene_times_all_paths"] = scene_times
-            _write_json(index_path, index)
+        origin = register_event_composites(store, event_dir, "med90", allow_copy)
+        if origin is not None:
+            origins[event] = origin
 
         product_dir = store / "products" / "v0" / event
         mosaic = event_dir / f"{event}{V0_MOSAIC_SUFFIX}"
@@ -586,6 +704,15 @@ CATALOG_COLUMNS = (
 )
 
 
+def update_catalog(path: Path, row: dict[str, Any]) -> None:
+    """Add or replace one event's row in a version's catalog.csv."""
+    rows = []
+    if path.exists():
+        with open(path, newline="") as f:
+            rows = [r for r in csv.DictReader(f) if r["event"] != row["event"]]
+    write_catalog(path, sorted([*rows, row], key=lambda r: r["event"]))
+
+
 def write_catalog(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
@@ -627,6 +754,11 @@ def main(argv: list[str] | None = None) -> None:
     imp.add_argument(
         "--eq_info", type=Path, help="earthquake_info_*.json for events without composites."
     )
+    reg = sub.add_parser("register", help="Register new GEE downloads under a recipe.")
+    reg.add_argument("downloads", type=Path, help="Folder of <event>/ download folders.")
+    reg.add_argument("--recipe", default="med90", help="Composite recipe (default med90).")
+    reg.add_argument("--event", action="append", help="Only this event folder (repeatable).")
+    reg.add_argument("--copy", action="store_true", help="Copy if hard links are not possible.")
     sub.add_parser("info", help="List recipes, composites and product versions.")
     args = parser.parse_args(argv)
     if args.command == "import-v0":
@@ -641,6 +773,13 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Registered {len(rows)} events; without a USGS event id: {len(missing)}")
         for name in missing:
             print(f"  {name}")
+    elif args.command == "register":
+        if (args.downloads / "README_FROZEN_v0.md").exists():
+            raise SystemExit(f"{args.downloads} is the frozen v0 folder; use import-v0")
+        done = register_downloads(
+            args.downloads, args.store, args.recipe, args.event, allow_copy=args.copy
+        )
+        print(f"Registered composites of {len(done)} event(s) under recipe {args.recipe}")
     print(info(args.store))
 
 

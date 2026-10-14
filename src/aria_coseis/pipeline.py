@@ -282,7 +282,13 @@ def process_earthquake(
                 ]
 
             # Execution logic
-            local_dir = os.path.join(config.root_dir, "GEE_Optical_Downloads", title)
+            downloads_dir = os.path.join(config.root_dir, "GEE_Optical_Downloads")
+            if os.path.exists(os.path.join(downloads_dir, "README_FROZEN_v0.md")):
+                # The first optical products' folder; new composites belong in the optical data
+                # store (aria_coseis.optical.store), not next to them.
+                print(f"Error: {downloads_dir} is frozen (README_FROZEN_v0.md). Skipping {title}.")
+                return [], []
+            local_dir = os.path.join(downloads_dir, title)
             manifest_path = os.path.join(
                 local_dir, f"{title}_{sensor}_{optical_level.lower()}_autorift_manifest.json"
             )

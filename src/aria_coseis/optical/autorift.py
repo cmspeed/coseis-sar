@@ -1,14 +1,27 @@
-"""Batch autoRIFT on Google Earth Engine composites: `python -m aria_coseis.optical.autorift`."""
+"""
+autoRIFT on the optical data store: `python -m aria_coseis.optical.autorift`.
+
+    python -m aria_coseis.optical.autorift --version exp-g90 --profile g90 --event <event> [...]
+
+Reads the composites of one recipe from the store (aria_coseis.optical.store), processes each
+relative orbit in work/<version>/<event>/, and writes products/<version>/<event>/ (see
+aria_coseis.optical.runs). What is made is set by a processing profile
+(aria_coseis.optical.autorift_profiles), optionally with overrides; the first run of a version
+records its profile, recipe and code in VERSION.json, and later runs must match it.
+"""
 
 from __future__ import annotations
 
 import argparse
-import glob
+import inspect
 import json
+import math
 import os
 import shutil
 import time
+import traceback
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from hyp3_autorift import geometry, utils
@@ -17,103 +30,109 @@ from hyp3_autorift.vend.testautoRIFT import generateAutoriftProduct
 from hyp3_autorift.vend.testGeogrid import GeogridOptical, runGeogrid
 from osgeo import gdal, osr
 
-from aria_coseis import config
+from aria_coseis.optical import runs, store
+from aria_coseis.optical.autorift_profiles import (
+    PROFILES,
+    AutoriftProfile,
+    aligned_bounds,
+    clipped_chip_sizes,
+    driver_options,
+    pixel_geometry,
+    resolve_profile,
+)
 
-if not hasattr(np.lib, "pad"):
+if not hasattr(np.lib, "pad"):  # autoRIFT 2.0.0 calls np.lib.pad (gone in numpy 2)
     np.lib.pad = np.pad
 
+ITS_LIVE_PARAMETER_FILE = (
+    "/vsicurl/https://its-live-data.s3.amazonaws.com/autorift_parameters/v001/"
+    "autorift_solidearth_0120m.shp"
+)
+# Geogrid needs acquisition dates; one year apart makes its "velocity" output numerically equal
+# to the displacement in meters (the composites span months, not single dates).
+DUMMY_REFERENCE_DATE = "20190101"
+DUMMY_SECONDARY_DATE = "20200101"
 
-# Create dummy class to hold metadata
-class Dummy(object):
+
+class Dummy:
     pass
 
 
-def apply_optical_filtering(image_path, nodata=0):
+def check_driver() -> None:
+    """Stop unless hyp3_autorift is the fork's driver (branch coseis), which these runs need."""
+    if "CorrectOpticalDy0Sign" not in inspect.getsource(generateAutoriftProduct):
+        raise SystemExit(
+            "hyp3_autorift is not the COSEIS driver: use cmspeed/hyp3-autorift branch coseis "
+            "(e.g. PYTHONPATH=<checkout>/src)"
+        )
+
+
+def apply_optical_filtering(
+    image_path: str, nodata: float = 0, write_zero_mask: bool = False
+) -> str:
     """
-    Mirrors the exact native single-image workflow of hyp3-autorift:
-    - Evaluates Landsat 4/5 via the native FFT filter to remove whisk-broom striping.
-    - Evaluates all other optical sensors (Landsat 7/8/9, Sentinel-2) via the Wallis filter to normalize illumination.
-    - Writes the result out as a Float32 GeoTIFF.
+    Wallis-fill filter an image (FFT filter for Landsat 4/5), as hyp3-autorift does for Landsat 7;
+    writes filtered/<name>_filtered.tif next to it and returns that path.
+
+    With write_zero_mask, the Wallis filter's mask of large nodata areas is written next to the
+    filtered image as <name>_zeroMask.tif, where hyp3-autorift's driver looks for it.
     """
     filename = os.path.basename(image_path)
-
-    # Check if the image is from an older whisk-broom sensor
     needs_fft = "Landsat4" in filename or "Landsat5" in filename
-
     print(f"  -> Opening {filename} to apply optical pre-filtering...")
-
     ds = gdal.Open(image_path)
-    band = ds.GetRasterBand(1)
-    original_array = band.ReadAsArray()
-
+    original_array = ds.GetRasterBand(1).ReadAsArray()
     if needs_fft:
         print(f"  -> Applying native FFT Filter for whisk-broom striping (NoData: {nodata})")
         filter_output = apply_fft_filter(original_array.copy(), nodata)
     else:
-        # Default to Wallis for everything else (Sentinel-2, Landsat 7/8/9)
         print(
             f"  -> Applying native Wallis Filter for illumination normalization (NoData: {nodata})"
         )
         filter_output = apply_wallis_nodata_fill_filter(original_array.copy(), nodata)
 
+    zero_mask = None
     if isinstance(filter_output, tuple):
-        filtered_array = filter_output[0]
+        filtered_array, zero_mask = filter_output
     else:
         filtered_array = filter_output
 
-    # --- NATIVE FFT ROUTING CHECK ---
-    # If the FFT filter aborted/skipped, mirror single-image mode: discard the array and use the raw file.
+    # If the FFT filter skipped, use the raw image, as hyp3-autorift does
     if needs_fft and filtered_array.max() <= 3.0 and original_array.max() > 3.0:
         print("  -> Native FFT threshold not met. Bypassing filter and using raw input scene.")
-        ds = None
         return image_path
 
-    # Create the folder and write a clean Float32 file
-    base_dir = os.path.dirname(os.path.abspath(image_path))
-    filtered_dir = os.path.join(base_dir, "filtered")
+    filtered_dir = os.path.join(os.path.dirname(os.path.abspath(image_path)), "filtered")
     os.makedirs(filtered_dir, exist_ok=True)
-
     filtered_path = os.path.join(filtered_dir, filename.replace(".tif", "_filtered.tif"))
-
     driver = gdal.GetDriverByName("GTiff")
-    # Native hyp3 filtered outputs are written as Float32
     out_ds = driver.Create(filtered_path, ds.RasterXSize, ds.RasterYSize, 1, gdal.GDT_Float32)
-
     out_ds.SetGeoTransform(ds.GetGeoTransform())
     out_ds.SetProjection(ds.GetProjection())
-
     out_band = out_ds.GetRasterBand(1)
     out_band.WriteArray(filtered_array)
     out_band.SetNoDataValue(nodata)
-
-    out_ds.FlushCache()
     out_ds = None
-    ds = None
-
+    if write_zero_mask and zero_mask is not None:
+        root, ext = os.path.splitext(filtered_path)
+        mask_ds = driver.Create(
+            f"{root}_zeroMask{ext}", ds.RasterXSize, ds.RasterYSize, 1, gdal.GDT_Byte
+        )
+        mask_ds.SetGeoTransform(ds.GetGeoTransform())
+        mask_ds.SetProjection(ds.GetProjection())
+        mask_ds.GetRasterBand(1).WriteArray(zero_mask.astype(np.uint8))
+        mask_ds = None
     print(f"  -> Filter applied successfully. Saved to: {filtered_path}")
     return filtered_path
 
 
-def assign_nodata_if_missing(filepath, nodata_val=0):
-    """
-    Checks if a NoData value is defined in the GeoTIFF header.
-    If it is missing, it injects the specified nodata_val into the metadata.
-    """
-    # Use gdal.OpenEx with IGNORE_COG_LAYOUT_BREAK to allow NoData edits on COGs
+def assign_nodata_if_missing(filepath: str, nodata_val: float = 0) -> None:
+    """Declare nodata_val as the nodata value of a GeoTIFF that has none."""
     ds = gdal.OpenEx(filepath, gdal.OF_UPDATE, open_options=["IGNORE_COG_LAYOUT_BREAK=YES"])
-    if ds is None:
-        print(f"  -> Error: Could not open {filepath} to update NoData.")
-        return
-
     band = ds.GetRasterBand(1)
-    current_nodata = band.GetNoDataValue()
-
-    if current_nodata is None:
+    if band.GetNoDataValue() is None:
         print(f"  -> NoData tag missing in header. Injecting NoData={nodata_val}...")
         band.SetNoDataValue(nodata_val)
-
-    # Flush the cache to ensure the header is written to disk
-    ds.FlushCache()
     ds = None
 
 
@@ -124,6 +143,15 @@ def raster_epsg(path: str) -> int:
     return int(srs.GetAuthorityCode(None))
 
 
+def raster_has_data(path: str, nodata: float = 0) -> bool:
+    """True if any pixel differs from nodata (checked on a 4x-decimated read)."""
+    ds = gdal.Open(path)
+    arr = ds.GetRasterBand(1).ReadAsArray(
+        buf_xsize=max(1, ds.RasterXSize // 4), buf_ysize=max(1, ds.RasterYSize // 4)
+    )
+    return bool(np.any(arr != nodata))
+
+
 def resample_to_grid(
     input_path: str | None,
     output_filename: str,
@@ -131,28 +159,24 @@ def resample_to_grid(
     bbox: tuple[float, float, float, float] | None = None,
     is_mask: bool = False,
     dst_epsg: int | None = None,
+    pad_m: float = 5000,
 ) -> str | None:
     """
-    Downloads, clips to scene bbox, and resamples an S3 raster to target resolution.
+    Crop (scene box plus pad_m) and resample a parameter-tile raster to the target resolution.
 
-    With dst_epsg, the raster is also reprojected to that coordinate system and bbox is
-    read in it. The parameter tiles come in their own projection (a UTM zone, or polar
-    stereographic at high latitudes), which can differ from the composite's (the epicenter's
-    UTM zone); cropping without reprojecting reads the scene bbox in the wrong coordinates.
+    With dst_epsg, the raster is also reprojected to that coordinate system and bbox is read in
+    it. The parameter tiles come in their own projection (a UTM zone, or polar stereographic at
+    high latitudes), which can differ from the composite's (the epicenter's UTM zone).
+    Vector rasters (vx, vy, dhdx, dhdy) are resampled but their components are not rotated.
     """
     if not input_path:
         return None
     print(f"  -> Cropping & Resampling {os.path.basename(input_path)} to {resolution}m...")
     alg = gdal.GRA_NearestNeighbour if is_mask else gdal.GRA_Bilinear
-
-    # Bounding box format for gdal.Warp: (minX, minY, maxX, maxY)
-    # Adding a 5km (5000m) buffer to ensure complete coverage over image corners
+    target_bounds = None
     if bbox:
         minx, miny, maxx, maxy = bbox
-        target_bounds = (minx - 5000, miny - 5000, maxx + 5000, maxy + 5000)
-    else:
-        target_bounds = None
-
+        target_bounds = (minx - pad_m, miny - pad_m, maxx + pad_m, maxy + pad_m)
     gdal.Warp(
         output_filename,
         input_path,
@@ -165,573 +189,433 @@ def resample_to_grid(
     return output_filename
 
 
-def convert_offset_to_meters(offset_tif_path, output_tif_path, pixel_size_m):
+def write_flat_geogrid_inputs(image_path: str, grid_m: float, out_dir: str) -> dict[str, str]:
     """
-    Reads offset.tif (in pixels), multiplies DX and DY by the native
-    sensor resolution (in meters), and writes offset_m.tif.
+    Zero DEM, slopes and reference velocity on a grid of grid_m aligned to multiples of grid_m.
+
+    For map-projected optical images in the same CRS, Geogrid uses only the DEM's *grid*: node
+    positions come from it and the offset-to-velocity conversion does not depend on the slopes.
+    The DEM gets nodata -32767 because Geogrid compares velocities with the DEM's nodata value,
+    which GDAL reports as 0 when unset (a zero velocity would then count as missing).
     """
-    if not os.path.exists(offset_tif_path):
-        return
-
-    print(f"Converting pixel offsets to meters (Native Pixel Size: {pixel_size_m}m)...")
-    ds = gdal.Open(offset_tif_path, gdal.GA_ReadOnly)
-
+    ds = gdal.Open(image_path)
+    gt = ds.GetGeoTransform()
+    minx, maxy = gt[0], gt[3]
+    maxx = minx + ds.RasterXSize * gt[1]
+    miny = maxy + ds.RasterYSize * gt[5]
+    x0, y0, x1, y1 = aligned_bounds(minx, miny, maxx, maxy, grid_m)
+    ncol, nrow = int(round((x1 - x0) / grid_m)), int(round((y1 - y0) / grid_m))
     driver = gdal.GetDriverByName("GTiff")
-    out_ds = driver.Create(
-        output_tif_path, ds.RasterXSize, ds.RasterYSize, ds.RasterCount, gdal.GDT_Float32
+    paths = {}
+    for name in ("dem", "dhdx", "dhdy", "vx", "vy"):
+        path = os.path.join(out_dir, f"flat_{name}.tif")
+        out = driver.Create(path, ncol, nrow, 1, gdal.GDT_Float32)
+        out.SetGeoTransform((x0, grid_m, 0.0, y1, 0.0, -grid_m))
+        out.SetProjection(ds.GetProjection())
+        band = out.GetRasterBand(1)
+        if name == "dem":
+            band.SetNoDataValue(-32767)
+        band.Fill(0)
+        out = None
+        paths[name] = path
+    print(f"  -> Flat Geogrid inputs: {ncol} x {nrow} nodes at {grid_m:g} m, origin ({x0}, {y1})")
+    return paths
+
+
+def convert_offset_to_meters(
+    offset_tif_path: str, output_tif_path: str, pixel_size_m: float
+) -> None:
+    """
+    offset.tif (pixels) to offset_m: bands dx_m (east +), dy_m (north +), interp_mask (1 = filled
+    by autoRIFT's interpolation), chip_size_x_px (chip that succeeded, image pixels; 0 = none).
+    Invalid nodes are NaN, declared as nodata.
+    """
+    ds = gdal.Open(offset_tif_path)
+    out_ds = gdal.GetDriverByName("GTiff").Create(
+        output_tif_path,
+        ds.RasterXSize,
+        ds.RasterYSize,
+        ds.RasterCount,
+        gdal.GDT_Float32,
+        options=["COMPRESS=DEFLATE", "PREDICTOR=3", "TILED=YES"],
     )
     out_ds.SetGeoTransform(ds.GetGeoTransform())
     out_ds.SetProjection(ds.GetProjection())
-
     for i in range(1, ds.RasterCount + 1):
-        band = ds.GetRasterBand(i)  # Read band i to ensure all 4 bands are distinct
-        arr = band.ReadAsArray()
-
-        # Multiply DX (Band 1) and DY (Band 2) by pixel size in meters
-        # Keep Band 3 (InterpMask) and Band 4 (ChipSize) unchanged
-        if i in (1, 2):
-            out_arr = arr * pixel_size_m
-        else:
-            out_arr = arr
-
+        arr = ds.GetRasterBand(i).ReadAsArray()
         out_band = out_ds.GetRasterBand(i)
-        out_band.WriteArray(out_arr)
-        out_band.FlushCache()
-
+        out_band.WriteArray(arr * pixel_size_m if i in (1, 2) else arr)
+        if i <= len(runs.PATH_PRODUCT_BANDS):
+            out_band.SetDescription(runs.PATH_PRODUCT_BANDS[i - 1])
+        out_band.SetNoDataValue(float("nan"))
     out_ds = None
-    ds = None
-    print(f"Saved metric offset raster: {output_tif_path}")
 
 
-def snap_to_global_grid(input_path, output_filename, target_grid_m=90):
-    """
-    Forces the input image to snap its bounding box to exact multiples of the target grid.
-    This mathematically guarantees pixel alignment across all independent autoRIFT runs within the same UTM zone.
-    """
-    print(f"  -> Snapping {os.path.basename(input_path)} to global {target_grid_m}m grid...")
+def snap_to_global_grid(input_path: str, output_filename: str, target_grid_m: float) -> str:
+    """Pad an image's bounds outward to multiples of the grid (lossless for 10 m-aligned S2)."""
+    print(f"  -> Snapping {os.path.basename(input_path)} to global {target_grid_m:g}m grid...")
     ds = gdal.Open(input_path)
     gt = ds.GetGeoTransform()
-    cols = ds.RasterXSize
-    rows = ds.RasterYSize
-
-    # Native pixel size (e.g., 10m for Sentinel-2, 30m for Landsat)
-    x_res = abs(gt[1])
-    y_res = abs(gt[5])
-
-    minx = gt[0]
-    maxy = gt[3]
-    maxx = minx + (cols * gt[1])
-    miny = maxy + (rows * gt[5])
-
-    # Snap bounds to perfect multiples of the target grid (90m)
-    import math
-
-    new_minx = math.floor(minx / target_grid_m) * target_grid_m
-    new_miny = math.floor(miny / target_grid_m) * target_grid_m
-    new_maxx = math.ceil(maxx / target_grid_m) * target_grid_m
-    new_maxy = math.ceil(maxy / target_grid_m) * target_grid_m
-
+    minx, maxy = gt[0], gt[3]
+    maxx = minx + ds.RasterXSize * gt[1]
+    miny = maxy + ds.RasterYSize * gt[5]
     gdal.Warp(
         output_filename,
         input_path,
-        outputBounds=(new_minx, new_miny, new_maxx, new_maxy),
-        xRes=x_res,
-        yRes=y_res,
+        outputBounds=(
+            math.floor(minx / target_grid_m) * target_grid_m,
+            math.floor(miny / target_grid_m) * target_grid_m,
+            math.ceil(maxx / target_grid_m) * target_grid_m,
+            math.ceil(maxy / target_grid_m) * target_grid_m,
+        ),
+        xRes=abs(gt[1]),
+        yRes=abs(gt[5]),
         resampleAlg=gdal.GRA_Bilinear,
     )
-    ds = None
     return output_filename
 
 
-def mosaic_and_average(input_files, output_file):
-    """
-    Mosaics multiple overlapping GeoTIFFs by calculating the mean of valid pixels.
-    This prevents hard seamline artifacts at the boundaries of adjacent satellite paths.
-    """
-    if not input_files:
-        return
-
-    print(f"  -> Building global grid for {len(input_files)} files...")
-    # 1. Build a temporary VRT just to calculate the global bounding box and metadata
-    vrt_path = "temp_mosaic_bounds.vrt"
-    vrt_ds = gdal.BuildVRT(vrt_path, input_files)
-
-    cols = vrt_ds.RasterXSize
-    rows = vrt_ds.RasterYSize
-    bands = vrt_ds.RasterCount
-    geo_transform = vrt_ds.GetGeoTransform()
-    projection = vrt_ds.GetProjection()
-
-    # 2. Prepare accumulators for the average calculation
-    sum_array = np.zeros((bands, rows, cols), dtype=np.float32)
-    count_array = np.zeros((bands, rows, cols), dtype=np.float32)
-
-    # 3. Add each file to the accumulators
-    for file in input_files:
-        print(f"  -> Merging {os.path.basename(file)} into average...")
-        ds = gdal.Open(file)
-        gt = ds.GetGeoTransform()
-
-        # Calculate pixel offsets within the global mosaic grid
-        x_offset = int(round((gt[0] - geo_transform[0]) / geo_transform[1]))
-        y_offset = int(round((gt[3] - geo_transform[3]) / geo_transform[5]))
-
-        for b in range(1, bands + 1):
-            band = ds.GetRasterBand(b)
-            arr = band.ReadAsArray().astype(np.float32)
-            nodata = band.GetNoDataValue()
-
-            # Mask out nodata and NaNs
-            if nodata is not None:
-                valid_mask = (arr != nodata) & (~np.isnan(arr))
-            else:
-                valid_mask = (arr != 0) & (~np.isnan(arr))
-
-            # Slice the target region and add to accumulators where valid
-            target_sum = sum_array[
-                b - 1, y_offset : y_offset + ds.RasterYSize, x_offset : x_offset + ds.RasterXSize
-            ]
-            target_count = count_array[
-                b - 1, y_offset : y_offset + ds.RasterYSize, x_offset : x_offset + ds.RasterXSize
-            ]
-
-            target_sum[valid_mask] += arr[valid_mask]
-            target_count[valid_mask] += 1
-
-        ds = None
-
-    # 4. Calculate average and handle division by zero
-    print("  -> Calculating mean across overlapping pixels...")
-    with np.errstate(divide="ignore", invalid="ignore"):
-        avg_array = np.divide(sum_array, count_array)
-        avg_array[count_array == 0] = 0  # Restore NoData where no valid pixels exist
-
-    # 5. Write the final blended output
-    driver = gdal.GetDriverByName("GTiff")
-    out_ds = driver.Create(
-        output_file, cols, rows, bands, gdal.GDT_Float32, options=["COMPRESS=LZW"]
+def its_live_geogrid_inputs(
+    filtered_ref: str, profile: AutoriftProfile, scene_bbox: tuple, info_json: dict
+) -> dict:
+    """ITS_LIVE parameter-tile inputs, cropped and resampled to the profile grid."""
+    coords = info_json["wgs84Extent"]["coordinates"][0]
+    lons = [c[0] for c in coords]
+    lats = [c[1] for c in coords]
+    poly = geometry.polygon_from_bbox(
+        x_limits=(min(lats), max(lats)), y_limits=(min(lons), max(lons))
     )
-    out_ds.SetGeoTransform(geo_transform)
-    out_ds.SetProjection(projection)
+    print("Fetching regional parameters from S3 Shapefile...")
+    parameter_info = utils.find_jpl_parameter_info(poly, ITS_LIVE_PARAMETER_FILE)
 
-    for b in range(1, bands + 1):
-        out_band = out_ds.GetRasterBand(b)
-        out_band.WriteArray(avg_array[b - 1])
-        out_band.SetNoDataValue(0)  # standard autoRIFT NoData
-
-    out_ds.FlushCache()
-    out_ds = None
-    vrt_ds = None
-    if os.path.exists(vrt_path):
-        os.remove(vrt_path)
-
-
-def process_event(manifest_path, enable_filtering=False):
-    # Read the manifest generated by coseis.py
-    with open(manifest_path, "r") as f:
-        manifest = json.load(f)
-
-    if manifest.get("status") != "DOWNLOADED_READY_FOR_AUTORIFT":
-        print(f"Skipping {manifest.get('event_title')} - Status is {manifest.get('status')}")
-        return
-
-    manifest["status"] = "PROCESSING_AUTORIFT"
-    with open(manifest_path, "w") as f:
-        json.dump(manifest, f, indent=4)
-
-    title = manifest["event_title"]
-    sensor_str = manifest.get("sensor", "optical")
-    level_str = manifest.get("optical_level", "unknown")
-
-    # Check for track_pairs (new format), path_exports (old format), or single composite
-    pairs_to_process = []
-
-    if "track_pairs" in manifest:
-        for path_num, paths in manifest["track_pairs"].items():
-            pairs_to_process.append(
-                {
-                    "id": f"Path{path_num}",
-                    "ref": paths.get("pre_image"),
-                    "sec": paths.get("post_image"),
-                }
-            )
-    elif "path_exports" in manifest:
-        for path_num, paths in manifest["path_exports"].items():
-            pairs_to_process.append(
-                {
-                    "id": f"Path{path_num}",
-                    "ref": paths.get("pre_composite_path"),
-                    "sec": paths.get("post_composite_path"),
-                }
-            )
-    else:
-        # Fallback for single-pair manifests
-        pairs_to_process.append(
-            {
-                "id": "Composite",
-                "ref": manifest.get("pre_composite_path") or manifest.get("pre_image"),
-                "sec": manifest.get("post_composite_path") or manifest.get("post_image"),
-            }
+    # The parameter tile is chosen by the scene center and has its own projection (that UTM
+    # zone, or polar stereographic at high latitudes); the composite is in the epicenter's UTM
+    # zone. Bring the tile rasters into the image's projection so the crop below and Geogrid's
+    # output grid use the image's coordinates.
+    image_epsg = raster_epsg(filtered_ref)
+    if parameter_info["epsg"] != image_epsg:
+        print(
+            f"Parameter tile {parameter_info['name']} is EPSG:{parameter_info['epsg']}; "
+            f"reprojecting its rasters to the image's EPSG:{image_epsg}"
         )
+        parameter_info["epsg"] = image_epsg
 
-    # Clean the list of any pairs that failed to pull actual file paths
-    pairs_to_process = [p for p in pairs_to_process if p["ref"] and p["sec"]]
+    g_info = parameter_info["geogrid"]
+    for key in ("csminx", "csminy", "csmaxx", "csmaxy", "srx", "sry"):
+        g_info[key] = None
+    for key in ("chip_size_min", "chip_size_max", "search_range"):
+        parameter_info["autorift"][key] = None
 
-    if not pairs_to_process:
-        print("Error: Could not find valid image paths in manifest.")
-        return
+    # The grid is the resampled DEM's. v0 cropped the scene box plus 5 km (grid off the grid_m
+    # lattice); aligned profiles put it on multiples of grid_m.
+    if profile.align_grid:
+        bounds, pad = aligned_bounds(*scene_bbox, profile.grid_m, pad_m=5000), 0
+    else:
+        bounds, pad = scene_bbox, 5000
+    print(f"Cropping & Resampling shapefile maps to scene bounds ({profile.grid_m:g}m grid)...")
+    for key, name, is_mask in (
+        ("dem", "local_dem.tif", False),
+        ("dhdx", "local_dhdx.tif", False),
+        ("dhdy", "local_dhdy.tif", False),
+        ("vx", "local_vx.tif", False),
+        ("vy", "local_vy.tif", False),
+        ("ssm", "local_ssm.tif", True),
+    ):
+        g_info[key] = resample_to_grid(
+            g_info.get(key),
+            name,
+            profile.grid_m,
+            bbox=bounds,
+            is_mask=is_mask,
+            dst_epsg=image_epsg,
+            pad_m=pad,
+        )
+    return parameter_info
 
-    print(f"\n{'=' * 50}")
-    print(f"Starting autoRIFT processing for: {title} ({len(pairs_to_process)} regions)")
-    print(f"{'=' * 50}")
 
-    # Change working directory to the event folder to store outputs
-    event_dir = os.path.dirname(manifest_path)
-    original_dir = os.getcwd()
-    os.chdir(event_dir)
+def flat_geogrid_inputs(filtered_ref: str, profile: AutoriftProfile, work_dir: str) -> dict:
+    """Parameter-file-free Geogrid/autoRIFT inputs (see write_flat_geogrid_inputs)."""
+    flat = write_flat_geogrid_inputs(filtered_ref, profile.grid_m, work_dir)
+    return {
+        "name": "flat",
+        "epsg": raster_epsg(filtered_ref),
+        "geogrid": {
+            **{key: flat[key] for key in ("dem", "dhdx", "dhdy", "vx", "vy")},
+            "srx": None,
+            "sry": None,
+            "csminx": None,
+            "csminy": None,
+            "csmaxx": None,
+            "csmaxy": None,
+            "ssm": None,
+        },
+        "autorift": {
+            "grid_location": "window_location.tif",
+            "init_offset": "window_offset.tif",
+            "search_range": None,
+            "chip_size_min": None,
+            "chip_size_max": None,
+            "offset2vx": "window_rdr_off2vel_x_vec.tif",
+            "offset2vy": "window_rdr_off2vel_y_vec.tif",
+            "stable_surface_mask": None,
+            "scale_factor": "window_scale_factor.tif",
+            "mpflag": 0,
+        },
+    }
 
-    metric_offset_files = []
-    velocity_files = []
 
+def process_pair(
+    pair: dict[str, Any],
+    profile: AutoriftProfile,
+    options: dict[str, Any],
+    work_dir: Path,
+    out_path: Path,
+) -> dict[str, Any]:
+    """
+    Run Geogrid and autoRIFT on one path's PRE/POST composites in work_dir; write the path's
+    offset_m product to out_path. Returns the path's record (outputs, grid, timings or 'skipped').
+    """
+    result: dict[str, Any] = {"path": pair["path"], "timings_s": {}}
+    t_start = time.time()
+    print(f"\n--- Path {pair['path']} ---")
+    for image in (pair["ref"], pair["sec"]):
+        if not raster_has_data(image):
+            print(f"Skipping path {pair['path']}: {os.path.basename(image)} has no data")
+            return {**result, "skipped": "empty composite"}
+
+    if work_dir.exists():
+        shutil.rmtree(work_dir)  # nothing from an earlier attempt may leak into this one
+    work_dir.mkdir(parents=True)
+    os.chdir(work_dir)
+
+    aligned_ref = snap_to_global_grid(pair["ref"], "aligned_ref.tif", profile.grid_m)
+    aligned_sec = snap_to_global_grid(pair["sec"], "aligned_sec.tif", profile.grid_m)
+    assign_nodata_if_missing(aligned_ref, 0)
+    assign_nodata_if_missing(aligned_sec, 0)
+
+    t0 = time.time()
+    if profile.prefilter in ("wallis_hps", "wallis"):
+        write_mask = profile.prefilter == "wallis"
+        filtered_ref = apply_optical_filtering(aligned_ref, 0, write_zero_mask=write_mask)
+        filtered_sec = apply_optical_filtering(aligned_sec, 0, write_zero_mask=write_mask)
+    else:
+        filtered_ref, filtered_sec = aligned_ref, aligned_sec
+    result["timings_s"]["prefilter"] = round(time.time() - t0, 1)
+
+    info_json = gdal.Info(filtered_ref, format="json")
+    gt = info_json["geoTransform"]
+    pixel_size = abs(gt[1])
+    geom = pixel_geometry(profile, pixel_size)
+    if driver_options(profile, geom) != options:
+        raise ValueError(
+            f"{pixel_size:g} m pixels give other driver options than the version's (10 m S2)"
+        )
+    width, height = info_json["size"]
+    minx, maxy = gt[0], gt[3]
+    maxx, miny = minx + width * gt[1], maxy + height * gt[5]
+    scene_bbox = (min(minx, maxx), min(miny, maxy), max(minx, maxx), max(miny, maxy))
+    clipped = clipped_chip_sizes(geom, abs(maxx - minx), abs(maxy - miny))
+    if clipped:
+        print(f"  [Warning] image smaller than the coarse filter window for chips {clipped} px")
+        result["warnings"] = [f"coarse filter window wider than the image for chips {clipped} px"]
+
+    if profile.geogrid_inputs == "its_live":
+        parameter_info = its_live_geogrid_inputs(filtered_ref, profile, scene_bbox, info_json)
+    else:
+        parameter_info = flat_geogrid_inputs(filtered_ref, profile, str(work_dir))
+    parameter_info["geogrid"]["grid_spacing"] = profile.grid_m
+    parameter_info["geogrid"]["chipSizeX0"] = profile.chip_min_m
+
+    _, _, xsize1, ysize1, _, _, _, _, trans = GeogridOptical().coregister(
+        filtered_ref, filtered_sec
+    )
+    info_m = Dummy()
+    info_m.startingX, info_m.startingY = trans[0], trans[3]
+    info_m.XSize, info_m.YSize = trans[1], trans[5]
+    info_m.numberOfLines, info_m.numberOfSamples = ysize1, xsize1
+    info_m.filename = filtered_ref
+    info_m.time = DUMMY_REFERENCE_DATE
+    info_s = Dummy()
+    info_s.time = DUMMY_SECONDARY_DATE
+
+    t0 = time.time()
+    geogrid_info = runGeogrid(
+        info_m, info_s, epsg=parameter_info["epsg"], optical_flag=1, **parameter_info["geogrid"]
+    )
+    result["timings_s"]["geogrid"] = round(time.time() - t0, 1)
+
+    t0 = time.time()
+    gdal.AllRegister()
+    generateAutoriftProduct(
+        filtered_ref,
+        filtered_sec,
+        nc_sensor=None,  # no netCDF packaging (needs the fork's driver, branch coseis)
+        optical_flag=True,
+        ncname=None,
+        geogrid_run_info=geogrid_info,
+        parameter_file=ITS_LIVE_PARAMETER_FILE.replace("/vsicurl/", ""),
+        **parameter_info["autorift"],
+        **options,
+    )
+    result["timings_s"]["autorift"] = round(time.time() - t0, 1)
+
+    offset_ds = gdal.Open("offset.tif")
+    dx = offset_ds.GetRasterBand(1).ReadAsArray()
+    result["grid"] = {
+        "nodes": [offset_ds.RasterYSize, offset_ds.RasterXSize],
+        "geotransform": list(offset_ds.GetGeoTransform()),
+        "valid_fraction": round(float(np.isfinite(dx).mean()), 4),
+    }
+    offset_ds = None
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    convert_offset_to_meters("offset.tif", str(out_path), pixel_size)
+    result["offset_m"] = f"paths/{out_path.name}"
+    result["timings_s"]["total"] = round(time.time() - t_start, 1)
+    return result
+
+
+def process_event(
+    root: Path,
+    version_record: dict[str, Any],
+    event: str,
+    profile: AutoriftProfile,
+    options: dict[str, Any],
+    provenance: dict[str, Any],
+    force: bool = False,
+) -> str:
+    """Process one event for a version; returns its status. Errors are recorded, not raised."""
+    version = version_record["version"]
+    recipe = version_record["definition"]["composite_recipe"]
+    out_dir = root / "products" / version / event
+    run_path = out_dir / "run_info.json"
+    if run_path.exists() and not force:
+        status = json.loads(run_path.read_text()).get("status")
+        if status in ("COMPLETE", "NO_DATA"):
+            print(f"Skipping {event}: {version} is {status} (use --force to redo)")
+            return status
+    if out_dir.exists():
+        shutil.rmtree(out_dir)  # a rerun replaces the event's products entirely
+    out_dir.mkdir(parents=True)
+
+    events_path = root / "events.json"
+    events = json.loads(events_path.read_text()) if events_path.exists() else {}
+    event_meta = events.get(event, {})
+    pairs, skipped = runs.composite_pairs(root, event, recipe)
+    run: dict[str, Any] = {
+        "event": event,
+        "version": version,
+        "status": "PROCESSING",
+        "started_utc": runs.utc_now(),
+        "event_metadata": event_meta,
+        "inputs": [{k: v for k, v in p.items() if k not in ("ref", "sec")} for p in pairs],
+        "skipped": skipped,
+        "paths": [],
+        "code": provenance,
+    }
+
+    def save() -> None:
+        run_path.write_text(json.dumps(run, indent=1) + "\n")
+
+    save()
+    print(f"\n{'=' * 60}\n{event}: {len(pairs)} path(s), version {version}\n{'=' * 60}")
+    cwd = os.getcwd()
     try:
-        parameter_file = "/vsicurl/https://its-live-data.s3.amazonaws.com/autorift_parameters/v001/autorift_solidearth_0120m.shp"
-
-        # Loop through each individual path/composite pair
-        for pair in pairs_to_process:
-            pair_id = pair["id"]
-
-            # Use absolute paths so we can safely change working directories
-            ref_path = os.path.abspath(pair["ref"])
-            sec_path = os.path.abspath(pair["sec"])
-
-            print(f"\n--- Processing Pair: {pair_id} ---")
-
-            # Create an isolated working directory for this track to prevent
-            # autoRIFT's hardcoded intermediate files from cross-contaminating
-            pair_work_dir = os.path.join(
-                event_dir, f"processing_{pair_id}_{sensor_str}_{level_str}"
+        for pair in pairs:
+            work_dir = root / "work" / version / event / f"P{pair['path']}"
+            out_path = out_dir / "paths" / runs.path_product_name(event, version, pair["path"])
+            run["paths"].append(process_pair(pair, profile, options, work_dir, out_path))
+            os.chdir(cwd)
+            save()
+        files = [str(out_dir / p["offset_m"]) for p in run["paths"] if p.get("offset_m")]
+        if files:
+            run["deliverable"] = runs.deliverable_name(event, version)
+            metadata = runs.deliverable_metadata(version_record, event, event_meta, run)
+            run["deliverable_grid"] = runs.write_deliverable(
+                files, str(out_dir / run["deliverable"]), metadata
             )
-            os.makedirs(pair_work_dir, exist_ok=True)
-
-            # Move into the isolated directory
-            os.chdir(pair_work_dir)
-
-            # Define universal physical parameters in meters early so we can use it for snapping
-            TARGET_GRID_M = 90
-            TARGET_CHIP_MIN_M = 360
-            TARGET_CHIP_MAX_M = 720
-            TARGET_SEARCH_LIMIT_M = 45
-
-            # 1. Snap raw inputs to a universal global grid
-            print("Snapping composite boundaries to a universal global grid...")
-            aligned_ref_path = f"aligned_ref_{pair_id}.tif"
-            aligned_sec_path = f"aligned_sec_{pair_id}.tif"
-
-            snap_to_global_grid(ref_path, aligned_ref_path, target_grid_m=TARGET_GRID_M)
-            snap_to_global_grid(sec_path, aligned_sec_path, target_grid_m=TARGET_GRID_M)
-
-            # Assign nodata to 0, if missing from metadata
-            print("Verifying NoData metadata headers...")
-            assign_nodata_if_missing(aligned_ref_path, nodata_val=0)
-            assign_nodata_if_missing(aligned_sec_path, nodata_val=0)
-
-            if enable_filtering:
-                print("Applying optical pre-filtering...")
-                filtered_ref = apply_optical_filtering(aligned_ref_path, nodata=0)
-                filtered_sec = apply_optical_filtering(aligned_sec_path, nodata=0)
-            else:
-                print("Bypassing optical pre-filtering...")
-                filtered_ref = aligned_ref_path
-                filtered_sec = aligned_sec_path
-
-            print("Calculating bounding box from local image...")
-            info_json = gdal.Info(filtered_ref, format="json")
-
-            # --- 2. DYNAMIC PHYSICAL-TO-PIXEL CONVERSION ---
-            # Detect native pixel size (e.g., 15m for Landsat 8, 10m for Sentinel-2)
-            pixel_size = abs(info_json["geoTransform"][1])
-            print(f"Detected native pixel size: {pixel_size}m")
-
-            # Translate to pixel-based values based on sensor resolution
-            grid_px = int(TARGET_GRID_M / pixel_size)
-            chip_min_px = int(TARGET_CHIP_MIN_M / pixel_size)
-            chip_max_px = int(TARGET_CHIP_MAX_M / pixel_size)
-            search_limit_px = int(TARGET_SEARCH_LIMIT_M / pixel_size)
-
-            # Safeguard: Ensure chip sizes perfectly divide by grid spacing for autoRIFT's C++ core
-            if chip_min_px % grid_px != 0:
-                raise ValueError(
-                    f"Math Error: Min chip ({chip_min_px}px) is not a multiple of Grid size ({grid_px}px)"
-                )
-
-            print(
-                f"Dynamic arrays: {chip_min_px}-{chip_max_px}px chips, {search_limit_px}px search limit"
-            )
-            # -----------------------------------------------
-
-            coords = info_json["wgs84Extent"]["coordinates"][0]
-            lons = [c[0] for c in coords]
-            lats = [c[1] for c in coords]
-            poly = geometry.polygon_from_bbox(
-                x_limits=(min(lats), max(lats)), y_limits=(min(lons), max(lons))
-            )
-
-            print("Fetching regional parameters from S3 Shapefile...")
-            parameter_info = utils.find_jpl_parameter_info(poly, parameter_file)
-
-            # The parameter tile is chosen by the scene center and has its own projection (that
-            # UTM zone, or polar stereographic at high latitudes); the composite is in the
-            # epicenter's UTM zone. Bring the tile rasters into the image's projection so the
-            # crop below and Geogrid's output grid use the image's coordinates.
-            image_epsg = raster_epsg(filtered_ref)
-            if parameter_info["epsg"] != image_epsg:
-                print(
-                    f"Parameter tile {parameter_info['name']} is EPSG:{parameter_info['epsg']}; "
-                    f"reprojecting its rasters to the image's EPSG:{image_epsg}"
-                )
-                parameter_info["epsg"] = image_epsg
-
-            # --- 2. INJECT PARAMETERS & NULLIFY SHAPEFILE ---
-            # Force 90m output grid spacing for Geogrid
-            parameter_info["geogrid"]["grid_spacing"] = TARGET_GRID_M
-            parameter_info["geogrid"]["chipSizeX0"] = TARGET_CHIP_MIN_M
-
-            # Strip Geogrid shapefile paths using the correct kwargs keys
-            parameter_info["geogrid"]["csminx"] = None
-            parameter_info["geogrid"]["csminy"] = None
-            parameter_info["geogrid"]["csmaxx"] = None
-            parameter_info["geogrid"]["csmaxy"] = None
-            parameter_info["geogrid"]["srx"] = None
-            parameter_info["geogrid"]["sry"] = None
-
-            # Strip autoRIFT shapefile paths using the correct kwargs keys
-            parameter_info["autorift"]["chip_size_min"] = None
-            parameter_info["autorift"]["chip_size_max"] = None
-            parameter_info["autorift"]["search_range"] = None
-
-            # Inject dynamically calculated pixels for autoRIFT arrays
-            parameter_info["autorift"]["ChipSizeMinX"] = chip_min_px
-            parameter_info["autorift"]["ChipSizeMinY"] = chip_min_px
-            parameter_info["autorift"]["ChipSizeMaxX"] = chip_max_px
-            parameter_info["autorift"]["ChipSizeMaxY"] = chip_max_px
-            parameter_info["autorift"]["SearchLimitX"] = search_limit_px
-            parameter_info["autorift"]["SearchLimitY"] = search_limit_px
-            # ------------------------------------------------
-
-            # Force target grid by local resampling of 120m DEM from parameter file
-            gt = info_json["geoTransform"]
-            raster_xsize = info_json["size"][0]
-            raster_ysize = info_json["size"][1]
-
-            minx = gt[0]
-            maxy = gt[3]
-            maxx = minx + (raster_xsize * gt[1])
-            miny = maxy + (raster_ysize * gt[5])
-            scene_bbox = (min(minx, maxx), min(miny, maxy), max(minx, maxx), max(miny, maxy))
-
-            print(
-                f"Cropping & Resampling shapefile maps to scene bounds ({TARGET_GRID_M}m grid)..."
-            )
-            g_info = parameter_info["geogrid"]
-
-            g_info["dem"] = resample_to_grid(
-                g_info.get("dem"),
-                "local_dem.tif",
-                TARGET_GRID_M,
-                bbox=scene_bbox,
-                dst_epsg=image_epsg,
-            )
-            g_info["dhdx"] = resample_to_grid(
-                g_info.get("dhdx"),
-                "local_dhdx.tif",
-                TARGET_GRID_M,
-                bbox=scene_bbox,
-                dst_epsg=image_epsg,
-            )
-            g_info["dhdy"] = resample_to_grid(
-                g_info.get("dhdy"),
-                "local_dhdy.tif",
-                TARGET_GRID_M,
-                bbox=scene_bbox,
-                dst_epsg=image_epsg,
-            )
-            g_info["vx"] = resample_to_grid(
-                g_info.get("vx"),
-                "local_vx.tif",
-                TARGET_GRID_M,
-                bbox=scene_bbox,
-                dst_epsg=image_epsg,
-            )
-            g_info["vy"] = resample_to_grid(
-                g_info.get("vy"),
-                "local_vy.tif",
-                TARGET_GRID_M,
-                bbox=scene_bbox,
-                dst_epsg=image_epsg,
-            )
-            g_info["ssm"] = resample_to_grid(
-                g_info.get("ssm"),
-                "local_ssm.tif",
-                TARGET_GRID_M,
-                bbox=scene_bbox,
-                is_mask=True,
-                dst_epsg=image_epsg,
-            )
-
-            print("Manually co-registering...")
-            obj = GeogridOptical()
-            x1a, y1a, xsize1, ysize1, x2a, y2a, xsize2, ysize2, trans = obj.coregister(
-                filtered_ref, filtered_sec
-            )
-
-            info_m = Dummy()
-            info_m.startingX = trans[0]
-            info_m.startingY = trans[3]
-            info_m.XSize = trans[1]
-            info_m.YSize = trans[5]
-            info_m.numberOfLines = ysize1
-            info_m.numberOfSamples = xsize1
-            info_m.filename = filtered_ref
-            info_m.time = "20190101"
-
-            info_s = Dummy()
-            info_s.time = "20200101"
-
-            print("Running Geogrid...")
-            geogrid_info = runGeogrid(
-                info_m,
-                info_s,
-                epsg=parameter_info["epsg"],
-                optical_flag=1,
-                **parameter_info["geogrid"],
-            )
-
-            print("Running autoRIFT...")
-            gdal.AllRegister()
-
-            try:
-                generateAutoriftProduct(
-                    filtered_ref,
-                    filtered_sec,
-                    nc_sensor="DUMMY_SENSOR",
-                    optical_flag=True,
-                    ncname=None,
-                    geogrid_run_info=geogrid_info,
-                    **parameter_info["autorift"],
-                    parameter_file=parameter_file.replace("/vsicurl/", ""),
-                )
-            except Exception as e:
-                if "netCDF packaging not supported" in str(e):
-                    print("Successfully completed autoRIFT (skipped NetCDF packaging).")
-                else:
-                    raise e
-
-            print("Renaming and moving output files...")
-            out_prefix = f"{title}_{pair_id}_{sensor_str}_{level_str}_autorift"
-
-            if os.path.exists("velocity.tif"):
-                vel_path = os.path.join(event_dir, f"{out_prefix}_velocity.tif")
-                os.rename("velocity.tif", vel_path)
-                velocity_files.append(vel_path)
-
-            if os.path.exists("offset.tif"):
-                metric_offset_path = os.path.join(event_dir, f"{out_prefix}_offset_m.tif")
-                convert_offset_to_meters("offset.tif", metric_offset_path, pixel_size)
-
-                os.rename("offset.tif", os.path.join(event_dir, f"{out_prefix}_offset.tif"))
-                metric_offset_files.append(metric_offset_path)
-
-            # Step back up to the main event directory for the next iteration
-            os.chdir(event_dir)
-
-        # ==========================================
-        # Post-Processing: Mosaicing Step
-        # ==========================================
-
-        # Mosaic offsets using pixel averaging to avoid seamline artifacts
-        if metric_offset_files:
-            final_mosaic_path = f"{title}_final_mosaic_{sensor_str}_{level_str}_offset_m.tif"
-            if len(metric_offset_files) > 1:
-                print(
-                    f"\n--- Blending {len(metric_offset_files)} paths into seamless offset mosaic ---"
-                )
-                mosaic_and_average(metric_offset_files, final_mosaic_path)
-                print(f"Created seamless offset mosaic: {final_mosaic_path}")
-            else:
-                shutil.copy(metric_offset_files[0], final_mosaic_path)
-                print(f"Only one path found. Copied to final output: {final_mosaic_path}")
-
-        # Mosaic velocities using pixel averaging
-        if velocity_files:
-            final_vel_path = f"{title}_final_mosaic_{sensor_str}_{level_str}_velocity.tif"
-            if len(velocity_files) > 1:
-                print(
-                    f"--- Blending {len(velocity_files)} paths into seamless velocity mosaic ---"
-                )
-                mosaic_and_average(velocity_files, final_vel_path)
-                print(f"Created seamless velocity mosaic: {final_vel_path}")
-            else:
-                shutil.copy(velocity_files[0], final_vel_path)
-
-        # Update the manifest to show processing is complete
-        manifest["status"] = "PROCESSED_AUTORIFT_COMPLETE"
-        with open(os.path.basename(manifest_path), "w") as f:
-            json.dump(manifest, f, indent=4)
-
-        print(f"\nFinished {title}. Outputs saved in {event_dir}")
-
+            run["status"] = "COMPLETE"
+        else:
+            run["status"] = "NO_DATA"
+    except Exception as e:  # noqa: BLE001 - record the failure and go on with the next event
+        run["status"] = "FAILED"
+        run["error"] = f"{type(e).__name__}: {e}"
+        run["traceback"] = traceback.format_exc()
+        print(f"FAILED {event}: {run['error']}")
     finally:
-        # ALWAYS revert back to the root directory so the next loop iteration works
-        os.chdir(original_dir)
+        os.chdir(cwd)
+    run["finished_utc"] = runs.utc_now()
+    save()
+    aria_commit = version_record["definition"]["code"].get("aria_coseis", {}).get("commit", "")
+    store.update_catalog(
+        root / "products" / version / "catalog.csv",
+        runs.catalog_row(event, event_meta, run, aria_commit),
+    )
+    return run["status"]
 
 
-def main():
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="aria-coseis-autorift",
-        description="Run autoRIFT batch processing on GEE optical downloads.",
+        description="Run autoRIFT on composites from the optical data store into a product version.",
     )
+    parser.add_argument("--version", required=True, help="Product version, e.g. exp-g90, v1-90m")
+    parser.add_argument("--description", default="", help="What the version is for (first run)")
+    parser.add_argument("--store", help="Store root (default: COSEIS_OPTICAL_DIR)")
+    parser.add_argument("--recipe", default="med90", help="Composite recipe (default med90)")
     parser.add_argument(
-        "--filter",
-        action="store_true",
-        help="Enable FFT/Wallis pre-filtering for optical imagery.",
+        "--event", action="append", help="Event folder name (repeatable); default: all events"
     )
-    parser.add_argument(
-        "--data_dir",
-        type=Path,
-        default=Path(config.root_dir),
-        help="Data directory containing GEE_Optical_Downloads/. "
-        "Default: the aria_coseis data directory (COSEIS_DATA_DIR, or ./data).",
+    parser.add_argument("--profile", choices=sorted(PROFILES), default="g90")
+    parser.add_argument("--grid_m", type=float, help="Output posting, m")
+    parser.add_argument("--chip_min_m", type=float, help="Smallest chip, m")
+    parser.add_argument("--chip_max_m", type=float, help="Largest chip, m (chip_min x 2^k)")
+    parser.add_argument("--search_px", type=int, help="Search half-width, image pixels (min 6)")
+    parser.add_argument("--oversample", type=int, help="Correlation oversampling for every chip")
+    parser.add_argument("--prefilter", choices=["wallis_hps", "wallis", "hps"])
+    parser.add_argument("--geogrid_inputs", choices=["its_live", "flat"])
+    parser.add_argument("--reference_velocity", choices=["null", "its_live"])
+    parser.add_argument("--force", action="store_true", help="Redo events already processed")
+    args = parser.parse_args(argv)
+
+    root = store.require_store(args.store).resolve()
+    check_driver()
+    null_ref = None if args.reference_velocity is None else args.reference_velocity == "null"
+    profile = resolve_profile(
+        args.profile,
+        grid_m=args.grid_m,
+        chip_min_m=args.chip_min_m,
+        chip_max_m=args.chip_max_m,
+        search_px=args.search_px,
+        oversample=args.oversample,
+        prefilter=args.prefilter,
+        geogrid_inputs=args.geogrid_inputs,
+        null_reference_velocity=null_ref,
     )
-    args = parser.parse_args()
-
-    # Start timer
-    script_start_time = time.time()
-
-    # Search for all manifest files in the GEE_Optical_Downloads directory
-    search_pattern = (
-        args.data_dir.resolve() / "GEE_Optical_Downloads" / "**" / "*_autorift_manifest.json"
+    geom = pixel_geometry(profile, 10.0)
+    for warning in geom.warnings:
+        print(f"[Warning] {warning}")
+    options = driver_options(profile, geom)
+    provenance = store.code_provenance()
+    definition = runs.version_definition(profile, args.recipe, geom, options, provenance)
+    record = store.start_version(root, args.version, args.description, definition)
+    env_listing = root / "products" / args.version / "environment.txt"
+    if not env_listing.exists():
+        store.write_environment_listing(env_listing)
+    print(
+        f"Version {args.version}: profile {profile.name}, recipe {args.recipe}, chips "
+        f"{geom.chip_sizes_px} px, grid {geom.grid_px} px, search {geom.effective_search_px} px"
     )
 
-    manifest_files = glob.glob(str(search_pattern), recursive=True)
-
-    if not manifest_files:
-        print("No manifest files found. Ensure coseis.py has downloaded the composites.")
-        return
-
-    # Pass the argument directly into the loop
-    for manifest_path in manifest_files:
-        process_event(manifest_path, enable_filtering=args.filter)
-
-    # Stop the timer and calculate elapsed time at the very end
-    script_end_time = time.time()
-    total_seconds = script_end_time - script_start_time
-
-    # Convert and print runtime
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    print("\nProcessing complete.")
-    print(f"Total execution time: {int(hours)}h {int(minutes)}m {seconds:.2f}s")
+    events = args.event or sorted(
+        p.parent.name for p in (root / "composites").glob("*/composites.json")
+    )
+    started = time.time()
+    statuses = {
+        event: process_event(root, record, event, profile, options, provenance, args.force)
+        for event in events
+    }
+    summary = {s: list(statuses.values()).count(s) for s in sorted(set(statuses.values()))}
+    print(f"\nDone in {(time.time() - started) / 60:.1f} min: {summary}")
 
 
 if __name__ == "__main__":
