@@ -22,6 +22,7 @@
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
 | 5. Validation + cutover | **done** 2026-10-07 | branch `cutover` → PR #37; housekeeping → PR |
+| 6. Optical products (90 m fixes, then 30 m) | **in progress** | 6a: #43 (data store) |
 
 Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
 
@@ -176,6 +177,29 @@ Remaining gaps:
 - [x] Branch model after cutover: feature branches with PRs into `main`; `develop` retired and deleted. Ground rules, README (with a new `ops/README.md`), CI trigger and the wrapper's conda setup updated in the housekeeping PR. **DONE 2026-10-07**
 - Deferred: historic SAR and optical comparisons against existing products (covered for SAR by the golden tests; optical with Phase 4).
 
+## Phase 6: Optical products (90 m fixes, then 30 m)
+**Goal:** one reproducible set of optical offset mosaics for every event, with no doubt about how each one was made. The deliverable is a GeoTIFF per event: dx and dy in metres, a quality measure in band 3, and metadata. Decisions (2026-10-14): fix and test at 90 m before any 30 m run; the testbed is Ridgecrest 2019 (control: desert, little sun change), Pazarcık 2023 (snow, winter to spring) and Palu 2018 (tropical forest, sun crossing the zenith); composites and product versions are kept apart in one data store outside the git clones.
+
+**6a. Data store and provenance.** Issue #43.
+- [ ] `aria_coseis.optical.store`: composites by recipe (`composites/<event>/`, read-only, one record each with checksum and source), product versions (`products/<version>/` with `VERSION.json` and `catalog.csv`), intermediates (`work/`), and USGS metadata for every event (`events.json`). Root: `COSEIS_OPTICAL_DIR` (production: `/u/trappist-r0/colespeed/work/coseis_optical`).
+- [ ] Register the first products as version `v0` (hard links; `data/GEE_Optical_Downloads` is frozen) with the code that made each event.
+- [x] hyp3-autorift: the uncommitted driver edits behind every v0 product are committed on the fork (`cmspeed/hyp3-autorift`, branch `coseis`, tag `coseis-v0`); later driver fixes follow on that branch. **DONE 2026-10-14**
+
+**6b. Processing profiles and versioned runs** (from the 30 m work).
+- [ ] Processing profiles; `legacy90` reproduces v0.
+- [ ] Every run writes into `products/<version>/` with the code commits, parameters and input composites.
+- [ ] The deliverable mosaic: dx, dy, quality, nodata and band names declared, provenance in the metadata.
+
+**6c. 90 m testbed, one change at a time** (baseline: v0).
+- [ ] No reference velocities and flat Geogrid inputs (also checked on a glacier event).
+- [ ] Pre-filter choice and repeatable runs.
+- [ ] Composites that match season and sun (a season-matched PRE window, snow masking).
+- [ ] Corrections: far-field bias removal; the quality band.
+
+**6d. Production runs.**
+- [ ] v1 at 90 m for all events.
+- [ ] 30 m on the same composites.
+
 ## Backlog: longer-term improvements
 Proposed along the way and not yet scheduled. Move items into a phase when picked up.
 
@@ -213,5 +237,5 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 **Science / products**
 - [ ] Record per-product provenance (`coseis.py` commit SHA, parameters, scene IDs) in the outputs and HyP3 job metadata.
 - [ ] Bring `s3_upload_aria_share/` into the pipeline (or document it) so finished products are uploaded automatically.
-- [x] **autoRIFT across projections.** The ITS_LIVE parameter tile is chosen by the scene center and has its own projection (that UTM zone, or polar stereographic EPSG:3413 north of about 60°N), while composites are in the epicenter's UTM zone. When they differed, the DEM was cropped with coordinates from the wrong projection and Geogrid aborted with a negative grid size (Mandalay 2025, straddling 96°E; Hubbard Glacier, Kaktovik, Chukotskiy and two Mosquito Lake events on the polar tile). The tile rasters are now reprojected to the image's projection; events whose tile matches are unaffected (identical DEM crop and Geogrid output). **DONE 2026-10-13**
+- [x] **autoRIFT across projections.** The ITS_LIVE parameter tile is chosen by the scene center and has its own projection (that UTM zone, or polar stereographic EPSG:3413 north of about 60°N), while composites are in the epicenter's UTM zone. When they differed, the DEM was cropped with coordinates from the wrong projection and Geogrid aborted with a negative grid size (Mandalay 2025, straddling 96°E; Hubbard Glacier, Kaktovik, Chukotskiy and two Mosquito Lake events on the polar tile). The tile rasters are now reprojected to the image's projection; events whose tile matches are unaffected (identical DEM crop and Geogrid output). **DONE 2026-10-14 (issue #41 → PR #42)**
 - [ ] autoRIFT batch: per-event error handling (a failed event is left at `PROCESSING_AUTORIFT` and must be reset by hand), relative manifest paths, and parallel events.

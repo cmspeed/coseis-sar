@@ -1,0 +1,648 @@
+"""
+Versioned store for optical composites and autoRIFT products: `python -m aria_coseis.optical.store`.
+
+Layout under config.OPTICAL_DIR:
+
+    README.md
+    events.json                          USGS metadata for every event folder name
+    composites/recipes.json              how each composite recipe is made
+    composites/<event>/composites.json   one record per composite (recipe, window, checksum, source)
+    composites/<event>/<name>.tif        GEE exports; read-only and never modified
+    products/<version>/VERSION.json      the code, parameters and recipes that define the version
+    products/<version>/catalog.csv       one row per event: status, paths used and skipped (and why)
+    products/<version>/<event>/          the products of that version
+    work/<version>/<event>/              intermediates; safe to delete
+
+Rules: a composite is written once, and a different recipe or time window is a different file. A
+product version is made by one code state with one set of parameters; changing either makes a new
+version. Versions never share folders.
+
+No GDAL here, so the store can be managed from the SAR environment.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import sys
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
+from importlib.util import find_spec
+from pathlib import Path
+from typing import Any
+
+import requests
+
+from aria_coseis import config
+
+USGS_EVENT_QUERY = "https://earthquake.usgs.gov/fdsnws/event/1/query"
+
+# How each composite recipe is made. Ids are permanent: once composites exist for a recipe its
+# definition must not change (add a new recipe instead).
+COMPOSITE_RECIPES: dict[str, dict[str, Any]] = {
+    "med90": {
+        "description": (
+            "Per-pixel median of the cloud-free scenes of one relative orbit, 90 days before and "
+            "90 days after the event (the composites of the first optical products)"
+        ),
+        "collection": "COPERNICUS/S2_HARMONIZED",
+        "level": "TOA",
+        "band": "B8",
+        "cloud_mask": "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED cs_cdf >= 0.65",
+        "snow_mask": None,
+        "reducer": "median",
+        "grouping": "SENSING_ORBIT_NUMBER",
+        "pre_window": "[event - 90 d, event)",
+        "post_window": "[event, event + 90 d)",
+        "crs": "UTM zone of the epicenter",
+        "scale_m": 10,
+        "dtype": "uint16",
+    },
+}
+
+# The first products ("v0"), made 2026-10-01 to 2026-10-13 in data/GEE_Optical_Downloads.
+V0_OLD_SCRIPT_EVENTS = (
+    "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence",
+    "m_78_pazarcik_earthquake_kahramanmaras_earthquake_sequence",
+)
+V0_UTM_FIX_EVENTS = (
+    "m_60_73_km_ssw_of_kaktovik_alaska",
+    "m_62_47_km_nw_of_mosquito_lake_alaska",
+    "m_63_48_km_nw_of_mosquito_lake_alaska",
+    "m_64_89_km_sw_of_kaktovik_alaska",
+    "m_64_chukotskiy_avtonomnyy_okrug_russia",
+    "m_70_2025_hubbard_glacier_earthquake",
+    "m_77_2025_mandalay_burma_myanmar_earthquake",
+)
+V0_ARIA_CODE = {
+    "develop-8b7b7f7": (
+        "scripts/batch_autorift.py at develop 8b7b7f7, run 2026-10-01 (processing identical to "
+        "aria_coseis 405ae83)"
+    ),
+    "aria-405ae83": "aria_coseis.optical.autorift at 405ae83 (main), run 2026-10-07 to 2026-10-13",
+    "aria-971b216": (
+        "aria_coseis.optical.autorift with the projection fix (971b216; issue #41, PR #42), run 2026-10-13 "
+        "from a frozen copy of the identical commit bb57e9a"
+    ),
+}
+V0_VERSION = {
+    "version": "v0",
+    "description": (
+        "First 90 m optical products, registered from data/GEE_Optical_Downloads (frozen). Made "
+        "before the store existed, by three code states (catalog column aria_code)."
+    ),
+    "frozen_source": "data/GEE_Optical_Downloads (production clone)",
+    "composite_recipe": "med90",
+    "code": {
+        "aria_coseis": V0_ARIA_CODE,
+        "hyp3_autorift": (
+            "cmspeed/hyp3-autorift tag coseis-v0 (8034761): develop ab4d9b5 plus the working-tree "
+            "edits of 2026-07-22 that every v0 product used"
+        ),
+        "autoRIFT": "conda-forge autorift 2.0.0 (unmodified)",
+    },
+    "parameters": {
+        "grid_m": 90,
+        "chip_sizes_m": [360, 720],
+        "search_limit_px": 4,
+        "effective_search_px": 6,
+        "oversample_ratio": 128,
+        "prefilter": "Wallis fill (aria) then autoRIFT 5x5 high-pass",
+        "geogrid_inputs": "ITS_LIVE autorift_solidearth_0120m parameter tiles",
+        "reference_velocity": "ITS_LIVE vx0/vy0 used (no NullReferenceVelocity)",
+    },
+    "products": {
+        "<event>_final_mosaic_sentinel-2_toa_offset_m.tif": (
+            "bands dx_m, dy_m, interp_mask, chip_size_x_px; multi-path mosaics: mean of the paths, "
+            "nodata 0; single path: a copy, NaN without a nodata tag"
+        ),
+        "<event>_Path<N>_sentinel-2_toa_autorift_offset_m.tif": "per path, NaN without a nodata tag",
+    },
+    "known_issues": [
+        "glacier reference velocities set the search centres (mis-signed north-south)",
+        "season and sun differences between the composites bias offsets by metres",
+        "no geolocation-bias correction; results not bit-reproducible (Wallis fill noise)",
+    ],
+}
+
+V0_COMPOSITE = re.compile(
+    r"^(?P<event>.+)_(?P<sensor>S2)_Path(?P<path>\d+)_(?P<level>TOA|SR)_(?P<band>B\w+?)_"
+    r"(?P<stage>PRE|POST)_(?P<start>\d{4}-\d{2}-\d{2}_\d{6})UTC_to_(?P<end>\d{4}-\d{2}-\d{2}_\d{6})UTC"
+    r"\.tif$"
+)
+V0_MOSAIC_SUFFIX = "_final_mosaic_sentinel-2_toa_offset_m.tif"
+V0_PATH_PRODUCT = re.compile(r"^.+_Path(?P<path>\d+)_sentinel-2_toa_autorift_offset_m\.tif$")
+
+README = """\
+# COSEIS optical data store
+
+Composites and autoRIFT products, kept apart by recipe and by product version. Managed with
+`python -m aria_coseis.optical.store` (aria_coseis); `info` lists what is here.
+
+- `events.json`: USGS metadata for every event folder name.
+- `composites/recipes.json`: how each composite recipe is made.
+- `composites/<event>/`: the composites (read-only) and `composites.json`, one record per file
+  (recipe, window, checksum, where it came from).
+- `products/<version>/`: one folder per product version. `VERSION.json` holds the code, parameters
+  and recipes that define it; `catalog.csv` has one row per event (status, paths used and skipped,
+  and why).
+- `work/<version>/`: intermediates. Safe to delete.
+
+Rules:
+- Never edit or overwrite a composite. A new recipe or time window is a new file.
+- A product version is made by one code state with one set of parameters; changing either makes a
+  new version. Experiments use versions named `exp-*`.
+- v0 is the first set of products, registered from `data/GEE_Optical_Downloads` in the production
+  clone, which is frozen. The v0 files here are hard links to it.
+"""
+
+
+def store_root(root: str | os.PathLike[str] | None = None) -> Path:
+    """The store's root directory (config.OPTICAL_DIR unless given)."""
+    return Path(root if root is not None else config.OPTICAL_DIR)
+
+
+def composite_name(
+    sensor: str,
+    path: str | int,
+    level: str,
+    band: str,
+    stage: str,
+    recipe: str,
+    start: datetime,
+    end: datetime,
+) -> str:
+    """File name of a composite, e.g. S2_P121_TOA_B8_PRE_med90_20221108T000000Z_20230206T011734Z.tif."""
+    if recipe not in COMPOSITE_RECIPES:
+        raise ValueError(f"unknown composite recipe {recipe!r}")
+    stamp = "%Y%m%dT%H%M%SZ"
+    return (
+        f"{sensor}_P{int(path)}_{level}_{band}_{stage}_{recipe}_"
+        f"{start.strftime(stamp)}_{end.strftime(stamp)}.tif"
+    )
+
+
+def sha256(path: str | os.PathLike[str], chunk: int = 1 << 24) -> str:
+    """SHA-256 hex digest of a file."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        while block := f.read(chunk):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _read_json(path: Path, default: Any) -> Any:
+    return json.loads(path.read_text()) if path.exists() else default
+
+
+def _write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n")
+    tmp.replace(path)
+
+
+def _link_or_copy(src: Path, dst: Path, allow_copy: bool) -> str:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(src, dst)
+        return "hardlink"
+    except OSError:
+        if not allow_copy:
+            raise
+        shutil.copy2(src, dst)
+        return "copy"
+
+
+def write_recipes(root: Path) -> None:
+    """Write composites/recipes.json; refuse to change the definition of an existing recipe."""
+    path = root / "composites" / "recipes.json"
+    existing = _read_json(path, {})
+    for rid, definition in COMPOSITE_RECIPES.items():
+        if rid in existing and existing[rid] != definition:
+            raise ValueError(f"recipe {rid!r} already exists with a different definition")
+    _write_json(path, {**existing, **COMPOSITE_RECIPES})
+
+
+def add_composite(
+    root: Path, event: str, src: Path, record: dict[str, Any], allow_copy: bool = False
+) -> Path:
+    """
+    Register a composite file under composites/<event>/ (hard link, or copy if allowed).
+
+    record must hold sensor, path, level, band, stage, recipe, start and end (datetimes). Adding
+    the same file again is a no-op; a different file under an existing name raises.
+    """
+    name = composite_name(
+        record["sensor"],
+        record["path"],
+        record["level"],
+        record["band"],
+        record["stage"],
+        record["recipe"],
+        record["start"],
+        record["end"],
+    )
+    folder = root / "composites" / event
+    dst = folder / name
+    index_path = folder / "composites.json"
+    index = _read_json(index_path, {})
+    if name in index and dst.exists() and os.path.samefile(src, dst):
+        return dst  # already registered (hard link to the same file)
+    digest = sha256(src)
+    if dst.exists():
+        known = index.get(name, {}).get("sha256") or sha256(dst)
+        if known != digest:
+            raise FileExistsError(f"{dst} exists with different content")
+        if name in index:
+            return dst
+        how = "existing"
+    else:
+        how = _link_or_copy(src, dst, allow_copy)
+    os.chmod(dst, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+    entry = {
+        k: (v.strftime("%Y-%m-%dT%H:%M:%SZ") if isinstance(v, datetime) else v)
+        for k, v in record.items()
+    }
+    entry.update(sha256=digest, bytes=dst.stat().st_size, stored_as=how, source=str(src))
+    entry["registered"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    index[name] = entry
+    _write_json(index_path, index)
+    return dst
+
+
+def git_state(path: str | os.PathLike[str]) -> dict[str, Any]:
+    """Commit, describe string and dirty flag of the git checkout containing path."""
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(path), *args], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    try:
+        return {
+            "repo": git("rev-parse", "--show-toplevel"),
+            "commit": git("rev-parse", "HEAD"),
+            "describe": git("describe", "--tags", "--always", "--dirty"),
+            "dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
+        }
+    except (subprocess.CalledProcessError, FileNotFoundError, NotADirectoryError):
+        return {"repo": None}
+
+
+def module_provenance(module: str) -> dict[str, Any]:
+    """Where a top-level module is installed and its git state, without importing it."""
+    spec = find_spec(module)
+    if spec is None or spec.origin is None:
+        return {"installed": False}
+    location = Path(spec.origin).parent
+    out: dict[str, Any] = {"installed": True, "location": str(location)}
+    out.update(git_state(location))
+    return out
+
+
+def code_provenance() -> dict[str, Any]:
+    """The code a run uses: aria_coseis, hyp3_autorift and autoRIFT, and the Python environment."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    out = {name: module_provenance(name) for name in ("aria_coseis", "hyp3_autorift", "autoRIFT")}
+    for module, dist in (("hyp3_autorift", "hyp3_autorift"), ("autoRIFT", "autorift")):
+        try:
+            out[module]["distribution_version"] = version(dist)
+        except PackageNotFoundError:
+            pass
+    out["python"] = sys.version.split()[0]
+    out["environment"] = os.environ.get("CONDA_PREFIX") or sys.prefix
+    return out
+
+
+def write_environment_listing(dst: Path) -> None:
+    """Save `conda list --explicit` (or `pip freeze`) of the running environment."""
+    prefix = os.environ.get("CONDA_PREFIX")
+    cmd = ["conda", "list", "--explicit", "--prefix", prefix] if prefix else None
+    try:
+        text = (
+            subprocess.run(cmd, capture_output=True, text=True, check=True).stdout if cmd else ""
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        text = ""
+    if not text:
+        text = subprocess.run(
+            [sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True
+        ).stdout
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(text)
+
+
+def write_version(root: Path, definition: dict[str, Any]) -> Path:
+    """Create products/<version>/VERSION.json; an existing version must have the same definition."""
+    path = root / "products" / definition["version"] / "VERSION.json"
+    existing = _read_json(path, None)
+    if existing is not None:
+        if existing != json.loads(json.dumps(definition, sort_keys=True)):
+            raise FileExistsError(
+                f"version {definition['version']} exists with another definition"
+            )
+        return path
+    _write_json(path, definition)
+    return path
+
+
+def query_usgs_event(
+    origin: datetime, magnitude: float, window_s: int = 10
+) -> dict[str, Any] | None:
+    """The USGS event closest to an origin time (within window_s) with the given magnitude."""
+    params = {
+        "format": "geojson",
+        "starttime": (origin - timedelta(seconds=window_s)).strftime("%Y-%m-%dT%H:%M:%S"),
+        "endtime": (origin + timedelta(seconds=window_s)).strftime("%Y-%m-%dT%H:%M:%S"),
+        "minmagnitude": magnitude - 0.15,
+        "maxmagnitude": magnitude + 0.15,
+    }
+    response = requests.get(USGS_EVENT_QUERY, params=params, timeout=60)
+    response.raise_for_status()
+    features = response.json().get("features", [])
+    if not features:
+        return None
+    t0 = origin.timestamp() * 1000
+
+    def distance(f: dict[str, Any]) -> tuple[float, float]:
+        props = f["properties"]
+        return (abs(props["time"] - t0), abs((props.get("mag") or 0) - magnitude))
+
+    return _event_record(min(features, key=distance))
+
+
+def query_usgs_event_by_id(event_id: str) -> dict[str, Any] | None:
+    """USGS metadata for an event id (the preferred id of a merged event is returned)."""
+    response = requests.get(
+        USGS_EVENT_QUERY, params={"format": "geojson", "eventid": event_id}, timeout=60
+    )
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    return _event_record(response.json())
+
+
+def _event_record(feature: dict[str, Any]) -> dict[str, Any]:
+    props, coords = feature["properties"], feature["geometry"]["coordinates"]
+    return {
+        "event_id": feature["id"],
+        "title": props.get("title"),
+        "time_utc": datetime.fromtimestamp(props["time"] / 1000, timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%S.%fZ"
+        )[:-4]
+        + "Z",
+        "magnitude": props.get("mag"),
+        "magnitude_type": props.get("magType"),
+        "longitude": coords[0],
+        "latitude": coords[1],
+        "depth_km": coords[2],
+        "url": props.get("url"),
+    }
+
+
+def resolve_events(
+    root: Path,
+    origins: dict[str, tuple[datetime, float]],
+    query: Callable[[datetime, float], dict[str, Any] | None] = query_usgs_event,
+    known_ids: dict[str, str] | None = None,
+    query_by_id: Callable[[str], dict[str, Any] | None] = query_usgs_event_by_id,
+) -> dict[str, Any]:
+    """
+    USGS metadata per event folder, cached in events.json.
+
+    Looked up by origin time and magnitude ({event: (origin, magnitude)}); events without an
+    origin are looked up by the event id their manifest recorded (known_ids), if any.
+    """
+    path = root / "events.json"
+    events = _read_json(path, {})
+    for name in sorted(set(origins) | set(known_ids or {})):
+        if events.get(name, {}).get("event_id"):
+            continue
+        if name in origins:
+            origin, magnitude = origins[name]
+            found = query(origin, magnitude)
+            events[name] = found or {"event_id": None, "note": "no USGS match for origin time"}
+            events[name]["origin_from_composites"] = origin.strftime("%Y-%m-%dT%H:%M:%SZ")
+        else:
+            found = query_by_id(known_ids[name])
+            events[name] = found or {"event_id": None, "note": "manifest event id not found"}
+            events[name]["event_id_from_manifest"] = known_ids[name]
+    _write_json(path, events)
+    return events
+
+
+def _v0_aria_code(event: str) -> str:
+    if event in V0_OLD_SCRIPT_EVENTS:
+        return "develop-8b7b7f7"
+    if event in V0_UTM_FIX_EVENTS:
+        return "aria-971b216"
+    return "aria-405ae83"
+
+
+def _utc(stamp: str) -> datetime:
+    return datetime.strptime(stamp, "%Y-%m-%d_%H%M%S").replace(tzinfo=timezone.utc)
+
+
+def catalogue_origins(eq_info: str | os.PathLike[str]) -> dict[str, tuple[datetime, float]]:
+    """{event folder name: (origin time, magnitude)} from an earthquake_info_*.json list."""
+    from aria_coseis.utils import to_snake_case
+
+    out = {}
+    for e in json.loads(Path(eq_info).read_text()):
+        if "time" in e and "magnitude" in e.get("epicenter", {}):
+            origin = datetime.strptime(e["time"][:19], "%Y-%m-%d %H:%M:%S")
+            out[to_snake_case(e["title"])] = (
+                origin.replace(tzinfo=timezone.utc),
+                float(e["epicenter"]["magnitude"]),
+            )
+    return out
+
+
+def import_v0(
+    downloads: str | os.PathLike[str],
+    root: str | os.PathLike[str] | None = None,
+    allow_copy: bool = False,
+    resolve: bool = True,
+    query: Callable[[datetime, float], dict[str, Any] | None] = query_usgs_event,
+    eq_info: str | os.PathLike[str] | None = None,
+    query_by_id: Callable[[str], dict[str, Any] | None] = query_usgs_event_by_id,
+) -> list[dict[str, Any]]:
+    """
+    Register the first products (v0) and their composites from a GEE_Optical_Downloads folder.
+
+    Composites become recipe med90 under composites/<event>/; mosaics and per-path offsets are
+    linked into products/v0/<event>/ under their original names. Nothing in downloads is changed
+    except that registered composites become read-only. Safe to run again.
+
+    Events are matched to USGS by the origin time in the composite names (PRE ends and POST starts
+    at the event). Events without composites use the event id in their manifest, or else an exact
+    title match in eq_info, if given.
+    """
+    downloads = Path(downloads)
+    store = store_root(root)
+    store.mkdir(parents=True, exist_ok=True)
+    if not (store / "README.md").exists():
+        (store / "README.md").write_text(README)
+    write_recipes(store)
+    write_version(store, V0_VERSION)
+    rows: list[dict[str, Any]] = []
+    origins: dict[str, tuple[datetime, float]] = {}
+    manifest_ids: dict[str, str] = {}
+    for manifest_path in sorted(downloads.glob("*/*_autorift_manifest.json")):
+        event_dir = manifest_path.parent
+        event = event_dir.name
+        manifest = json.loads(manifest_path.read_text())
+        magnitude = int(event.split("_")[1]) / 10
+        if manifest.get("event_id"):
+            manifest_ids[event] = manifest["event_id"]
+        for tif in sorted(event_dir.glob("*.tif")):
+            m = V0_COMPOSITE.match(tif.name)
+            if not m or m["event"] != event:
+                continue
+            start, end = _utc(m["start"]), _utc(m["end"])
+            record = {
+                "sensor": m["sensor"],
+                "path": int(m["path"]),
+                "level": m["level"],
+                "band": m["band"],
+                "stage": m["stage"],
+                "recipe": "med90",
+                "start": start,
+                "end": end,
+            }
+            add_composite(store, event, tif, record, allow_copy)
+            origins[event] = (end if m["stage"] == "PRE" else start, magnitude)
+        scene_times = {
+            k: manifest[k] for k in ("pre_dates_used", "post_dates_used") if k in manifest
+        }
+        if scene_times:
+            index_path = store / "composites" / event / "composites.json"
+            index = _read_json(index_path, {})
+            index["_scene_times_all_paths"] = scene_times
+            _write_json(index_path, index)
+
+        product_dir = store / "products" / "v0" / event
+        mosaic = event_dir / f"{event}{V0_MOSAIC_SUFFIX}"
+        linked = []
+        for src in [mosaic, *sorted(event_dir.glob("*_sentinel-2_toa_autorift_offset_m.tif"))]:
+            if src.exists():
+                dst = product_dir / src.name
+                if not dst.exists():
+                    _link_or_copy(src, dst, allow_copy)
+                linked.append(src.name)
+        skipped = manifest.get("skipped_track_pairs", {})
+        rows.append(
+            {
+                "event": event,
+                "magnitude": magnitude,
+                "status": manifest.get("status"),
+                "paths_used": " ".join(sorted(manifest.get("track_pairs", {}), key=int)),
+                "paths_skipped": "; ".join(
+                    f"{p}: {v.get('reason', '') if isinstance(v, dict) else v}"
+                    for p, v in sorted(skipped.items())
+                ),
+                "processed_utc": datetime.fromtimestamp(
+                    mosaic.stat().st_mtime, timezone.utc
+                ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                if mosaic.exists()
+                else "",
+                "aria_code": _v0_aria_code(event) if mosaic.exists() else "",
+                "mosaic": f"{event}/{mosaic.name}" if mosaic.exists() else "",
+            }
+        )
+    if eq_info is not None:
+        known = catalogue_origins(eq_info)
+        for row in rows:
+            name = row["event"]
+            if name not in origins and name not in manifest_ids and name in known:
+                origins[name] = known[name]
+    by_id = {k: v for k, v in manifest_ids.items() if k not in origins}
+    events = resolve_events(store, origins, query, by_id, query_by_id) if resolve else {}
+    for row in rows:
+        row["event_id"] = events.get(row["event"], {}).get("event_id") or ""
+    write_catalog(store / "products" / "v0" / "catalog.csv", rows)
+    return rows
+
+
+CATALOG_COLUMNS = (
+    "event",
+    "event_id",
+    "magnitude",
+    "status",
+    "paths_used",
+    "paths_skipped",
+    "processed_utc",
+    "aria_code",
+    "mosaic",
+)
+
+
+def write_catalog(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=CATALOG_COLUMNS, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def info(root: str | os.PathLike[str] | None = None) -> str:
+    """Summary of the store: recipes, composites per recipe, and product versions."""
+    store = store_root(root)
+    lines = [f"Store: {store}"]
+    recipes = _read_json(store / "composites" / "recipes.json", {})
+    counts: dict[str, int] = {}
+    for index_path in (store / "composites").glob("*/composites.json"):
+        for name, entry in _read_json(index_path, {}).items():
+            if not name.startswith("_"):
+                counts[entry["recipe"]] = counts.get(entry["recipe"], 0) + 1
+    for rid in sorted(recipes):
+        lines.append(f"  recipe {rid}: {counts.get(rid, 0)} composites")
+    for version_path in sorted((store / "products").glob("*/VERSION.json")):
+        version = json.loads(version_path.read_text())
+        catalog = version_path.parent / "catalog.csv"
+        n = sum(1 for _ in open(catalog)) - 1 if catalog.exists() else 0
+        lines.append(f"  version {version['version']}: {n} events - {version['description'][:70]}")
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        prog="python -m aria_coseis.optical.store", description=__doc__.split("\n")[1]
+    )
+    parser.add_argument("--store", default=None, help="Store root (default: COSEIS_OPTICAL_DIR).")
+    sub = parser.add_subparsers(dest="command", required=True)
+    imp = sub.add_parser("import-v0", help="Register the v0 products and composites.")
+    imp.add_argument("downloads", type=Path, help="The GEE_Optical_Downloads folder.")
+    imp.add_argument("--copy", action="store_true", help="Copy if hard links are not possible.")
+    imp.add_argument("--no-resolve", action="store_true", help="Skip the USGS event lookup.")
+    imp.add_argument(
+        "--eq_info", type=Path, help="earthquake_info_*.json for events without composites."
+    )
+    sub.add_parser("info", help="List recipes, composites and product versions.")
+    args = parser.parse_args(argv)
+    if args.command == "import-v0":
+        rows = import_v0(
+            args.downloads,
+            args.store,
+            allow_copy=args.copy,
+            resolve=not args.no_resolve,
+            eq_info=args.eq_info,
+        )
+        missing = [r["event"] for r in rows if not r["event_id"]]
+        print(f"Registered {len(rows)} events; without a USGS event id: {len(missing)}")
+        for name in missing:
+            print(f"  {name}")
+    print(info(args.store))
+
+
+if __name__ == "__main__":
+    main()

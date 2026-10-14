@@ -19,6 +19,7 @@ from aria_coseis import config as settings  # noqa: E402
 from aria_coseis.aoi import make_aoi  # noqa: E402
 from aria_coseis.modes import main_forward, main_historic  # noqa: E402
 from aria_coseis.notify import ascii_table_to_html  # noqa: E402
+from aria_coseis.optical import store as optical_store  # noqa: E402
 from aria_coseis.optical.jobs import make_optical_job_json  # noqa: E402
 from aria_coseis.pipeline import process_earthquake  # noqa: E402
 from aria_coseis.sar.pairing import generate_pairs, make_job_json  # noqa: E402
@@ -46,6 +47,7 @@ __all__ = [
     "make_aoi",
     "make_job_json",
     "make_optical_job_json",
+    "optical_store",
     "parse_custom_eq_list",
     "process_earthquake",
     "run_cli",
