@@ -1,5 +1,7 @@
 """Batch autoRIFT on Google Earth Engine composites: `python -m aria_coseis.optical.autorift`."""
 
+from __future__ import annotations
+
 import argparse
 import glob
 import json
@@ -13,7 +15,7 @@ from hyp3_autorift import geometry, utils
 from hyp3_autorift.process import apply_fft_filter, apply_wallis_nodata_fill_filter
 from hyp3_autorift.vend.testautoRIFT import generateAutoriftProduct
 from hyp3_autorift.vend.testGeogrid import GeogridOptical, runGeogrid
-from osgeo import gdal
+from osgeo import gdal, osr
 
 from aria_coseis import config
 
@@ -115,8 +117,29 @@ def assign_nodata_if_missing(filepath, nodata_val=0):
     ds = None
 
 
-def resample_to_grid(input_path, output_filename, resolution, bbox=None, is_mask=False):
-    """Downloads, clips to scene bbox, and resamples an S3 raster to target resolution."""
+def raster_epsg(path: str) -> int:
+    """Return the EPSG code of a raster's coordinate system."""
+    srs = osr.SpatialReference(wkt=gdal.Open(path).GetProjection())
+    srs.AutoIdentifyEPSG()
+    return int(srs.GetAuthorityCode(None))
+
+
+def resample_to_grid(
+    input_path: str | None,
+    output_filename: str,
+    resolution: float,
+    bbox: tuple[float, float, float, float] | None = None,
+    is_mask: bool = False,
+    dst_epsg: int | None = None,
+) -> str | None:
+    """
+    Downloads, clips to scene bbox, and resamples an S3 raster to target resolution.
+
+    With dst_epsg, the raster is also reprojected to that coordinate system and bbox is
+    read in it. The parameter tiles come in their own projection (a UTM zone, or polar
+    stereographic at high latitudes), which can differ from the composite's (the epicenter's
+    UTM zone); cropping without reprojecting reads the scene bbox in the wrong coordinates.
+    """
     if not input_path:
         return None
     print(f"  -> Cropping & Resampling {os.path.basename(input_path)} to {resolution}m...")
@@ -137,6 +160,7 @@ def resample_to_grid(input_path, output_filename, resolution, bbox=None, is_mask
         yRes=resolution,
         outputBounds=target_bounds,
         resampleAlg=alg,
+        dstSRS=f"EPSG:{dst_epsg}" if dst_epsg else None,
     )
     return output_filename
 
@@ -455,6 +479,18 @@ def process_event(manifest_path, enable_filtering=False):
             print("Fetching regional parameters from S3 Shapefile...")
             parameter_info = utils.find_jpl_parameter_info(poly, parameter_file)
 
+            # The parameter tile is chosen by the scene center and has its own projection (that
+            # UTM zone, or polar stereographic at high latitudes); the composite is in the
+            # epicenter's UTM zone. Bring the tile rasters into the image's projection so the
+            # crop below and Geogrid's output grid use the image's coordinates.
+            image_epsg = raster_epsg(filtered_ref)
+            if parameter_info["epsg"] != image_epsg:
+                print(
+                    f"Parameter tile {parameter_info['name']} is EPSG:{parameter_info['epsg']}; "
+                    f"reprojecting its rasters to the image's EPSG:{image_epsg}"
+                )
+                parameter_info["epsg"] = image_epsg
+
             # --- 2. INJECT PARAMETERS & NULLIFY SHAPEFILE ---
             # Force 90m output grid spacing for Geogrid
             parameter_info["geogrid"]["grid_spacing"] = TARGET_GRID_M
@@ -499,22 +535,47 @@ def process_event(manifest_path, enable_filtering=False):
             g_info = parameter_info["geogrid"]
 
             g_info["dem"] = resample_to_grid(
-                g_info.get("dem"), "local_dem.tif", TARGET_GRID_M, bbox=scene_bbox
+                g_info.get("dem"),
+                "local_dem.tif",
+                TARGET_GRID_M,
+                bbox=scene_bbox,
+                dst_epsg=image_epsg,
             )
             g_info["dhdx"] = resample_to_grid(
-                g_info.get("dhdx"), "local_dhdx.tif", TARGET_GRID_M, bbox=scene_bbox
+                g_info.get("dhdx"),
+                "local_dhdx.tif",
+                TARGET_GRID_M,
+                bbox=scene_bbox,
+                dst_epsg=image_epsg,
             )
             g_info["dhdy"] = resample_to_grid(
-                g_info.get("dhdy"), "local_dhdy.tif", TARGET_GRID_M, bbox=scene_bbox
+                g_info.get("dhdy"),
+                "local_dhdy.tif",
+                TARGET_GRID_M,
+                bbox=scene_bbox,
+                dst_epsg=image_epsg,
             )
             g_info["vx"] = resample_to_grid(
-                g_info.get("vx"), "local_vx.tif", TARGET_GRID_M, bbox=scene_bbox
+                g_info.get("vx"),
+                "local_vx.tif",
+                TARGET_GRID_M,
+                bbox=scene_bbox,
+                dst_epsg=image_epsg,
             )
             g_info["vy"] = resample_to_grid(
-                g_info.get("vy"), "local_vy.tif", TARGET_GRID_M, bbox=scene_bbox
+                g_info.get("vy"),
+                "local_vy.tif",
+                TARGET_GRID_M,
+                bbox=scene_bbox,
+                dst_epsg=image_epsg,
             )
             g_info["ssm"] = resample_to_grid(
-                g_info.get("ssm"), "local_ssm.tif", TARGET_GRID_M, bbox=scene_bbox, is_mask=True
+                g_info.get("ssm"),
+                "local_ssm.tif",
+                TARGET_GRID_M,
+                bbox=scene_bbox,
+                is_mask=True,
+                dst_epsg=image_epsg,
             )
 
             print("Manually co-registering...")
