@@ -40,6 +40,10 @@ MAPS_DIR = os.environ.get("COSEIS_MAPS_DIR") or os.path.join("docs", "maps")
 # Untracked run outputs: AOIs, frame maps, job lists, significance tables, next-pass results
 OUTPUT_DIR = os.environ.get("COSEIS_OUTPUT_DIR") or "outputs"
 
+# Optical composites and autoRIFT products, by recipe and product version (aria_coseis.optical.store).
+# Production: /u/trappist-r0/colespeed/work/coseis_optical, outside the git clones.
+OPTICAL_DIR = os.environ.get("COSEIS_OPTICAL_DIR") or os.path.join("data", "optical")
+
 # Prevents overlapping forward runs; run_coseis_forward.sh checks the default path too
 LOCK_FILE = os.environ.get("COSEIS_LOCK_FILE") or "/tmp/coseis_processing.lock"
 
