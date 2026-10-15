@@ -53,6 +53,17 @@ def test_windows_reproduce_med90_and_shift_a_year() -> None:
         datetime(2018, 7, 6, 3, 19, 53, tzinfo=timezone.utc),
         datetime(2018, 10, 4, tzinfo=timezone.utc),
     )
+    # med30: the 30 days on either side, same year
+    start, end = composites.stage_window("med30", "PRE", ORIGIN)
+    assert (start, end) == (datetime(2019, 6, 6, tzinfo=timezone.utc), ORIGIN)
+    start, end = composites.stage_window("med30", "POST", ORIGIN)
+    assert (start, end) == (ORIGIN, datetime(2019, 8, 5, tzinfo=timezone.utc))
+    # seas90ctrl PRE: the seas90 PRE window one more year earlier
+    start, end = composites.stage_window("seas90ctrl", "PRE", ORIGIN)
+    assert (start, end) == (
+        datetime(2017, 7, 6, 3, 19, 53, tzinfo=timezone.utc),
+        datetime(2017, 10, 4, tzinfo=timezone.utc),
+    )
     with pytest.raises(ValueError, match="unknown window bound"):
         composites.window_bound(ORIGIN, ["week", 1])
 
@@ -72,13 +83,16 @@ def test_new_recipes_are_complete_and_med90_is_unchanged() -> None:
     assert recipes["med90"]["pre_window"] == "[event - 90 d, event)"
     assert recipes["med90"]["snow_mask"] is None and "window_days" not in recipes["med90"]
     made_here = [r for r, d in recipes.items() if "window_days" in d]
-    assert sorted(made_here) == ["med90snow", "seas90", "seas90snow"]
+    assert sorted(made_here) == ["med30", "med90snow", "seas90", "seas90ctrl", "seas90snow"]
     for recipe in made_here:
         d = recipes[recipe]
         reused = d.get("stage_from_recipe", {})
         assert set(d["window_days"]) | set(reused) == {"PRE", "POST"}
-        assert all(source in recipes for source in reused.values())
+        sources = [v if isinstance(v, str) else v[0] for v in reused.values()]
+        assert all(source in recipes for source in sources)
         assert d["cloud_score_min"] == 0.65 and d["scale_m"] == 10
+    assert recipes["seas90ctrl"]["control"] is True
+    assert "control" not in recipes["seas90"]
     assert recipes["seas90snow"]["snow_mask"] == recipes["med90snow"]["snow_mask"]
     assert recipes["seas90"]["window_days"] == recipes["seas90snow"]["window_days"]
 
@@ -97,6 +111,22 @@ def test_plan_exports_new_windows_and_reuses_stages(tmp_path: Path) -> None:
     assert later[1]["source"] == MED90[("POST", 27)].replace("med90", "med90snow")
     with pytest.raises(ValueError, match="not made by this module"):
         composites.planned_composites(tmp_path, EVENT, "med90", ORIGIN)
+
+
+def test_the_control_reuses_another_recipes_pre_as_its_post(tmp_path: Path) -> None:
+    fake_store(tmp_path)
+    later = composites.planned_composites(tmp_path, EVENT, "seas90ctrl", ORIGIN, strict=False)
+    assert [(i["stage"], i["action"]) for i in later] == [
+        ("PRE", "export"),
+        ("POST", "reuse later"),
+    ]
+    seas90_pre = "S2_P27_TOA_B8_PRE_seas90_20180706T031953Z_20181004T000000Z.tif"
+    assert later[1]["source"] == seas90_pre
+    assert (
+        later[1]["name"] == "S2_P27_TOA_B8_POST_seas90ctrl_20180706T031953Z_20181004T000000Z.tif"
+    )
+    with pytest.raises(ValueError, match="reuses the seas90 PRE composite"):
+        composites.planned_composites(tmp_path, EVENT, "seas90ctrl", ORIGIN)
 
 
 def test_a_reused_stage_is_the_same_file(tmp_path: Path) -> None:
