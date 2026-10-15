@@ -371,14 +371,15 @@ def start_version(
     definition (code, parameters, recipe). Returns the version record.
 
     Versions not named exp-* must be made from committed code: a dirty checkout in the
-    definition's "code" raises.
+    definition's "code" (or, for a remosaicked version, "mosaic_code") raises.
     """
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", version) or version == "v0":
         raise ValueError(f"invalid version name {version!r}")
     if not version.startswith("exp-"):
         dirty = [
             k
-            for k, v in definition.get("code", {}).items()
+            for key in ("code", "mosaic_code")
+            for k, v in definition.get(key, {}).items()
             if isinstance(v, dict) and v.get("dirty")
         ]
         if dirty:
