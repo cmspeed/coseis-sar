@@ -320,12 +320,13 @@ def _record(item: dict[str, Any], recipe: str, **extra: Any) -> dict[str, Any]:
     }
 
 
-def register_reused(root: Path, event: str, item: dict[str, Any], recipe: str) -> Path:
+def register_reused(
+    root: Path, event: str, item: dict[str, Any], recipe: str, code: dict[str, Any]
+) -> Path:
     """Register another recipe's composite, unchanged, as this recipe's (a hard link)."""
     source = root / "composites" / event / item["source"]
-    return store.add_composite(
-        root, event, source, _record(item, recipe, same_file_as=item["source"])
-    )
+    record = _record(item, recipe, same_file_as=item["source"], registered_by=code)
+    return store.add_composite(root, event, source, record)
 
 
 def crop_to_grid(path: Path, got: dict[str, Any], grid: dict[str, Any]) -> bool:
@@ -368,7 +369,13 @@ def valid_fraction(path: Path) -> float:
 
 
 def start_event(
-    ee: Any, root: Path, event: str, recipe: str, reference: str, bucket: str
+    ee: Any,
+    root: Path,
+    event: str,
+    recipe: str,
+    reference: str,
+    bucket: str,
+    code: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Register the reused stages of one event and start its exports (or find those already
@@ -388,6 +395,7 @@ def start_event(
         "tasks": tasks,
         "exports": [],
         "outcome": {},
+        "code": code,
     }
     for item in planned_composites(root, event, recipe, setup["origin"], reference):
         name = item["name"]
@@ -395,7 +403,7 @@ def start_event(
             job["outcome"][name] = "already registered"
             continue
         if item["action"] == "reuse":
-            register_reused(root, event, item, recipe)
+            register_reused(root, event, item, recipe, code)
             job["outcome"][name] = f"registered (same file as {item['source']})"
             continue
         job["exports"].append(item)
@@ -426,6 +434,7 @@ def start_event(
             "prefix": prefix,
             "scenes": scenes(col),
             "aoi_source": setup["aoi_source"],
+            "made_by": code,
             "started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
         _write_tasks(tasks_path, tasks)
@@ -461,6 +470,8 @@ def register_export(
         grid_of=reference,
         valid_fraction=valid_fraction(staged),
         gee_task=task["task_id"],
+        made_by=task.get("made_by"),
+        registered_by=job["code"],
         cropped_from=got if cropped else None,
     )
     store.add_composite(
@@ -541,11 +552,15 @@ def main(argv: list[str] | None = None) -> None:
     bucket = os.environ.get("COSEIS_GCS_BUCKET")
     if not bucket:
         parser.error("COSEIS_GCS_BUCKET is not set")
+    # Composites are permanent and not versioned by code, so they are made from committed code
+    code = runs.code_signature(store.code_provenance())["aria_coseis"]
+    if code.get("dirty") or not code.get("commit"):
+        parser.error(f"build needs committed aria_coseis code (got {code})")
     jobs, failed = [], {}
     for event in events:
         print(f"\n{event}")
         try:
-            jobs.append(start_event(ee, root, event, args.recipe, args.reference, bucket))
+            jobs.append(start_event(ee, root, event, args.recipe, args.reference, bucket, code))
         except Exception as e:  # noqa: BLE001 - report the event and go on with the others
             failed[event] = f"{type(e).__name__}: {e}"
             print(f"  FAILED: {failed[event]}")

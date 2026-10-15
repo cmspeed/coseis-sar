@@ -102,11 +102,13 @@ def test_plan_exports_new_windows_and_reuses_stages(tmp_path: Path) -> None:
 def test_a_reused_stage_is_the_same_file(tmp_path: Path) -> None:
     folder = fake_store(tmp_path)
     plan = composites.planned_composites(tmp_path, EVENT, "seas90", ORIGIN)
-    dst = composites.register_reused(tmp_path, EVENT, plan[1], "seas90")
+    code = {"commit": "a" * 40, "dirty": False}
+    dst = composites.register_reused(tmp_path, EVENT, plan[1], "seas90", code)
     assert dst.stat().st_ino == (folder / MED90[("POST", 27)]).stat().st_ino
     index = json.loads((folder / "composites.json").read_text())
     assert index[dst.name]["recipe"] == "seas90"
     assert index[dst.name]["same_file_as"] == MED90[("POST", 27)]
+    assert index[dst.name]["registered_by"] == code
     again = composites.planned_composites(tmp_path, EVENT, "seas90", ORIGIN)
     assert again[1]["action"] == "registered"
 
