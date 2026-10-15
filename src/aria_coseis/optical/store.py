@@ -71,7 +71,9 @@ COMPOSITE_RECIPES: dict[str, dict[str, Any]] = {
 # for the same paths. "window_days" gives each exported stage's [start, end) from the origin time
 # t: ["time", d] is t + d days, ["date", d] is 00:00 UTC of the day t + d days falls on (so med90 is
 # PRE [["date", -90], ["time", 0]], POST [["time", 0], ["date", 90]]). "stage_from_recipe" names
-# the recipe whose composite of that stage is used unchanged (registered again, hard link).
+# the recipe whose composite of that stage is used unchanged (registered again, hard link), or
+# [recipe, stage] to use another stage of it. A "control" recipe has no earthquake between its
+# PRE and POST: its offsets measure the error of that kind of pair.
 _STORE_RECIPE = {
     "collection": "COPERNICUS/S2_HARMONIZED",
     "level": "TOA",
@@ -135,6 +137,34 @@ COMPOSITE_RECIPES.update(
             "post_window": "the med90snow POST composite",
             "window_days": {"PRE": [["time", -365], ["date", -275]]},
             "stage_from_recipe": {"POST": "med90snow"},
+        },
+        "med30": {
+            **_STORE_RECIPE,
+            "description": (
+                "Same-year short windows: the cloud-free scenes in the 30 days before and the 30 "
+                "days after the event. Less change of season and sun than med90, more cloud gaps"
+            ),
+            "snow_mask": None,
+            "pre_window": "[00:00 UTC of event - 30 d, event)",
+            "post_window": "[event, 00:00 UTC of event + 30 d)",
+            "window_days": {
+                "PRE": [["date", -30], ["time", 0]],
+                "POST": [["time", 0], ["date", 30]],
+            },
+        },
+        "seas90ctrl": {
+            **_STORE_RECIPE,
+            "description": (
+                "No-earthquake control for seas90: PRE is the seas90 PRE window one more year "
+                "earlier (two years before the event), POST is the seas90 PRE composite (one year "
+                "before). Its offsets measure the error of a one-year, same-season pair"
+            ),
+            "snow_mask": None,
+            "pre_window": "[event - 730 d, 00:00 UTC of event + 90 d - 730 d)",
+            "post_window": "the seas90 PRE composite",
+            "window_days": {"PRE": [["time", -730], ["date", -640]]},
+            "stage_from_recipe": {"POST": ["seas90", "PRE"]},
+            "control": True,
         },
     }
 )

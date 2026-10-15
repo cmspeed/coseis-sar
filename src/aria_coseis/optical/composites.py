@@ -147,25 +147,29 @@ def planned_composites(
         for stage in STAGES:
             item: dict[str, Any] = {"path": pair["path"], "stage": stage}
             if stage in reused:
-                source_recipe = reused[stage]
+                source = reused[stage]
+                source_recipe, source_stage = (
+                    (source, stage) if isinstance(source, str) else source
+                )
                 matches = [
                     (name, e)
                     for name, e in index.items()
                     if not name.startswith("_")
                     and e.get("recipe") == source_recipe
                     and e.get("path") == pair["path"]
-                    and e.get("stage") == stage
+                    and e.get("stage") == source_stage
                 ]
                 if not matches and not strict:
-                    start, end = stage_window(source_recipe, stage, origin)
+                    start, end = stage_window(source_recipe, source_stage, origin)
                     source_name = store.composite_name(
-                        "S2", pair["path"], "TOA", "B8", stage, source_recipe, start, end
+                        "S2", pair["path"], "TOA", "B8", source_stage, source_recipe, start, end
                     )
                     item.update(action="reuse later", source=source_name)
                 elif len(matches) != 1:
                     raise ValueError(
                         f"{event} P{pair['path']}: {recipe} {stage} reuses the {source_recipe} "
-                        f"composite, and {len(matches)} exist (make {source_recipe} first)"
+                        f"{source_stage} composite, and {len(matches)} exist (make {source_recipe} "
+                        "first)"
                     )
                 else:
                     source_name, source_entry = matches[0]
