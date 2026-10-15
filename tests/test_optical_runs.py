@@ -106,6 +106,37 @@ def test_a_version_keeps_its_definition(tmp_path: Path) -> None:
         store.start_version(tmp_path, "v1-90m", "", definition(code=other_code))
 
 
+def test_mean_mosaic_spec_is_unchanged() -> None:
+    # exp-g90 and exp-legacy90-repro were defined with this deliverable
+    spec = runs.deliverable_spec("mean")
+    assert spec["bands"] == ["dx_m", "dy_m"]
+    assert spec["mosaic"] == "mean of the paths with a value at each node"
+    assert runs.mosaic_method({"deliverable": spec}) == "mean"
+    aligned = definition()["deliverable"]
+    assert aligned["bands"] == ["dx_m", "dy_m", "sigma_h_m"]
+    assert runs.mosaic_method({"deliverable": aligned}) == "aligned_weighted"
+
+
+def test_derived_definition(tmp_path: Path) -> None:
+    source = store.start_version(tmp_path, "exp-g90", "", definition())
+    mosaic_code = {**CODE, "aria_coseis": {**CODE["aria_coseis"], "commit": "e" * 40}}
+    derived = runs.derived_definition(source, "aligned_weighted", mosaic_code)
+    assert derived["code"] == source["definition"]["code"]  # the code that made the paths
+    assert derived["profile"] == source["definition"]["profile"]
+    assert derived["derived_from"]["version"] == "exp-g90"
+    assert derived["mosaic_code"] == {"aria_coseis": {"commit": "e" * 40, "dirty": False}}
+    record = store.start_version(tmp_path, "v1-test", "", derived)
+    with pytest.raises(ValueError, match="remosaicked itself; remosaic exp-g90"):
+        runs.derived_definition(record, "aligned_weighted", CODE)
+    with pytest.raises(ValueError, match="not made by a store run"):
+        runs.derived_definition({"version": "v0", "code": {}}, "aligned_weighted", CODE)
+    dirty = {**CODE, "aria_coseis": {**CODE["aria_coseis"], "dirty": True, "diff_sha256": "d"}}
+    with pytest.raises(ValueError, match="committed code"):
+        store.start_version(
+            tmp_path, "v1-other", "", runs.derived_definition(source, "aligned_weighted", dirty)
+        )
+
+
 def test_only_experiments_may_use_uncommitted_code(tmp_path: Path) -> None:
     dirty = {**CODE, "aria_coseis": {**CODE["aria_coseis"], "dirty": True, "diff_sha256": "d"}}
     with pytest.raises(ValueError, match="committed code"):
@@ -157,16 +188,117 @@ def test_deliverable_is_the_mean_of_the_paths(tmp_path: Path) -> None:
     a = write_path_product(tmp_path / "a.tif", 400_000.0, 1.0, 2.0, nan_col=0)
     b = write_path_product(tmp_path / "b.tif", 400_180.0, 3.0, -2.0, nan_col=3)  # 2 nodes east
     out = tmp_path / "out.tif"
-    stats = runs.write_deliverable([a, b], str(out), {"COSEIS_VERSION": "exp-test"})
+    stats = runs.write_deliverable({27: a, 70: b}, str(out), {"COSEIS_VERSION": "exp-test"})
     assert stats == {"nodes": [3, 6], "valid_nodes": 12, "paths": 2}
     ds = gdal.Open(str(out))
     assert ds.GetGeoTransform()[0] == 400_000.0 and ds.RasterCount == 2
     assert [ds.GetRasterBand(i).GetDescription() for i in (1, 2)] == ["dx_m", "dy_m"]
     assert np.isnan(ds.GetRasterBand(1).GetNoDataValue())
     assert ds.GetMetadataItem("COSEIS_VERSION") == "exp-test"
+    assert ds.GetMetadataItem("MOSAIC_METHOD") == "mean"
     dx = ds.GetRasterBand(1).ReadAsArray()[0]
     # columns: a only (a's col 0 is NaN), a only, both, both, b only, b's NaN col
     np.testing.assert_allclose(dx, [np.nan, 1.0, 2.0, 2.0, 3.0, np.nan])
     off = write_path_product(tmp_path / "c.tif", 400_045.0, 0.0, 0.0, nan_col=0)
     with pytest.raises(ValueError, match="offset from the grid"):
-        runs.write_deliverable([a, off], str(tmp_path / "bad.tif"), {})
+        runs.write_deliverable({27: a, 70: off}, str(tmp_path / "bad.tif"), {})
+
+
+def write_noisy_path(path: Path, x0: float, shift: float, seed: int) -> str:
+    """A 50 x 40-node path product: dx = shift + noise, dy = -shift + noise (0.1 m)."""
+    np = pytest.importorskip("numpy")
+    gdal = pytest.importorskip("osgeo.gdal")
+    osr = pytest.importorskip("osgeo.osr")
+    rng = np.random.default_rng(seed)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(32611)
+    ds = gdal.GetDriverByName("GTiff").Create(str(path), 40, 50, 4, gdal.GDT_Float32)
+    ds.SetGeoTransform((x0, 90.0, 0.0, 3_960_000.0, 0.0, -90.0))
+    ds.SetProjection(srs.ExportToWkt())
+    ds.GetRasterBand(1).WriteArray((shift + rng.normal(0, 0.1, (50, 40))).astype(np.float32))
+    ds.GetRasterBand(2).WriteArray((-shift + rng.normal(0, 0.1, (50, 40))).astype(np.float32))
+    ds.GetRasterBand(3).WriteArray(np.zeros((50, 40), np.float32))
+    ds.GetRasterBand(4).WriteArray(np.full((50, 40), 4.0, np.float32))
+    ds = None
+    return str(path)
+
+
+def test_aligned_deliverable_has_uncertainty_and_path_offsets(tmp_path: Path) -> None:
+    np = pytest.importorskip("numpy")
+    gdal = pytest.importorskip("osgeo.gdal")
+    pytest.importorskip("scipy")
+    a = write_noisy_path(tmp_path / "a.tif", 400_000.0, 0.0, seed=1)
+    b = write_noisy_path(tmp_path / "b.tif", 400_000.0 + 10 * 90, 0.5, seed=2)  # 1500 shared
+    out = tmp_path / "out.tif"
+    stats = runs.write_deliverable({27: a, 70: b}, str(out), {}, "aligned_weighted")
+    assert stats["valid_nodes"] == 50 * 50
+    assert stats["alignment"]["dx"]["reference_path"] == 27
+    assert stats["alignment"]["dx"]["overlaps"][0]["paths"] == [27, 70]
+    assert stats["alignment"]["dx"]["offsets_removed_m"]["70"] == pytest.approx(0.5, abs=0.02)
+    assert stats["alignment"]["dy"]["offsets_removed_m"]["70"] == pytest.approx(-0.5, abs=0.02)
+    ds = gdal.Open(str(out))
+    names = [ds.GetRasterBand(i).GetDescription() for i in (1, 2, 3)]
+    assert names == ["dx_m", "dy_m", "sigma_h_m"] and ds.RasterCount == 3
+    assert ds.GetRasterBand(3).GetUnitType() == "m"
+    assert ds.GetMetadataItem("MOSAIC_METHOD") == "aligned_weighted"
+    assert ds.GetMetadataItem("REFERENCE_PATH") == "27"
+    removed = json.loads(ds.GetMetadataItem("PATH_OFFSETS_REMOVED_M"))
+    assert set(removed) == {"dx", "dy"} and removed["dx"]["27"] == 0.0
+    dx = ds.GetRasterBand(1).ReadAsArray()
+    assert abs(np.median(dx[:, 40:]) - np.median(dx[:, :10])) < 0.05  # no step between paths
+    assert np.isfinite(ds.GetRasterBand(3).ReadAsArray()).all()
+
+
+def make_source_version(root: Path) -> Path:
+    """A store with version exp-src (mean mosaic) made for EVENT from two path products."""
+    (root / "README.md").write_text("store\n")
+    (root / "events.json").write_text(json.dumps({EVENT: {"event_id": "ci38457511"}}))
+    record = store.start_version(root, "exp-src", "", definition())
+    record["definition"]["deliverable"] = runs.deliverable_spec("mean")
+    (root / "products" / "exp-src" / "VERSION.json").write_text(json.dumps(record))
+    out_dir = root / "products" / "exp-src" / EVENT
+    (out_dir / "paths").mkdir(parents=True)
+    paths = []
+    for n, (path, x0, shift) in enumerate(((27, 400_000.0, 0.0), (70, 400_900.0, 0.5))):
+        name = runs.path_product_name(EVENT, "exp-src", path)
+        write_noisy_path(out_dir / "paths" / name, x0, shift, seed=n)
+        paths.append({"path": path, "offset_m": f"paths/{name}"})
+    run = {"event": EVENT, "status": "COMPLETE", "inputs": [], "skipped": {}, "paths": paths}
+    assert runs.write_event_deliverable(record, EVENT, {}, run, out_dir)
+    (out_dir / "run_info.json").write_text(json.dumps(run))
+    return out_dir
+
+
+def test_remosaic_makes_a_new_version_and_leaves_the_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gdal = pytest.importorskip("osgeo.gdal")
+    pytest.importorskip("scipy")
+    source_dir = make_source_version(tmp_path)
+    before = {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in source_dir.rglob("*")}
+    monkeypatch.setattr(store, "code_provenance", lambda: CODE)
+    monkeypatch.setattr(store, "write_environment_listing", lambda dst: dst.write_text("env\n"))
+    remosaic = api.optical_remosaic
+    args = ["--store", str(tmp_path), "--source", "exp-src", "--version", "exp-src-aligned"]
+    remosaic.main(args)
+
+    assert {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in source_dir.rglob("*")} == before
+    out_dir = tmp_path / "products" / "exp-src-aligned" / EVENT
+    run = json.loads((out_dir / "run_info.json").read_text())
+    assert run["status"] == "COMPLETE" and run["derived_from"]["version"] == "exp-src"
+    for record in run["paths"]:
+        linked, original = out_dir / record["offset_m"], source_dir / record["offset_m"]
+        assert linked.stat().st_ino == original.stat().st_ino
+        assert record["offset_m_sha256"] == store.sha256(original)
+    ds = gdal.Open(str(out_dir / runs.deliverable_name(EVENT, "exp-src-aligned")))
+    assert ds.RasterCount == 3 and ds.GetMetadataItem("DERIVED_FROM_VERSION") == "exp-src"
+    assert ds.GetMetadataItem("USGS_EVENT_ID") == "ci38457511"
+    version = json.loads((tmp_path / "products" / "exp-src-aligned" / "VERSION.json").read_text())
+    assert version["definition"]["derived_from"]["version"] == "exp-src"
+    catalog = (tmp_path / "products" / "exp-src-aligned" / "catalog.csv").read_text()
+    assert f"{EVENT},ci38457511" in catalog and "COMPLETE" in catalog
+
+    remosaic.main(args)  # done events are skipped
+    assert json.loads((out_dir / "run_info.json").read_text()) == run
+    with pytest.raises(SystemExit):
+        remosaic.main(["--store", str(tmp_path), "--source", "v0", "--version", "exp-x"])
