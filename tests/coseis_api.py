@@ -19,7 +19,16 @@ from aria_coseis import config as settings  # noqa: E402
 from aria_coseis.aoi import make_aoi  # noqa: E402
 from aria_coseis.modes import main_forward, main_historic  # noqa: E402
 from aria_coseis.notify import ascii_table_to_html  # noqa: E402
+from aria_coseis.optical import runs as optical_runs  # noqa: E402
 from aria_coseis.optical import store as optical_store  # noqa: E402
+from aria_coseis.optical.autorift_profiles import PROFILES as AUTORIFT_PROFILES  # noqa: E402
+from aria_coseis.optical.autorift_profiles import (  # noqa: E402
+    aligned_bounds,
+    clipped_chip_sizes,
+    driver_options,
+    pixel_geometry,
+    resolve_profile,
+)
 from aria_coseis.optical.jobs import make_optical_job_json  # noqa: E402
 from aria_coseis.pipeline import process_earthquake  # noqa: E402
 from aria_coseis.sar.pairing import generate_pairs, make_job_json  # noqa: E402
@@ -33,6 +42,13 @@ from aria_coseis.usgs import parse_custom_eq_list  # noqa: E402
 from aria_coseis.utils import convert_time, to_snake_case  # noqa: E402
 
 __all__ = [
+    "resolve_profile",
+    "pixel_geometry",
+    "optical_runs",
+    "driver_options",
+    "clipped_chip_sizes",
+    "aligned_bounds",
+    "AUTORIFT_PROFILES",
     "SRC_DIR",
     "add_to_tracker",
     "ascii_table_to_html",

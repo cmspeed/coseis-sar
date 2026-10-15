@@ -177,3 +177,17 @@ def test_code_provenance_records_the_aria_coseis_checkout() -> None:
     assert aria["installed"]
     if aria.get("repo"):  # a git checkout (always, in development and CI)
         assert len(aria["commit"]) == 40 and isinstance(aria["dirty"], bool)
+
+
+def test_register_new_downloads(downloads: Path, tmp_path: Path) -> None:
+    root = tmp_path / "store"
+    with pytest.raises(FileNotFoundError, match="no optical data store"):
+        store.register_downloads(downloads, root, resolve=False)
+    root.mkdir()
+    (root / "README.md").write_text(store.README)
+    assert store.register_downloads(downloads, root, events=[EVENT], resolve=False) == [EVENT]
+    index = json.loads((root / "composites" / EVENT / "composites.json").read_text())
+    assert sorted(e["recipe"] for k, e in index.items() if not k.startswith("_")) == ["med90"] * 4
+    assert not (root / "products").exists()  # composites only; no product version
+    with pytest.raises(ValueError, match="unknown composite recipe"):
+        store.register_downloads(downloads, root, recipe="nope", resolve=False)

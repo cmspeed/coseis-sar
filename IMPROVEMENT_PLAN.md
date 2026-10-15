@@ -22,7 +22,7 @@
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
 | 5. Validation + cutover | **done** 2026-10-07 | branch `cutover` → PR #37; housekeeping → PR |
-| 6. Optical products (90 m fixes, then 30 m) | **in progress** | 6a: #43 (data store) |
+| 6. Optical products (90 m fixes, then 30 m) | **in progress** | 6a: #43 → PR #44 (data store, done); 6b: #45 (versioned runs) |
 
 Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
 
@@ -180,15 +180,16 @@ Remaining gaps:
 ## Phase 6: Optical products (90 m fixes, then 30 m)
 **Goal:** one reproducible set of optical offset mosaics for every event, with no doubt about how each one was made. The deliverable is a GeoTIFF per event: dx and dy in metres, a quality measure in band 3, and metadata. Decisions (2026-10-14): fix and test at 90 m before any 30 m run; the testbed is Ridgecrest 2019 (control: desert, little sun change), Pazarcık 2023 (snow, winter to spring) and Palu 2018 (tropical forest, sun crossing the zenith); composites and product versions are kept apart in one data store outside the git clones.
 
-**6a. Data store and provenance.** Issue #43.
-- [ ] `aria_coseis.optical.store`: composites by recipe (`composites/<event>/`, read-only, one record each with checksum and source), product versions (`products/<version>/` with `VERSION.json` and `catalog.csv`), intermediates (`work/`), and USGS metadata for every event (`events.json`). Root: `COSEIS_OPTICAL_DIR` (production: `/u/trappist-r0/colespeed/work/coseis_optical`).
-- [ ] Register the first products as version `v0` (hard links; `data/GEE_Optical_Downloads` is frozen) with the code that made each event.
+**6a. Data store and provenance.** **DONE 2026-10-14 (issue #43 → PR #44)**
+- [x] `aria_coseis.optical.store`: composites by recipe (`composites/<event>/`, read-only, one record each with checksum and source), product versions (`products/<version>/` with `VERSION.json` and `catalog.csv`), intermediates (`work/`), and USGS metadata for every event (`events.json`). Root: `COSEIS_OPTICAL_DIR` (production: `/u/trappist-r0/colespeed/work/coseis_optical`).
+- [x] Register the first products as version `v0` (hard links; `data/GEE_Optical_Downloads` is frozen) with the code that made each event.
 - [x] hyp3-autorift: the uncommitted driver edits behind every v0 product are committed on the fork (`cmspeed/hyp3-autorift`, branch `coseis`, tag `coseis-v0`); later driver fixes follow on that branch. **DONE 2026-10-14**
 
-**6b. Processing profiles and versioned runs** (from the 30 m work).
-- [ ] Processing profiles; `legacy90` reproduces v0.
-- [ ] Every run writes into `products/<version>/` with the code commits, parameters and input composites.
-- [ ] The deliverable mosaic: dx, dy, quality, nodata and band names declared, provenance in the metadata.
+**6b. Processing profiles and versioned runs** (from the 30 m work). Issue #45. **DONE 2026-10-15**: checked on Ridgecrest. `legacy90` reproduces v0 on the same grid (99.4–99.8 % of nodes bit-identical; the rest is the Wallis fill's random noise), and `g90` matches v0's statistics on its aligned grid (no glaciers there).
+- [x] Processing profiles (`aria_coseis.optical.autorift_profiles`): `legacy90` reproduces v0; `g90` is v0 without reference velocities or ITS_LIVE parameter tiles; `s2_30m` for later.
+- [x] `python -m aria_coseis.optical.autorift --version V`: reads composites from the store and writes `products/V/<event>/` (deliverable, per-path offsets, `run_info.json`) and the catalog. The first run records the profile, recipe, driver options and code commits in `VERSION.json`; later runs must match it, and only `exp-*` versions may use uncommitted code. Failed events are recorded and the batch goes on.
+- [x] The deliverable mosaic: dx and dy (mean of the paths), NaN nodata, band names, provenance in the metadata. The quality band follows from 6c.
+- [x] `python -m aria_coseis.optical.store register` for new GEE downloads; the old manifest-based batch mode is removed, and the pipeline refuses to download into the frozen v0 folder.
 
 **6c. 90 m testbed, one change at a time** (baseline: v0).
 - [ ] No reference velocities and flat Geogrid inputs (also checked on a glacier event).
