@@ -22,7 +22,7 @@
 | 3. Optical forward mode | not started | — |
 | 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
 | 5. Validation + cutover | **done** 2026-10-07 | branch `cutover` → PR #37; housekeeping → PR |
-| 6. Optical products (90 m fixes, then 30 m) | **in progress** | 6a: #43 → PR #44 (data store, done); 6b: #45 (versioned runs) |
+| 6. Optical products (90 m fixes, then 30 m) | **in progress** | 6a: #43 → PR #44 (data store, done); 6b: #45 → PR #46 (versioned runs); 6c: #51 (path alignment) |
 
 Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
 
@@ -195,7 +195,8 @@ Remaining gaps:
 - [ ] No reference velocities and flat Geogrid inputs (also checked on a glacier event).
 - [ ] Pre-filter choice and repeatable runs.
 - [ ] Composites that match season and sun (a season-matched PRE window, snow masking).
-- [ ] Corrections: far-field bias removal; the quality band.
+- [x] **Path seams** (issue #51). Whole paths are offset from each other by 0.1–0.5 m, so the mean of the paths steps at every swath edge. The `aligned_weighted` mosaic removes a constant dx and dy offset per path, fitted by least squares to the median differences on clean overlap nodes, and weights the paths by 1 / local variance (7 × 7 nodes). Band 3 is `sigma_h_m`, the estimated 1-sigma horizontal uncertainty. `python -m aria_coseis.optical.remosaic` applies it to an existing version's per-path files as a new version, without rerunning autoRIFT. **DONE 2026-10-15**: Ridgecrest `exp-g90` → `exp-g90-aligned` (P70 offsets −0.47 m dx, −0.23 m dy). The dx step at the P70 edge goes from −0.27 to 0.01 m; dy steps barely change (0.27 → 0.25 m), since they come from spatially variable sun and snow biases, not from a constant offset. The Sierra Nevada edge of P27 keeps metre-scale differences from snow, for the composites item.
+- [ ] Corrections: far-field bias removal.
 
 **6d. Production runs.**
 - [ ] v1 at 90 m for all events.
@@ -215,6 +216,8 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 - [x] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes. **DONE 2026-10-06 (Phase 2d)**
 
 **Code quality**
+- [ ] **Untracked source files don't make a run "dirty".** `store.git_state` ignores untracked files, so a run that imports a new module that isn't committed yet is recorded as clean code. Count untracked files inside the package as dirty (and hash them), or refuse to run with them.
+- [ ] `test_lock_file_blocks_a_second_run` hardcodes the default lock path and fails when `COSEIS_LOCK_FILE` is set (it passes in CI). Read the path from `config`.
 - [ ] `--eq_list` runs skip `check_significance`, so custom event lists are processed as given. Decide whether lists should be filtered too.
 - [ ] Single-date historic queries build `starttime` as `YYYY-MM-DD00:00:00` (no separator). USGS accepts it, but it's malformed; use `YYYY-MM-DDT00:00:00`.
 - [ ] `optical/element84.py` has a bare `except:` (marked `noqa: E722`), which also swallows `KeyboardInterrupt`/`SystemExit`. Narrow it to `except Exception:` with a test.

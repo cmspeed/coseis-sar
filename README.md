@@ -46,6 +46,9 @@ python -m aria_coseis.optical.store register data/GEE_Optical_Downloads
 
 # 3. Run autoRIFT into a product version (profile g90: 90 m, 360-720 m chips)
 python -m aria_coseis.optical.autorift --version exp-mytest --profile g90 --event <event folder>
+
+# Optional: the same per-path offsets with another mosaic, as a new version (no autoRIFT rerun)
+python -m aria_coseis.optical.remosaic --source exp-mytest --version exp-mytest-aligned
 ```
 - **Requirements:**
   - an Earth Engine account authenticated with `earthengine authenticate`, with access to the Cloud project `coseis-1`
@@ -53,7 +56,8 @@ python -m aria_coseis.optical.autorift --version exp-mytest --profile g90 --even
   - the export bucket set in `COSEIS_GCS_BUCKET`
 - **Event selection:** only strike-slip events are processed for optical.
 - **Optical data store** (`aria_coseis.optical.store`, root `COSEIS_OPTICAL_DIR`): composites are kept by recipe and products by version, each version with the code, parameters and composites that made it (`products/<version>/VERSION.json`, `catalog.csv`, `<event>/run_info.json`). `python -m aria_coseis.optical.store info` lists what is there.
-- **Results:** one GeoTIFF per event, `products/<version>/<event>/<event>_<version>_offsets.tif`: dx and dy in metres (east and north positive, PRE to POST), NaN nodata, provenance in the metadata; per-path offsets in `paths/`.
+- **Results:** one GeoTIFF per event, `products/<version>/<event>/<event>_<version>_offsets.tif`: dx, dy and `sigma_h_m` in metres (east and north positive, PRE to POST), NaN nodata, provenance in the metadata; per-path offsets in `paths/`.
+  - **Mosaic** (`--mosaic`, default `aligned_weighted`): one constant dx and dy offset per path is removed, fitted to the other paths in their overlaps, and the paths are averaged with weights 1 / local variance. `sigma_h_m` is the estimated 1-sigma horizontal uncertainty from the local scatter; it doesn't include errors that all paths share. The offsets removed are in the metadata. `--mosaic mean` gives the plain mean (dx and dy only), as in versions made before.
 - **autoRIFT driver:** runs need hyp3-autorift from `cmspeed/hyp3-autorift`, branch `coseis`.
 - **Other backends:** `--optical_backend copernicus` or `element84` only search and pair Sentinel-2 scenes (they don't build composites) and write autoRIFT job JSON. Copernicus writes it only with `--job_list`.
 
