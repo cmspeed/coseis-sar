@@ -67,6 +67,78 @@ COMPOSITE_RECIPES: dict[str, dict[str, Any]] = {
     },
 }
 
+# Recipes made by aria_coseis.optical.composites, on the grid of the event's med90 composites and
+# for the same paths. "window_days" gives each exported stage's [start, end) from the origin time
+# t: ["time", d] is t + d days, ["date", d] is 00:00 UTC of the day t + d days falls on (so med90 is
+# PRE [["date", -90], ["time", 0]], POST [["time", 0], ["date", 90]]). "stage_from_recipe" names
+# the recipe whose composite of that stage is used unchanged (registered again, hard link).
+_STORE_RECIPE = {
+    "collection": "COPERNICUS/S2_HARMONIZED",
+    "level": "TOA",
+    "band": "B8",
+    "cloud_mask": "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED cs_cdf >= 0.65",
+    "cloud_score_min": 0.65,
+    "reducer": "median",
+    "grouping": "SENSING_ORBIT_NUMBER",
+    "crs": "UTM zone of the epicenter",
+    "grid": (
+        "the grid of the event's med90 composites: the AOI rectangle (USGS finite-fault model "
+        "buffered by 0.15 degrees, or a 1 x 1 degree box) in UTM, snapped outward to 10 m"
+    ),
+    "clip": "to the AOI rectangle (longitude/latitude), as med90",
+    "scale_m": 10,
+    "dtype": "uint16",
+}
+_SNOW_MASK = {
+    "rule": (
+        "per scene, before the median: snow where NDSI = (B3 - B11) / (B3 + B11) >= 0.4, B8 > 1100 "
+        "and B3 > 1000 (TOA reflectance x 10^4; the thresholds of the MODIS snow algorithm, "
+        "SNOMAP); snow pixels are left out"
+    ),
+    "ndsi_min": 0.4,
+    "b8_min": 1100,
+    "b3_min": 1000,
+}
+COMPOSITE_RECIPES.update(
+    {
+        "seas90": {
+            **_STORE_RECIPE,
+            "description": (
+                "Season-matched PRE: the med90 POST window one year (365 d) earlier, so that PRE "
+                "and POST share the season and sun elevation. POST is the med90 POST composite"
+            ),
+            "snow_mask": None,
+            "pre_window": "[event - 365 d, 00:00 UTC of event + 90 d - 365 d)",
+            "post_window": "the med90 POST composite",
+            "window_days": {"PRE": [["time", -365], ["date", -275]]},
+            "stage_from_recipe": {"POST": "med90"},
+        },
+        "med90snow": {
+            **_STORE_RECIPE,
+            "description": "med90 windows, with snow masked in every scene before the median",
+            "snow_mask": _SNOW_MASK,
+            "pre_window": "[00:00 UTC of event - 90 d, event)",
+            "post_window": "[event, 00:00 UTC of event + 90 d)",
+            "window_days": {
+                "PRE": [["date", -90], ["time", 0]],
+                "POST": [["time", 0], ["date", 90]],
+            },
+        },
+        "seas90snow": {
+            **_STORE_RECIPE,
+            "description": (
+                "seas90 with snow masked in every scene before the median. POST is the med90snow "
+                "POST composite"
+            ),
+            "snow_mask": _SNOW_MASK,
+            "pre_window": "[event - 365 d, 00:00 UTC of event + 90 d - 365 d)",
+            "post_window": "the med90snow POST composite",
+            "window_days": {"PRE": [["time", -365], ["date", -275]]},
+            "stage_from_recipe": {"POST": "med90snow"},
+        },
+    }
+)
+
 # The first products ("v0"), made 2026-10-01 to 2026-10-13 in data/GEE_Optical_Downloads.
 V0_OLD_SCRIPT_EVENTS = (
     "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence",
@@ -232,13 +304,19 @@ def write_recipes(root: Path) -> None:
 
 
 def add_composite(
-    root: Path, event: str, src: Path, record: dict[str, Any], allow_copy: bool = False
+    root: Path,
+    event: str,
+    src: Path,
+    record: dict[str, Any],
+    allow_copy: bool = False,
+    source: str | None = None,
 ) -> Path:
     """
     Register a composite file under composites/<event>/ (hard link, or copy if allowed).
 
     record must hold sensor, path, level, band, stage, recipe, start and end (datetimes). Adding
-    the same file again is a no-op; a different file under an existing name raises.
+    the same file again is a no-op; a different file under an existing name raises. source is
+    recorded as where the file came from (default: src).
     """
     name = composite_name(
         record["sensor"],
@@ -271,7 +349,7 @@ def add_composite(
         k: (v.strftime("%Y-%m-%dT%H:%M:%SZ") if isinstance(v, datetime) else v)
         for k, v in record.items()
     }
-    entry.update(sha256=digest, bytes=dst.stat().st_size, stored_as=how, source=str(src))
+    entry.update(sha256=digest, bytes=dst.stat().st_size, stored_as=how, source=source or str(src))
     entry["registered"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     index[name] = entry
     _write_json(index_path, index)
@@ -580,6 +658,8 @@ def register_downloads(
     store = require_store(root)
     if recipe not in COMPOSITE_RECIPES:
         raise ValueError(f"unknown composite recipe {recipe!r}")
+    if "window_days" in COMPOSITE_RECIPES[recipe]:
+        raise ValueError(f"{recipe} composites are made by aria_coseis.optical.composites")
     write_recipes(store)
     origins = {}
     for event_dir in sorted(p for p in Path(downloads).iterdir() if p.is_dir()):

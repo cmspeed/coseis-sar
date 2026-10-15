@@ -194,7 +194,9 @@ Remaining gaps:
 **6c. 90 m testbed, one change at a time** (baseline: v0).
 - [ ] No reference velocities and flat Geogrid inputs (also checked on a glacier event).
 - [ ] Pre-filter choice and repeatable runs.
-- [ ] Composites that match season and sun (a season-matched PRE window, snow masking).
+- [ ] Composites that match season and sun (a season-matched PRE window, snow masking). Testbed: Ridgecrest, Pazarcık, Palu and Mandalay (added 2026-10-15: several paths, vegetation).
+  - [x] Recipes `seas90` (PRE = the POST window 365 d earlier; POST = the med90 POST file), `med90snow` (med90 windows, snow masked per scene: NDSI ≥ 0.4, B8 > 1100, B3 > 1000) and `seas90snow` (both). `python -m aria_coseis.optical.composites plan|build` makes them for store events on the grid of their med90 composites (the AOI is recomputed and must reproduce that grid), for the same paths, and registers them with their scene lists. **Code ready 2026-10-15**; `plan` checked on the four events.
+  - [ ] Export and register them for the testbed; g90 runs per recipe; compare.
 - [x] **Path seams** (issue #51). Whole paths are offset from each other by 0.1–0.5 m, so the mean of the paths steps at every swath edge. The `aligned_weighted` mosaic removes a constant dx and dy offset per path, fitted by least squares to the median differences on clean overlap nodes, and weights the paths by 1 / local variance (7 × 7 nodes). Band 3 is `sigma_h_m`, the estimated 1-sigma horizontal uncertainty. `python -m aria_coseis.optical.remosaic` applies it to an existing version's per-path files as a new version, without rerunning autoRIFT. **DONE 2026-10-15**: Ridgecrest `exp-g90` → `exp-g90-aligned` (P70 offsets −0.47 m dx, −0.23 m dy). The dx step at the P70 edge goes from −0.27 to 0.01 m; dy steps barely change (0.27 → 0.25 m), since they come from spatially variable sun and snow biases, not from a constant offset. The Sierra Nevada edge of P27 keeps metre-scale differences from snow, for the composites item.
 - [ ] Corrections: far-field bias removal.
 
