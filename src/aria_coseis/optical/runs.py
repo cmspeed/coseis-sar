@@ -8,8 +8,9 @@ relative orbit ("path") in work/V/E/P<path>/ and writes to products/V/E/:
     paths/E_V_P<path>_offset_m.tif   per path: dx_m, dy_m, interp_mask, chip_size_x_px
     run_info.json                    inputs (with checksums), per-path results, timings, status
 
-The autoRIFT processing itself is in aria_coseis.optical.autorift. This module needs neither
-hyp3_autorift nor GDAL (only write_deliverable imports GDAL), so it can be tested anywhere.
+The autoRIFT processing itself is in aria_coseis.optical.autorift; aria_coseis.optical.remosaic
+makes a version from another version's per-path files with a different mosaic. This module needs
+neither hyp3_autorift nor GDAL (only write_deliverable imports GDAL), so it can be tested anywhere.
 """
 
 from __future__ import annotations
@@ -19,9 +20,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from aria_coseis.optical import mosaic
 from aria_coseis.optical.autorift_profiles import AutoriftProfile, PixelGeometry
 
-DELIVERABLE_BANDS = ("dx_m", "dy_m")
+DELIVERABLE_BANDS = {"mean": ("dx_m", "dy_m"), "aligned_weighted": ("dx_m", "dy_m", "sigma_h_m")}
+DEFAULT_MOSAIC = "aligned_weighted"
 PATH_PRODUCT_BANDS = ("dx_m", "dy_m", "interp_mask", "chip_size_x_px")
 SIGN_CONVENTION = (
     "dx positive east, dy positive north (map axes of the file's UTM projection): motion of the "
@@ -107,12 +110,50 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
+def deliverable_spec(method: str) -> dict[str, Any]:
+    """The deliverable part of a version definition for a mosaic method."""
+    spec: dict[str, Any] = {
+        "file": "<event>/<event>_<version>_offsets.tif",
+        "bands": list(DELIVERABLE_BANDS[method]),
+        "units": "m",
+        "nodata": "NaN",
+        "sign_convention": SIGN_CONVENTION,
+    }
+    if method == "mean":  # as recorded by the versions made before other methods existed
+        spec["mosaic"] = "mean of the paths with a value at each node"
+        return spec
+    spec["mosaic"] = {
+        "method": method,
+        "description": (
+            "constant per-path offsets (dx and dy separately) fitted by least squares to the "
+            "median differences on clean overlap nodes and removed, relative to the path with "
+            "the most valid nodes; then the mean of the paths weighted by 1 / local variance"
+        ),
+        "local_window_nodes": mosaic.WINDOW,
+        "sigma_floor_m": mosaic.SIGMA_FLOOR_M,
+        "min_overlap_nodes": mosaic.MIN_OVERLAP_NODES,
+        "clean_overlap": (
+            "both paths valid, not interpolated, each path's smallest chip, local scatter at most "
+            "its 75th percentile; differences trimmed at 3 NMAD"
+        ),
+    }
+    spec["band_descriptions"] = {
+        "sigma_h_m": (
+            "estimated 1-sigma horizontal uncertainty sqrt(sigma_dx^2 + sigma_dy^2), each from the "
+            "local scatter of the contributing paths; does not include biases shared by all paths "
+            "or smooth composite (snow, sun) errors"
+        )
+    }
+    return spec
+
+
 def version_definition(
     profile: AutoriftProfile,
     recipe: str,
     geometry: PixelGeometry,
     options: dict[str, Any],
     provenance: dict[str, Any],
+    method: str = DEFAULT_MOSAIC,
 ) -> dict[str, Any]:
     """What defines a product version; every run of the version must have the same definition."""
     return {
@@ -126,15 +167,38 @@ def version_definition(
         },
         "driver_options": _jsonable(options),
         "code": code_signature(provenance),
-        "deliverable": {
-            "file": "<event>/<event>_<version>_offsets.tif",
-            "bands": list(DELIVERABLE_BANDS),
-            "units": "m",
-            "nodata": "NaN",
-            "sign_convention": SIGN_CONVENTION,
-            "mosaic": "mean of the paths with a value at each node",
-        },
+        "deliverable": deliverable_spec(method),
     }
+
+
+def derived_definition(
+    source: dict[str, Any], method: str, provenance: dict[str, Any]
+) -> dict[str, Any]:
+    """
+    Definition of a version made from the per-path files of the source version (its record)
+    with another mosaic: the source definition with a new deliverable, the source version and
+    the code that makes the mosaic. "code" stays that of the source, which made the paths.
+    """
+    if source.get("version") == "v0" or "definition" not in source:
+        raise ValueError(f"cannot remosaic {source.get('version')}: not made by a store run")
+    if "derived_from" in source["definition"]:
+        original = source["definition"]["derived_from"]["version"]
+        raise ValueError(f"{source['version']} is remosaicked itself; remosaic {original}")
+    return {
+        **source["definition"],
+        "deliverable": deliverable_spec(method),
+        "derived_from": {
+            "version": source["version"],
+            "uses": "the source version's per-path products, unchanged (hard links)",
+        },
+        "mosaic_code": {"aria_coseis": code_signature(provenance)["aria_coseis"]},
+    }
+
+
+def mosaic_method(definition: dict[str, Any]) -> str:
+    """The mosaic method of a version (versions made before methods existed use the mean)."""
+    spec = definition["deliverable"]["mosaic"]
+    return spec["method"] if isinstance(spec, dict) else "mean"
 
 
 def catalog_row(
@@ -169,7 +233,7 @@ def deliverable_metadata(
     done = {r["path"] for r in run["paths"] if r.get("offset_m")}
     used = [p for p in run["inputs"] if p["path"] in done]
     code = definition["code"]
-    return {
+    meta = {
         "COSEIS_PRODUCT": "Sentinel-2 optical surface offsets (autoRIFT feature tracking)",
         "COSEIS_VERSION": version_record["version"],
         "EVENT_FOLDER": event,
@@ -196,70 +260,122 @@ def deliverable_metadata(
         "AUTORIFT": json.dumps(code.get("autoRIFT"), sort_keys=True),
         "CREATED_UTC": utc_now(),
     }
+    if "derived_from" in definition:
+        meta["DERIVED_FROM_VERSION"] = definition["derived_from"]["version"]
+        meta["MOSAIC_CODE"] = json.dumps(definition["mosaic_code"]["aria_coseis"], sort_keys=True)
+    return meta
 
 
 def write_deliverable(
-    path_files: list[str], out_path: str, metadata: dict[str, str]
+    path_files: dict[int, str], out_path: str, metadata: dict[str, str], method: str = "mean"
 ) -> dict[str, Any]:
     """
-    Mosaic per-path offset_m files into the deliverable GeoTIFF: band 1 dx_m, band 2 dy_m (mean of
-    the paths with a value at each node), NaN nodata, band names and the given metadata. All paths
-    must share one grid (same projection and pixel size, origins on the same lattice).
+    Mosaic per-path offset_m files ({path: file}) into the deliverable GeoTIFF with
+    aria_coseis.optical.mosaic: bands DELIVERABLE_BANDS[method], NaN nodata, band names and the
+    given metadata, plus the per-path offsets removed. All paths must share one grid (same
+    projection and pixel size, origins on the same lattice). A node is valid in a path only where
+    both dx and dy are.
     """
     import numpy as np
     from osgeo import gdal
 
     gdal.UseExceptions()
-    datasets = [gdal.Open(p) for p in path_files]
+    paths = sorted(path_files)
+    files = [path_files[p] for p in paths]
+    datasets = [gdal.Open(f) for f in files]
     proj = datasets[0].GetProjection()
-    gt0 = datasets[0].GetGeoTransform()
-    res = gt0[1]
+    res = datasets[0].GetGeoTransform()[1]
     xmin = min(ds.GetGeoTransform()[0] for ds in datasets)
     ymax = max(ds.GetGeoTransform()[3] for ds in datasets)
     xmax = max(ds.GetGeoTransform()[0] + ds.RasterXSize * res for ds in datasets)
     ymin = min(ds.GetGeoTransform()[3] - ds.RasterYSize * res for ds in datasets)
     cols, rows = int(round((xmax - xmin) / res)), int(round((ymax - ymin) / res))
-    sums = np.zeros((2, rows, cols), np.float64)
-    count = np.zeros((rows, cols), np.int16)
-    for path, ds in zip(path_files, datasets):
+    stacks = np.full((4, len(files), rows, cols), np.nan, np.float32)  # dx, dy, interp, chip
+    for k, (name, ds) in enumerate(zip(files, datasets)):
         gt = ds.GetGeoTransform()
         if ds.GetProjection() != proj or gt[1] != res or gt[5] != -res:
-            raise ValueError(f"{path} is not on the grid of {path_files[0]}")
+            raise ValueError(f"{name} is not on the grid of {files[0]}")
         c0, r0 = (gt[0] - xmin) / res, (ymax - gt[3]) / res
         if abs(c0 - round(c0)) > 1e-6 or abs(r0 - round(r0)) > 1e-6:
-            raise ValueError(f"{path} is offset from the grid of {path_files[0]}")
+            raise ValueError(f"{name} is offset from the grid of {files[0]}")
         window = (
             slice(int(round(r0)), int(round(r0)) + ds.RasterYSize),
             slice(int(round(c0)), int(round(c0)) + ds.RasterXSize),
         )
-        dx = ds.GetRasterBand(1).ReadAsArray()
-        dy = ds.GetRasterBand(2).ReadAsArray()
-        valid = np.isfinite(dx) & np.isfinite(dy)
-        sums[0][window][valid] += dx[valid]
-        sums[1][window][valid] += dy[valid]
-        count[window][valid] += 1
-    with np.errstate(invalid="ignore", divide="ignore"):
-        mean = (sums / count).astype(np.float32)
-    mean[:, count == 0] = np.nan
+        for b in range(4):
+            stacks[b, k][window] = ds.GetRasterBand(b + 1).ReadAsArray()
+    invalid = ~(np.isfinite(stacks[0]) & np.isfinite(stacks[1]))
+    stacks[0][invalid] = np.nan
+    stacks[1][invalid] = np.nan
+    merged = mosaic.merge(*stacks, method=method)
 
-    driver = gdal.GetDriverByName("GTiff")
-    out = driver.Create(
+    bands = DELIVERABLE_BANDS[method]
+    arrays = {"dx_m": merged["dx"], "dy_m": merged["dy"], "sigma_h_m": merged.get("sigma_h")}
+    metadata = {**metadata, "MOSAIC_METHOD": method}
+    alignment = None
+    if "alignment" in merged:
+        alignment = {
+            comp: {
+                "reference_path": paths[a["reference_path_index"]],
+                "offsets_removed_m": {str(p): o for p, o in zip(paths, a["offsets_m"])},
+                "overlaps": [
+                    {**o, "paths": [paths[i] for i in o["paths"]]} for o in a["overlaps"]
+                ],
+            }
+            for comp, a in merged["alignment"].items()
+        }
+        metadata["PATH_OFFSETS_REMOVED_M"] = json.dumps(
+            {comp: a["offsets_removed_m"] for comp, a in alignment.items()}, sort_keys=True
+        )
+        metadata["REFERENCE_PATH"] = str(alignment["dx"]["reference_path"])
+    out = gdal.GetDriverByName("GTiff").Create(
         out_path,
         cols,
         rows,
-        len(DELIVERABLE_BANDS),
+        len(bands),
         gdal.GDT_Float32,
         options=["COMPRESS=DEFLATE", "PREDICTOR=3", "TILED=YES"],
     )
     out.SetGeoTransform((xmin, res, 0.0, ymax, 0.0, -res))
     out.SetProjection(proj)
     out.SetMetadata(metadata)
-    for i, name in enumerate(DELIVERABLE_BANDS):
+    for i, name in enumerate(bands):
         band = out.GetRasterBand(i + 1)
-        band.WriteArray(mean[i])
+        band.WriteArray(arrays[name])
         band.SetDescription(name)
         band.SetNoDataValue(float("nan"))
         band.SetUnitType("m")
     out = None
-    valid = count > 0
-    return {"nodes": [rows, cols], "valid_nodes": int(valid.sum()), "paths": len(path_files)}
+    stats: dict[str, Any] = {
+        "nodes": [rows, cols],
+        "valid_nodes": int(np.isfinite(merged["dx"]).sum()),
+        "paths": len(files),
+    }
+    if alignment is not None:
+        stats["alignment"] = alignment
+    return stats
+
+
+def write_event_deliverable(
+    version_record: dict[str, Any],
+    event: str,
+    event_meta: dict[str, Any],
+    run: dict[str, Any],
+    out_dir: Path,
+) -> bool:
+    """
+    Write the event's deliverable from the run's per-path products with the version's mosaic
+    method, recording it in the run. Returns False when no path has a product.
+    """
+    files = {p["path"]: str(out_dir / p["offset_m"]) for p in run["paths"] if p.get("offset_m")}
+    if not files:
+        return False
+    run["deliverable"] = deliverable_name(event, version_record["version"])
+    metadata = deliverable_metadata(version_record, event, event_meta, run)
+    run["deliverable_grid"] = write_deliverable(
+        files,
+        str(out_dir / run["deliverable"]),
+        metadata,
+        mosaic_method(version_record["definition"]),
+    )
+    return True

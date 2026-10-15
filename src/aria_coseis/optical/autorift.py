@@ -526,16 +526,8 @@ def process_event(
             run["paths"].append(process_pair(pair, profile, options, work_dir, out_path))
             os.chdir(cwd)
             save()
-        files = [str(out_dir / p["offset_m"]) for p in run["paths"] if p.get("offset_m")]
-        if files:
-            run["deliverable"] = runs.deliverable_name(event, version)
-            metadata = runs.deliverable_metadata(version_record, event, event_meta, run)
-            run["deliverable_grid"] = runs.write_deliverable(
-                files, str(out_dir / run["deliverable"]), metadata
-            )
-            run["status"] = "COMPLETE"
-        else:
-            run["status"] = "NO_DATA"
+        written = runs.write_event_deliverable(version_record, event, event_meta, run, out_dir)
+        run["status"] = "COMPLETE" if written else "NO_DATA"
     except Exception as e:  # noqa: BLE001 - record the failure and go on with the next event
         run["status"] = "FAILED"
         run["error"] = f"{type(e).__name__}: {e}"
@@ -574,6 +566,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--prefilter", choices=["wallis_hps", "wallis", "hps"])
     parser.add_argument("--geogrid_inputs", choices=["its_live", "flat"])
     parser.add_argument("--reference_velocity", choices=["null", "its_live"])
+    parser.add_argument(
+        "--mosaic",
+        choices=sorted(runs.DELIVERABLE_BANDS),
+        default=runs.DEFAULT_MOSAIC,
+        help=f"How paths are combined in the deliverable (default {runs.DEFAULT_MOSAIC})",
+    )
     parser.add_argument("--force", action="store_true", help="Redo events already processed")
     args = parser.parse_args(argv)
 
@@ -596,7 +594,9 @@ def main(argv: list[str] | None = None) -> None:
         print(f"[Warning] {warning}")
     options = driver_options(profile, geom)
     provenance = store.code_provenance()
-    definition = runs.version_definition(profile, args.recipe, geom, options, provenance)
+    definition = runs.version_definition(
+        profile, args.recipe, geom, options, provenance, args.mosaic
+    )
     record = store.start_version(root, args.version, args.description, definition)
     env_listing = root / "products" / args.version / "environment.txt"
     if not env_listing.exists():
