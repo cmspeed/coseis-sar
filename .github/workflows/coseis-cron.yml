@@ -49,10 +49,12 @@ jobs:
           
           # Commit if anything changed, then push. If the processing machine pushed in between,
           # rebase onto it and retry; fail the run visibly if the push never succeeds.
+          # --autostash: other files changed by the run (none are expected) must not block the
+          # rebase, or the tracker is never saved and every run repeats the same emails.
           if ! git diff --cached --quiet; then
             git commit -m "Update COSEIS tracking state and add new maps [skip ci]"
             for attempt in 1 2 3; do
-              if git pull --rebase origin main && git push origin main; then
+              if git pull --rebase --autostash origin main && git push origin main; then
                 exit 0
               fi
               git rebase --abort 2> /dev/null || true

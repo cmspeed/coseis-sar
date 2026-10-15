@@ -211,6 +211,7 @@ Proposed along the way and not yet scheduled. Move items into a phase when picke
 - [x] **Push-race retry.** Both runners rebase and retry their push up to three times. The wrapper also pushes commits left from an earlier failed push and aborts cleanly on a real conflict (logged); the Action fails visibly. **DONE 2026-10-07**
 - [x] **Cron push authentication.** After the cutover `origin` was an HTTPS URL, which can't authenticate under cron, so every push failed from the first real processing (Tamarindo D157, 2026-10-08) until one was pushed by hand. The remote is back on SSH (deploy key); the wrapper now logs git's output and never waits for a password prompt; `ops/README.md` documents the SSH requirement and a cron-like test. **DONE 2026-10-08**
 - [ ] Rotate or trim `logs/forward.log` (formerly `scripts/log_tracking.txt`).
+- [x] **Tracker push blocked by build metadata.** `src/aria_coseis.egg-info/` was tracked (committed in Phase 2b, before `.gitignore` covered it). The Action's `pip install -e` rewrites it whenever files are added to the package (here #44), which left an unstaged change; the first run that had tracker changes to save then failed at `git pull --rebase`, so the state was never pushed and every following run repeated the same emails (2026-10-15, from 01:58 UTC). The folder is untracked now, and the workflow pulls with `--autostash`. **DONE 2026-10-15**
 - [x] Fix the misleading cron comment: `*/50` runs at :00 and :50, not every 50 minutes. **DONE 2026-10-06 (Phase 2d)**
 
 **Code quality**

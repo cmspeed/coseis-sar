@@ -1,3 +1,0 @@
-[console_scripts]
-aria-coseis = aria_coseis.cli:main
-aria-coseis-autorift = aria_coseis.optical.autorift:main
