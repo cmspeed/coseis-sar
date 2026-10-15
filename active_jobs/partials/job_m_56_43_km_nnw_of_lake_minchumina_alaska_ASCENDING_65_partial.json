@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_56_43_km_nnw_of_lake_minchumina_alaska-ASCENDING65",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "aka2026ukynnb",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20260902T033638_20260902T033705_009263_012682_F717",
+                "S1C_IW_SLC__1SDV_20260902T033613_20260902T033640_009263_012682_4090"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]

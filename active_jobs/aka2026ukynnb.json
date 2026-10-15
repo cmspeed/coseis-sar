@@ -1,0 +1,65 @@
+{
+    "title": "m_56_43_km_nnw_of_lake_minchumina_alaska",
+    "time": 1792062421800,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -153.246,
+                    63.72
+                ],
+                [
+                    -152.246,
+                    63.72
+                ],
+                [
+                    -152.246,
+                    64.72
+                ],
+                [
+                    -153.246,
+                    64.72
+                ],
+                [
+                    -153.246,
+                    63.72
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_131": {
+            "flight_direction": "DESCENDING",
+            "path_number": 131,
+            "frame_numbers": [
+                381
+            ],
+            "partial_job_file": "job_m_56_43_km_nnw_of_lake_minchumina_alaska_DESCENDING_131_partial.json",
+            "reference_date": "2026-10-06",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_36": {
+            "flight_direction": "ASCENDING",
+            "path_number": 36,
+            "frame_numbers": [
+                210,
+                205
+            ],
+            "partial_job_file": "job_m_56_43_km_nnw_of_lake_minchumina_alaska_ASCENDING_36_partial.json",
+            "reference_date": "2026-10-06",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_65": {
+            "flight_direction": "ASCENDING",
+            "path_number": 65,
+            "frame_numbers": [
+                209,
+                204
+            ],
+            "partial_job_file": "job_m_56_43_km_nnw_of_lake_minchumina_alaska_ASCENDING_65_partial.json",
+            "reference_date": "2026-09-02",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

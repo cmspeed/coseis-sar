@@ -39,20 +39,6 @@
             "partial_job_file": "job_m_60_126_km_s_of_kokopo_papua_new_guinea_DESCENDING_16_partial.json",
             "reference_date": "2026-10-10",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "ASCENDING_67": {
-            "flight_direction": "ASCENDING",
-            "path_number": 67,
-            "frame_numbers": [
-                1160,
-                1161
-            ],
-            "partial_job_file": "job_m_60_126_km_s_of_kokopo_papua_new_guinea_ASCENDING_67_partial.json",
-            "reference_date": "2026-10-02",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-10-02 (Pre) - 2026-10-14 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_60_126_km_s_of_kokopo_papua_new_guinea/ASCENDING067/coseismic/ASCENDING067_20261002_20261014"
         }
     }
 }
