@@ -185,11 +185,11 @@ Remaining gaps:
 - [x] Register the first products as version `v0` (hard links; `data/GEE_Optical_Downloads` is frozen) with the code that made each event.
 - [x] hyp3-autorift: the uncommitted driver edits behind every v0 product are committed on the fork (`cmspeed/hyp3-autorift`, branch `coseis`, tag `coseis-v0`); later driver fixes follow on that branch. **DONE 2026-10-14**
 
-**6b. Processing profiles and versioned runs** (from the 30 m work). Issue #45.
-- [ ] Processing profiles (`aria_coseis.optical.autorift_profiles`): `legacy90` reproduces v0; `g90` is v0 without reference velocities or ITS_LIVE parameter tiles; `s2_30m` for later.
-- [ ] `python -m aria_coseis.optical.autorift --version V`: reads composites from the store and writes `products/V/<event>/` (deliverable, per-path offsets, `run_info.json`) and the catalog. The first run records the profile, recipe, driver options and code commits in `VERSION.json`; later runs must match it, and only `exp-*` versions may use uncommitted code. Failed events are recorded and the batch goes on.
-- [ ] The deliverable mosaic: dx and dy (mean of the paths), NaN nodata, band names, provenance in the metadata. The quality band follows from 6c.
-- [ ] `python -m aria_coseis.optical.store register` for new GEE downloads; the old manifest-based batch mode is removed, and the pipeline refuses to download into the frozen v0 folder.
+**6b. Processing profiles and versioned runs** (from the 30 m work). Issue #45. **DONE 2026-10-15**: checked on Ridgecrest. `legacy90` reproduces v0 on the same grid (99.4–99.8 % of nodes bit-identical; the rest is the Wallis fill's random noise), and `g90` matches v0's statistics on its aligned grid (no glaciers there).
+- [x] Processing profiles (`aria_coseis.optical.autorift_profiles`): `legacy90` reproduces v0; `g90` is v0 without reference velocities or ITS_LIVE parameter tiles; `s2_30m` for later.
+- [x] `python -m aria_coseis.optical.autorift --version V`: reads composites from the store and writes `products/V/<event>/` (deliverable, per-path offsets, `run_info.json`) and the catalog. The first run records the profile, recipe, driver options and code commits in `VERSION.json`; later runs must match it, and only `exp-*` versions may use uncommitted code. Failed events are recorded and the batch goes on.
+- [x] The deliverable mosaic: dx and dy (mean of the paths), NaN nodata, band names, provenance in the metadata. The quality band follows from 6c.
+- [x] `python -m aria_coseis.optical.store register` for new GEE downloads; the old manifest-based batch mode is removed, and the pipeline refuses to download into the frozen v0 folder.
 
 **6c. 90 m testbed, one change at a time** (baseline: v0).
 - [ ] No reference velocities and flat Geogrid inputs (also checked on a glacier event).
