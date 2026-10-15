@@ -199,6 +199,7 @@ Remaining gaps:
   - [ ] Export and register them for the testbed; g90 runs per recipe; compare.
 - [x] **Path seams** (issue #51). Whole paths are offset from each other by 0.1–0.5 m, so the mean of the paths steps at every swath edge. The `aligned_weighted` mosaic removes a constant dx and dy offset per path, fitted by least squares to the median differences on clean overlap nodes, and weights the paths by 1 / local variance (7 × 7 nodes). Band 3 is `sigma_h_m`, the estimated 1-sigma horizontal uncertainty. `python -m aria_coseis.optical.remosaic` applies it to an existing version's per-path files as a new version, without rerunning autoRIFT. **DONE 2026-10-15**: Ridgecrest `exp-g90` → `exp-g90-aligned` (P70 offsets −0.47 m dx, −0.23 m dy). The dx step at the P70 edge goes from −0.27 to 0.01 m; dy steps barely change (0.27 → 0.25 m), since they come from spatially variable sun and snow biases, not from a constant offset. The Sierra Nevada edge of P27 keeps metre-scale differences from snow, for the composites item.
 - [ ] Corrections: far-field bias removal.
+- [ ] Chips under 360 m at 90 m-class postings (synopsis §10 #25). The 360 m floor is a hyp3-autorift driver rule, not an autoRIFT limit; the JPL Ridgecrest test (Feb 2025) preferred 160–320 m chips at 90 m. Compare an 80 m posting with 160–320 m chips (r = 2) and 90 m with r = 1 against 360 m, with the 30 m tests.
 
 **6d. Production runs.**
 - [ ] v1 at 90 m for all events.
