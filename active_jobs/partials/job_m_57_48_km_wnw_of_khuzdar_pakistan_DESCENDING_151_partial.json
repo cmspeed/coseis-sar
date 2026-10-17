@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_57_48_km_wnw_of_khuzdar_pakistan-DESCENDING151",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us6000u2y1",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20261008T013304_20261008T013331_004917_00942F_5B6F",
+                "S1D_IW_SLC__1SDV_20261008T013239_20261008T013306_004917_00942F_4DBA"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]

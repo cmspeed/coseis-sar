@@ -1,0 +1,65 @@
+{
+    "title": "m_57_48_km_wnw_of_khuzdar_pakistan",
+    "time": 1792213617657,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    65.6708,
+                    27.5179
+                ],
+                [
+                    66.6708,
+                    27.5179
+                ],
+                [
+                    66.6708,
+                    28.5179
+                ],
+                [
+                    65.6708,
+                    28.5179
+                ],
+                [
+                    65.6708,
+                    27.5179
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_42": {
+            "flight_direction": "ASCENDING",
+            "path_number": 42,
+            "frame_numbers": [
+                87
+            ],
+            "partial_job_file": "job_m_57_48_km_wnw_of_khuzdar_pakistan_ASCENDING_42_partial.json",
+            "reference_date": "2026-10-12",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_115": {
+            "flight_direction": "ASCENDING",
+            "path_number": 115,
+            "frame_numbers": [
+                82,
+                87
+            ],
+            "partial_job_file": "job_m_57_48_km_wnw_of_khuzdar_pakistan_ASCENDING_115_partial.json",
+            "reference_date": "2026-10-05",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_151": {
+            "flight_direction": "DESCENDING",
+            "path_number": 151,
+            "frame_numbers": [
+                496,
+                501
+            ],
+            "partial_job_file": "job_m_57_48_km_wnw_of_khuzdar_pakistan_DESCENDING_151_partial.json",
+            "reference_date": "2026-10-08",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
