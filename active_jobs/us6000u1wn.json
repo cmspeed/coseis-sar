@@ -37,7 +37,10 @@
             ],
             "partial_job_file": "job_m_61_18_km_w_of_rio_grande_panama_DESCENDING_113_partial.json",
             "reference_date": "2026-10-05",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-10-05 (Pre) - 2026-10-17 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_61_18_km_w_of_rio_grande_panama/DESCENDING113/coseismic/DESCENDING113_20261005_20261017"
         }
     }
 }
