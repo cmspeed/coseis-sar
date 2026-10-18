@@ -38,19 +38,6 @@
             "partial_job_file": "job_m_55_3_km_sw_of_bajo_corral_panama_ASCENDING_121_partial.json",
             "reference_date": "2026-10-05",
             "status": "AWAITING_POST_SEISMIC"
-        },
-        "DESCENDING_113": {
-            "flight_direction": "DESCENDING",
-            "path_number": 113,
-            "frame_numbers": [
-                567
-            ],
-            "partial_job_file": "job_m_55_3_km_sw_of_bajo_corral_panama_DESCENDING_113_partial.json",
-            "reference_date": "2026-10-05",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-10-05 (Pre) - 2026-10-17 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_3_km_sw_of_bajo_corral_panama/DESCENDING113/coseismic/DESCENDING113_20261005_20261017"
         }
     }
 }
