@@ -166,6 +166,32 @@ COMPOSITE_RECIPES.update(
             "stage_from_recipe": {"POST": ["seas90", "PRE"]},
             "control": True,
         },
+        "med30snow": {
+            **_STORE_RECIPE,
+            "description": "med30 windows, with snow masked in every scene before the median",
+            "snow_mask": _SNOW_MASK,
+            "pre_window": "[00:00 UTC of event - 30 d, event)",
+            "post_window": "[event, 00:00 UTC of event + 30 d)",
+            "window_days": {
+                "PRE": [["date", -30], ["time", 0]],
+                "POST": [["time", 0], ["date", 30]],
+            },
+        },
+        "med30ctrl": {
+            **_STORE_RECIPE,
+            "description": (
+                "No-earthquake control for med30: PRE is the 30 days before the med30 PRE window "
+                "(60 to 30 days before the event), POST is the med30 PRE composite. Its offsets "
+                "measure the error of a same-year pair one month apart (a foreshock in the last days "
+                "before the event, if any, is in its POST)"
+            ),
+            "snow_mask": None,
+            "pre_window": "[00:00 UTC of event - 60 d, 00:00 UTC of event - 30 d)",
+            "post_window": "the med30 PRE composite",
+            "window_days": {"PRE": [["date", -60], ["date", -30]]},
+            "stage_from_recipe": {"POST": ["med30", "PRE"]},
+            "control": True,
+        },
     }
 )
 

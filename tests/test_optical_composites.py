@@ -64,6 +64,13 @@ def test_windows_reproduce_med90_and_shift_a_year() -> None:
         datetime(2017, 7, 6, 3, 19, 53, tzinfo=timezone.utc),
         datetime(2017, 10, 4, tzinfo=timezone.utc),
     )
+    # med30ctrl PRE: the 30 days before the med30 PRE window, ending where it starts
+    start, end = composites.stage_window("med30ctrl", "PRE", ORIGIN)
+    assert (start, end) == (
+        datetime(2019, 5, 7, tzinfo=timezone.utc),
+        datetime(2019, 6, 6, tzinfo=timezone.utc),
+    )
+    assert end == composites.stage_window("med30", "PRE", ORIGIN)[0]
     with pytest.raises(ValueError, match="unknown window bound"):
         composites.window_bound(ORIGIN, ["week", 1])
 
@@ -83,7 +90,15 @@ def test_new_recipes_are_complete_and_med90_is_unchanged() -> None:
     assert recipes["med90"]["pre_window"] == "[event - 90 d, event)"
     assert recipes["med90"]["snow_mask"] is None and "window_days" not in recipes["med90"]
     made_here = [r for r, d in recipes.items() if "window_days" in d]
-    assert sorted(made_here) == ["med30", "med90snow", "seas90", "seas90ctrl", "seas90snow"]
+    assert sorted(made_here) == [
+        "med30",
+        "med30ctrl",
+        "med30snow",
+        "med90snow",
+        "seas90",
+        "seas90ctrl",
+        "seas90snow",
+    ]
     for recipe in made_here:
         d = recipes[recipe]
         reused = d.get("stage_from_recipe", {})
@@ -92,6 +107,8 @@ def test_new_recipes_are_complete_and_med90_is_unchanged() -> None:
         assert all(source in recipes for source in sources)
         assert d["cloud_score_min"] == 0.65 and d["scale_m"] == 10
     assert recipes["seas90ctrl"]["control"] is True
+    assert recipes["med30ctrl"]["control"] is True
+    assert recipes["med30snow"]["window_days"] == recipes["med30"]["window_days"]
     assert "control" not in recipes["seas90"]
     assert recipes["seas90snow"]["snow_mask"] == recipes["med90snow"]["snow_mask"]
     assert recipes["seas90"]["window_days"] == recipes["seas90snow"]["window_days"]
