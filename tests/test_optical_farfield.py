@@ -51,9 +51,7 @@ def test_events_in_the_product_and_the_windows() -> None:
 def test_events_without_a_finite_fault_model_get_a_circle(monkeypatch: pytest.MonkeyPatch) -> None:
     pytest.importorskip("shapely")
     pytest.importorskip("pyproj")
-    import aria_coseis.usgs as usgs
-
-    monkeypatch.setattr(usgs, "get_ffm_geojson_url", lambda event_id: None)
+    monkeypatch.setattr(farfield, "finite_fault_url", lambda event_id: None)
     assert farfield.circle_radius_km(7.0) == pytest.approx(0.5 * 10 ** (-3.22 + 0.69 * 7.0))
     quake = {"folder": "m_64", **CATALOG["m_64_ridgecrest"]}
     geom, records = farfield.rupture_geometry([quake], 32611)
