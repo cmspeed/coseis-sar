@@ -302,3 +302,135 @@ def test_remosaic_makes_a_new_version_and_leaves_the_source(
     assert json.loads((out_dir / "run_info.json").read_text()) == run
     with pytest.raises(SystemExit):
         remosaic.main(["--store", str(tmp_path), "--source", "v0", "--version", "exp-x"])
+
+
+def make_recipe_version(root: Path, version: str, recipe: str, shift: float, seed: int) -> None:
+    """A version of EVENT made from one recipe: paths 27 and 70 (P70 is +0.5 m from P27)."""
+    record = store.start_version(root, version, "", {**definition(), "composite_recipe": recipe})
+    out_dir = root / "products" / version / EVENT
+    (out_dir / "paths").mkdir(parents=True)
+    paths, inputs = [], []
+    for n, (path, x0, offset) in enumerate(((27, 400_000.0, 0.0), (70, 400_900.0, 0.5))):
+        name = runs.path_product_name(EVENT, version, path)
+        write_noisy_path(out_dir / "paths" / name, x0, offset + shift, seed=seed + n)
+        paths.append({"path": path, "offset_m": f"paths/{name}"})
+        inputs.append(
+            {
+                "path": path,
+                "ref_name": f"PRE_{recipe}_{path}",
+                "sec_name": f"POST_{recipe}_{path}",
+                "ref_sha256": "a",
+                "sec_sha256": "b",
+                "pre_window": ["2019-04-07T00:00:00Z", "2019-07-06T03:19:53Z"],
+                "post_window": ["2019-07-06T03:19:53Z", "2019-10-04T00:00:00Z"],
+            }
+        )
+    run = {"event": EVENT, "status": "COMPLETE", "inputs": inputs, "skipped": {}, "paths": paths}
+    (out_dir / "run_info.json").write_text(json.dumps(run))
+    assert record["version"] == version
+
+
+def test_ensemble_definition_rules(tmp_path: Path) -> None:
+    a = store.start_version(
+        tmp_path, "exp-a", "", {**definition(), "composite_recipe": "med30snow"}
+    )
+    b = store.start_version(
+        tmp_path, "exp-b", "", {**definition(), "composite_recipe": "seas90snow"}
+    )
+    ens = runs.ensemble_definition([a, b], "aligned_weighted", CODE, 25)
+    assert set(ens["ensemble_of"]) == {"exp-a", "exp-b"}
+    assert ens["deliverable"]["far_field_correction"]["distance_km"] == 25
+    assert runs.source_versions(ens) == ["exp-a", "exp-b"]
+    assert "far_field_correction" not in runs.deliverable_spec("aligned_weighted")
+    other = store.start_version(tmp_path, "exp-c", "", definition("legacy90"))
+    with pytest.raises(ValueError, match="share one profile"):
+        runs.ensemble_definition([a, other], "aligned_weighted", CODE, 25)
+    with pytest.raises(ValueError, match="aligned_weighted"):
+        runs.ensemble_definition([a, b], "mean", CODE, 0)
+    dirty = {**CODE, "aria_coseis": {**CODE["aria_coseis"], "dirty": True, "diff_sha256": "d"}}
+    a_dirty = {**a, "definition": {**a["definition"], "code": runs.code_signature(dirty)}}
+    with pytest.raises(ValueError, match="committed code"):
+        store.start_version(
+            tmp_path,
+            "v1-ens",
+            "",
+            runs.ensemble_definition([a_dirty, b], "aligned_weighted", CODE, 25),
+        )
+
+
+def test_ensemble_of_two_recipes_with_the_far_field_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    np = pytest.importorskip("numpy")
+    gdal = pytest.importorskip("osgeo.gdal")
+    pytest.importorskip("scipy")
+    pytest.importorskip("shapely")
+    pyproj = pytest.importorskip("pyproj")
+    from shapely.geometry import box
+
+    lon, lat = pyproj.Transformer.from_crs(32611, 4326, always_xy=True).transform(
+        402_250, 3_957_750
+    )
+    (tmp_path / "README.md").write_text("store\n")
+    catalog = {
+        EVENT: {
+            "event_id": "ci38457511",
+            "magnitude": 7.1,
+            "time_utc": "2019-07-06T03:19:53Z",
+            "longitude": lon,
+            "latitude": lat,
+        }
+    }
+    (tmp_path / "events.json").write_text(json.dumps(catalog))
+    make_recipe_version(tmp_path, "exp-a", "med30snow", 0.2, seed=1)
+    make_recipe_version(tmp_path, "exp-b", "seas90snow", 0.5, seed=5)  # 0.3 m from exp-a
+    monkeypatch.setattr(store, "code_provenance", lambda: CODE)
+    monkeypatch.setattr(store, "write_environment_listing", lambda dst: dst.write_text("env\n"))
+    rupture = box(400_000, 3_955_500, 400_300, 3_960_000)  # along the west edge
+    monkeypatch.setattr(
+        api.optical_farfield,
+        "rupture_geometry",
+        lambda quakes, epsg: (rupture, [{"folder": q["folder"], "circle_km": 0} for q in quakes]),
+    )
+    api.optical_remosaic.main(
+        [
+            "--store",
+            str(tmp_path),
+            "--source",
+            "exp-a",
+            "--source",
+            "exp-b",
+            "--version",
+            "exp-ens",
+            "--far_field_km",
+            "0.5",
+        ]
+    )
+
+    out_dir = tmp_path / "products" / "exp-ens" / EVENT
+    run = json.loads((out_dir / "run_info.json").read_text())
+    assert run["status"] == "COMPLETE", run.get("error")
+    members = sorted(p["member"] for p in run["paths"])
+    assert members == ["med30snow/P27", "med30snow/P70", "seas90snow/P27", "seas90snow/P70"]
+    expected = {
+        "med30snow/P27": 0.2,
+        "med30snow/P70": 0.7,
+        "seas90snow/P27": 0.5,
+        "seas90snow/P70": 1.0,
+    }
+    alignment = run["deliverable_grid"]["alignment"]["dx"]
+    ref = expected[alignment["reference_path"]]
+    for member, removed in alignment["offsets_removed_m"].items():
+        assert removed == pytest.approx(expected[member] - ref, abs=0.03)
+    assert run["far_field"]["shift_m"] == pytest.approx([ref, -ref], abs=0.05)
+    assert [r["folder"] for r in run["far_field"]["ruptures"]] == [EVENT]
+    assert (out_dir / f"{EVENT}_exp-ens_ruptures.geojson").exists()
+    ds = gdal.Open(str(out_dir / f"{EVENT}_exp-ens_offsets.tif"))
+    assert abs(np.nanmedian(ds.GetRasterBand(1).ReadAsArray())) < 0.05
+    assert ds.GetMetadataItem("COMPOSITE_RECIPE") == "med30snow + seas90snow"
+    assert ds.GetMetadataItem("DERIVED_FROM_VERSION") == "exp-a exp-b"
+    assert json.loads(ds.GetMetadataItem("FAR_FIELD_SHIFT_REMOVED_M")) == pytest.approx(
+        [ref, -ref], abs=0.05
+    )
+    version = json.loads((tmp_path / "products" / "exp-ens" / "VERSION.json").read_text())
+    assert set(version["definition"]["ensemble_of"]) == {"exp-a", "exp-b"}

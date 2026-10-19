@@ -110,8 +110,11 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def deliverable_spec(method: str) -> dict[str, Any]:
-    """The deliverable part of a version definition for a mosaic method."""
+def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
+    """
+    The deliverable part of a version definition for a mosaic method, with the far-field
+    correction if far_field_km > 0 (versions made before it existed have no such entry).
+    """
     spec: dict[str, Any] = {
         "file": "<event>/<event>_<version>_offsets.tif",
         "bands": list(DELIVERABLE_BANDS[method]),
@@ -144,6 +147,16 @@ def deliverable_spec(method: str) -> dict[str, Any]:
             "or smooth composite (snow, sun) errors"
         )
     }
+    if far_field_km > 0:
+        spec["far_field_correction"] = {
+            "distance_km": far_field_km,
+            "statistic": "median dx and dy of the nodes beyond the distance from the ruptures, subtracted",
+            "ruptures": (
+                "catalogued events with the epicentre in the product and the origin within its "
+                "composite windows: USGS finite-fault sub-faults with >= 10 % of the peak slip, or a "
+                "circle of half the Wells & Coppersmith (1994) surface-rupture length"
+            ),
+        }
     return spec
 
 
@@ -172,7 +185,7 @@ def version_definition(
 
 
 def derived_definition(
-    source: dict[str, Any], method: str, provenance: dict[str, Any]
+    source: dict[str, Any], method: str, provenance: dict[str, Any], far_field_km: float = 0.0
 ) -> dict[str, Any]:
     """
     Definition of a version made from the per-path files of the source version (its record)
@@ -186,13 +199,55 @@ def derived_definition(
         raise ValueError(f"{source['version']} is remosaicked itself; remosaic {original}")
     return {
         **source["definition"],
-        "deliverable": deliverable_spec(method),
+        "deliverable": deliverable_spec(method, far_field_km),
         "derived_from": {
             "version": source["version"],
             "uses": "the source version's per-path products, unchanged (hard links)",
         },
         "mosaic_code": {"aria_coseis": code_signature(provenance)["aria_coseis"]},
     }
+
+
+def ensemble_definition(
+    sources: list[dict[str, Any]], method: str, provenance: dict[str, Any], far_field_km: float
+) -> dict[str, Any]:
+    """
+    Definition of a version mosaicked from the per-path products of several versions (their
+    records), e.g. the same event from two composite recipes: every (version, path) is a member of
+    the mosaic. The members must share the profile, so that they measure the same thing.
+    """
+    for src in sources:
+        if (
+            src.get("version") == "v0"
+            or "definition" not in src
+            or "derived_from" in src["definition"]
+        ):
+            raise ValueError(f"cannot use {src.get('version')}: not made by a store run")
+    profiles = {json.dumps(s["definition"]["profile"], sort_keys=True) for s in sources}
+    if len(profiles) != 1:
+        raise ValueError("ensemble members must share one profile")
+    if method != "aligned_weighted":
+        raise ValueError("an ensemble needs the aligned_weighted mosaic (members are aligned)")
+    spec = deliverable_spec(method, far_field_km)
+    spec["mosaic"] = {
+        **spec["mosaic"],
+        "members": "every (version, path) of the source versions; aligned and weighted as paths are",
+    }
+    return {
+        "ensemble_of": {s["version"]: s["definition"] for s in sources},
+        "deliverable": spec,
+        "derived_from": {
+            "versions": [s["version"] for s in sources],
+            "uses": "the source versions' per-path products, unchanged (hard links)",
+        },
+        "mosaic_code": {"aria_coseis": code_signature(provenance)["aria_coseis"]},
+    }
+
+
+def source_versions(definition: dict[str, Any]) -> list[str]:
+    """The versions a derived version is made from."""
+    d = definition["derived_from"]
+    return list(d["versions"]) if "versions" in d else [d["version"]]
 
 
 def mosaic_method(definition: dict[str, Any]) -> str:
@@ -205,7 +260,7 @@ def catalog_row(
     event: str, event_meta: dict[str, Any], run: dict[str, Any], aria_commit: str
 ) -> dict[str, Any]:
     """One event's row in products/<version>/catalog.csv."""
-    used = [str(p["path"]) for p in run.get("paths", []) if p.get("offset_m")]
+    used = sorted({str(p["path"]) for p in run.get("paths", []) if p.get("offset_m")}, key=int)
     skipped = {**run.get("skipped", {})}
     for p in run.get("paths", []):
         if p.get("skipped"):
@@ -215,7 +270,7 @@ def catalog_row(
         "event_id": event_meta.get("event_id") or "",
         "magnitude": event_meta.get("magnitude", ""),
         "status": run.get("status", ""),
-        "paths_used": " ".join(sorted(used, key=int)),
+        "paths_used": " ".join(used),
         "paths_skipped": "; ".join(
             f"{p}: {r}" for p, r in sorted(skipped.items(), key=lambda kv: int(kv[0]))
         ),
@@ -230,9 +285,23 @@ def deliverable_metadata(
 ) -> dict[str, str]:
     """GDAL metadata items written into the deliverable GeoTIFF."""
     definition = version_record["definition"]
-    done = {r["path"] for r in run["paths"] if r.get("offset_m")}
-    used = [p for p in run["inputs"] if p["path"] in done]
-    code = definition["code"]
+    done = {(r.get("version"), r["path"]) for r in run["paths"] if r.get("offset_m")}
+    used = [p for p in run["inputs"] if (p.get("version"), p["path"]) in done]
+    members = definition.get("ensemble_of")
+    if members:  # an ensemble: the members' recipes and code, the shared profile
+        first = next(iter(members.values()))
+        recipe = " + ".join(m["composite_recipe"] for m in members.values())
+        code = {
+            mod: {v: m["code"].get(mod) for v, m in members.items()}
+            for mod in ("aria_coseis", "hyp3_autorift", "autoRIFT")
+        }
+        profile = first["profile"]
+    else:
+        recipe, code, profile = (
+            definition["composite_recipe"],
+            definition["code"],
+            definition["profile"],
+        )
     meta = {
         "COSEIS_PRODUCT": "Sentinel-2 optical surface offsets (autoRIFT feature tracking)",
         "COSEIS_VERSION": version_record["version"],
@@ -245,8 +314,8 @@ def deliverable_metadata(
         ),
         "UNITS": "m",
         "SIGN_CONVENTION": SIGN_CONVENTION,
-        "COMPOSITE_RECIPE": definition["composite_recipe"],
-        "PATHS": " ".join(str(p["path"]) for p in used),
+        "COMPOSITE_RECIPE": recipe,
+        "PATHS": " ".join(sorted({str(p["path"]) for p in used}, key=int)),
         "INPUT_COMPOSITES": json.dumps(
             [
                 {"name": p[f"{k}_name"], "sha256": p[f"{k}_sha256"]}
@@ -254,23 +323,23 @@ def deliverable_metadata(
                 for k in ("ref", "sec")
             ]
         ),
-        "PROFILE": json.dumps(definition["profile"], sort_keys=True),
+        "PROFILE": json.dumps(profile, sort_keys=True),
         "ARIA_COSEIS": json.dumps(code.get("aria_coseis"), sort_keys=True),
         "HYP3_AUTORIFT": json.dumps(code.get("hyp3_autorift"), sort_keys=True),
         "AUTORIFT": json.dumps(code.get("autoRIFT"), sort_keys=True),
         "CREATED_UTC": utc_now(),
     }
     if "derived_from" in definition:
-        meta["DERIVED_FROM_VERSION"] = definition["derived_from"]["version"]
+        meta["DERIVED_FROM_VERSION"] = " ".join(source_versions(definition))
         meta["MOSAIC_CODE"] = json.dumps(definition["mosaic_code"]["aria_coseis"], sort_keys=True)
     return meta
 
 
 def write_deliverable(
-    path_files: dict[int, str], out_path: str, metadata: dict[str, str], method: str = "mean"
+    path_files: dict[Any, str], out_path: str, metadata: dict[str, str], method: str = "mean"
 ) -> dict[str, Any]:
     """
-    Mosaic per-path offset_m files ({path: file}) into the deliverable GeoTIFF with
+    Mosaic per-path offset_m files ({path or member label: file}) into the deliverable GeoTIFF with
     aria_coseis.optical.mosaic: bands DELIVERABLE_BANDS[method], NaN nodata, band names and the
     given metadata, plus the per-path offsets removed. All paths must share one grid (same
     projection and pixel size, origins on the same lattice). A node is valid in a path only where
@@ -362,20 +431,89 @@ def write_event_deliverable(
     event_meta: dict[str, Any],
     run: dict[str, Any],
     out_dir: Path,
+    catalog: dict[str, Any] | None = None,
 ) -> bool:
     """
     Write the event's deliverable from the run's per-path products with the version's mosaic
-    method, recording it in the run. Returns False when no path has a product.
+    method, recording it in the run, then apply the version's far-field correction (which needs
+    the catalogue of events, the store's events.json). Returns False when no path has a product.
     """
-    files = {p["path"]: str(out_dir / p["offset_m"]) for p in run["paths"] if p.get("offset_m")}
+    files = {
+        p.get("member", p["path"]): str(out_dir / p["offset_m"])
+        for p in run["paths"]
+        if p.get("offset_m")
+    }
     if not files:
         return False
     run["deliverable"] = deliverable_name(event, version_record["version"])
     metadata = deliverable_metadata(version_record, event, event_meta, run)
+    out_path = out_dir / run["deliverable"]
     run["deliverable_grid"] = write_deliverable(
-        files,
-        str(out_dir / run["deliverable"]),
-        metadata,
-        mosaic_method(version_record["definition"]),
+        files, str(out_path), metadata, mosaic_method(version_record["definition"])
     )
+    far = version_record["definition"]["deliverable"].get("far_field_correction")
+    if far:
+        if catalog is None:
+            raise ValueError("the far-field correction needs the event catalogue")
+        run["far_field"] = apply_far_field(out_path, run, catalog, far["distance_km"], event)
     return True
+
+
+def apply_far_field(
+    path: Path, run: dict[str, Any], catalog: dict[str, Any], distance_km: float, event: str
+) -> dict[str, Any]:
+    """
+    Subtract the far-field median (aria_coseis.optical.farfield) from the deliverable's dx and dy
+    in place, record it in the file's metadata, and save the ruptures used next to it.
+    """
+    import numpy as np
+    from osgeo import gdal, osr
+    from pyproj import Transformer
+
+    from aria_coseis.optical import farfield
+
+    gdal.UseExceptions()
+    ds = gdal.Open(str(path), gdal.GA_Update)
+    gt = ds.GetGeoTransform()
+    srs = osr.SpatialReference(wkt=ds.GetProjection())
+    epsg = int(srs.GetAuthorityCode(None))
+    x = gt[0] + (np.arange(ds.RasterXSize) + 0.5) * gt[1]
+    y = gt[3] + (np.arange(ds.RasterYSize) + 0.5) * gt[5]
+    to_ll = Transformer.from_crs(epsg, 4326, always_xy=True)
+    corners = [to_ll.transform(cx, cy) for cx in x[[0, -1]] for cy in y[[0, -1]]]
+    bounds = (
+        min(c[0] for c in corners),
+        min(c[1] for c in corners),
+        max(c[0] for c in corners),
+        max(c[1] for c in corners),
+    )
+    t0 = min(p["pre_window"][0] for p in run["inputs"])
+    t1 = max(p["post_window"][1] for p in run["inputs"])
+    quakes = farfield.events_in(catalog, bounds, t0, t1)
+    if not any(q["folder"] == event for q in quakes) and event in catalog:
+        quakes += farfield.events_in({event: catalog[event]}, (-180, -90, 180, 90), "0", "9")
+    geom, records = farfield.rupture_geometry(quakes, epsg)
+    dx = ds.GetRasterBand(1).ReadAsArray().astype(np.float64)
+    dy = ds.GetRasterBand(2).ReadAsArray().astype(np.float64)
+    result = farfield.far_field_shift(dx, dy, farfield.distance_to(geom, x, y), distance_km * 1000)
+    rupture_file = path.with_name(path.name.replace("_offsets.tif", "_ruptures.geojson"))
+    rupture_file.write_text(json.dumps(farfield.to_geojson(geom, epsg, records), indent=1) + "\n")
+    record = {
+        "distance_km": distance_km,
+        **result,
+        "ruptures": records,
+        "rupture_file": rupture_file.name,
+    }
+    if result["shift_m"] is not None:
+        for band, shift in zip((1, 2), result["shift_m"]):
+            a = ds.GetRasterBand(band).ReadAsArray()
+            ds.GetRasterBand(band).WriteArray((a - shift).astype(np.float32))
+        ds.SetMetadataItem("FAR_FIELD_SHIFT_REMOVED_M", json.dumps(result["shift_m"]))
+    else:
+        ds.SetMetadataItem("FAR_FIELD_SHIFT_REMOVED_M", "none (too few far-field nodes)")
+    ds.SetMetadataItem("FAR_FIELD_DISTANCE_KM", str(distance_km))
+    ds.SetMetadataItem(
+        "RUPTURES", json.dumps([{k: r.get(k) for k in ("event_id", "magnitude")} for r in records])
+    )
+    ds = None
+    return record
