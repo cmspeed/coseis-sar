@@ -505,17 +505,22 @@ def start_version(
     definition (code, parameters, recipe). Returns the version record.
 
     Versions not named exp-* must be made from committed code: a dirty checkout in the
-    definition's "code" (or, for a remosaicked version, "mosaic_code") raises.
+    definition's "code" (or, for a remosaicked version, "mosaic_code", or an ensemble member's
+    code) raises.
     """
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", version) or version == "v0":
         raise ValueError(f"invalid version name {version!r}")
     if not version.startswith("exp-"):
-        dirty = [
-            k
-            for key in ("code", "mosaic_code")
-            for k, v in definition.get(key, {}).items()
-            if isinstance(v, dict) and v.get("dirty")
-        ]
+        codes = [definition.get("code", {}), definition.get("mosaic_code", {})]
+        codes += [m.get("code", {}) for m in definition.get("ensemble_of", {}).values()]
+        dirty = sorted(
+            {
+                k
+                for code in codes
+                for k, v in code.items()
+                if isinstance(v, dict) and v.get("dirty")
+            }
+        )
         if dirty:
             raise ValueError(
                 f"version {version} must be made from committed code; uncommitted changes in "

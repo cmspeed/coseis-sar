@@ -20,6 +20,7 @@ from aria_coseis.aoi import make_aoi  # noqa: E402
 from aria_coseis.modes import main_forward, main_historic  # noqa: E402
 from aria_coseis.notify import ascii_table_to_html  # noqa: E402
 from aria_coseis.optical import composites as optical_composites  # noqa: E402
+from aria_coseis.optical import farfield as optical_farfield  # noqa: E402
 from aria_coseis.optical import mosaic as optical_mosaic  # noqa: E402
 from aria_coseis.optical import remosaic as optical_remosaic  # noqa: E402
 from aria_coseis.optical import runs as optical_runs  # noqa: E402
@@ -48,6 +49,7 @@ __all__ = [
     "resolve_profile",
     "pixel_geometry",
     "optical_composites",
+    "optical_farfield",
     "optical_mosaic",
     "optical_remosaic",
     "optical_runs",
