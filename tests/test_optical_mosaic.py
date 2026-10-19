@@ -100,3 +100,13 @@ def test_mean_and_unknown_methods() -> None:
     np.testing.assert_allclose(out["dx"][:, 35], (dx[0][:, 35] + dx[1][:, 35]) / 2, atol=1e-6)
     with pytest.raises(ValueError, match="unknown mosaic method"):
         mosaic.merge(dx, dy, interp, chip, "median")
+
+
+def test_aligned_mean_aligns_like_weighted_but_weighs_equally() -> None:
+    dx, dy, interp, chip = two_paths(offset=(0.4, -0.2), noise=(0.1, 0.4))
+    weighted = mosaic.merge(dx, dy, interp, chip, "aligned_weighted")
+    plain = mosaic.merge(dx, dy, interp, chip, "aligned_mean")
+    assert plain["alignment"]["dx"]["offsets_m"][1] == pytest.approx(0.4, abs=0.05)
+    overlap = slice(30, 44)  # truth 0 west of the fault, after alignment
+    assert np.nanstd(plain["dy"][:, overlap]) > np.nanstd(weighted["dy"][:, overlap])
+    assert np.isfinite(plain["sigma_h"]).all()

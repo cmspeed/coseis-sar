@@ -345,8 +345,10 @@ def test_ensemble_definition_rules(tmp_path: Path) -> None:
     other = store.start_version(tmp_path, "exp-c", "", definition("legacy90"))
     with pytest.raises(ValueError, match="share one profile"):
         runs.ensemble_definition([a, other], "aligned_weighted", CODE, 25)
-    with pytest.raises(ValueError, match="aligned_weighted"):
+    with pytest.raises(ValueError, match="an aligned mosaic"):
         runs.ensemble_definition([a, b], "mean", CODE, 0)
+    plain = runs.ensemble_definition([a, b], "aligned_mean", CODE, 25)
+    assert "equal weights" in plain["deliverable"]["mosaic"]["description"]
     dirty = {**CODE, "aria_coseis": {**CODE["aria_coseis"], "dirty": True, "diff_sha256": "d"}}
     a_dirty = {**a, "definition": {**a["definition"], "code": runs.code_signature(dirty)}}
     with pytest.raises(ValueError, match="committed code"):

@@ -23,7 +23,11 @@ from typing import Any
 from aria_coseis.optical import mosaic
 from aria_coseis.optical.autorift_profiles import AutoriftProfile, PixelGeometry
 
-DELIVERABLE_BANDS = {"mean": ("dx_m", "dy_m"), "aligned_weighted": ("dx_m", "dy_m", "sigma_h_m")}
+DELIVERABLE_BANDS = {
+    "mean": ("dx_m", "dy_m"),
+    "aligned_weighted": ("dx_m", "dy_m", "sigma_h_m"),
+    "aligned_mean": ("dx_m", "dy_m", "sigma_h_m"),
+}
 DEFAULT_MOSAIC = "aligned_weighted"
 PATH_PRODUCT_BANDS = ("dx_m", "dy_m", "interp_mask", "chip_size_x_px")
 SIGN_CONVENTION = (
@@ -125,12 +129,16 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
     if method == "mean":  # as recorded by the versions made before other methods existed
         spec["mosaic"] = "mean of the paths with a value at each node"
         return spec
+    combine = {
+        "aligned_weighted": "the mean of the paths weighted by 1 / local variance",
+        "aligned_mean": "the mean of the paths with equal weights",
+    }[method]
     spec["mosaic"] = {
         "method": method,
         "description": (
             "constant per-path offsets (dx and dy separately) fitted by least squares to the "
             "median differences on clean overlap nodes and removed, relative to the path with "
-            "the most valid nodes; then the mean of the paths weighted by 1 / local variance"
+            f"the most valid nodes; then {combine}"
         ),
         "local_window_nodes": mosaic.WINDOW,
         "sigma_floor_m": mosaic.SIGMA_FLOOR_M,
@@ -226,8 +234,8 @@ def ensemble_definition(
     profiles = {json.dumps(s["definition"]["profile"], sort_keys=True) for s in sources}
     if len(profiles) != 1:
         raise ValueError("ensemble members must share one profile")
-    if method != "aligned_weighted":
-        raise ValueError("an ensemble needs the aligned_weighted mosaic (members are aligned)")
+    if method not in ("aligned_weighted", "aligned_mean"):
+        raise ValueError("an ensemble needs an aligned mosaic (aligned_weighted or aligned_mean)")
     spec = deliverable_spec(method, far_field_km)
     spec["mosaic"] = {
         **spec["mosaic"],

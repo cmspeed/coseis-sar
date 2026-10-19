@@ -3,6 +3,7 @@ Combine per-path offsets into one event mosaic (dx and dy are treated separately
 
 Methods:
 - "mean": the mean of the paths that have a value at each node.
+- "aligned_mean": as aligned_weighted, but the aligned paths are averaged with equal weights.
 - "aligned_weighted":
   1. Align the paths. One constant offset per path is fitted by least squares to the median
      differences in all overlaps. The differences are measured on clean nodes: both paths
@@ -26,7 +27,7 @@ from typing import Any
 
 import numpy as np
 
-METHODS = ("mean", "aligned_weighted")
+METHODS = ("mean", "aligned_weighted", "aligned_mean")
 WINDOW = 7
 SIGMA_FLOOR_M = 0.05
 MIN_OVERLAP_NODES = 500
@@ -130,11 +131,19 @@ def merge(
         offsets, reference, pairs = path_offsets(values, interp, chip, sigmas)
         aligned = values - offsets[:, None, None]
         valid = np.isfinite(aligned)
-        w = np.where(valid, 1.0 / np.square(np.where(valid, sigmas, 1.0).astype(np.float64)), 0.0)
+        sig = np.where(valid, sigmas, 1.0).astype(np.float64)
+        if method == "aligned_mean":  # equal weights; variance of the mean of the members
+            w = valid.astype(np.float64)
+            n = w.sum(axis=0)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                variance = (w * sig**2).sum(axis=0) / n**2
+        else:
+            w = np.where(valid, 1.0 / np.square(sig), 0.0)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                variance = 1.0 / w.sum(axis=0)
         total = w.sum(axis=0)
         with np.errstate(invalid="ignore", divide="ignore"):
             merged = (np.where(valid, aligned, 0.0) * w).sum(axis=0) / total
-            variance = 1.0 / total
         merged[total == 0] = np.nan
         variance[total == 0] = np.nan
         out[name] = merged.astype(np.float32)
