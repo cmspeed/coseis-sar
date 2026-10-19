@@ -23,6 +23,7 @@ from typing import Any
 
 import numpy as np
 
+USGS_EVENT_QUERY = "https://earthquake.usgs.gov/fdsnws/event/1/query"
 SLIP_FRACTION = 0.1
 WELLS_COPPERSMITH_SRL = (-3.22, 0.69)  # log10(surface rupture length, km) = a + b M
 
@@ -46,6 +47,27 @@ def events_in(
     return out
 
 
+def finite_fault_url(event_id: str) -> str | None:
+    """
+    URL of the event's USGS finite-fault GeoJSON (the first finite-fault product), or None: the
+    lookup of aria_coseis.usgs.get_ffm_geojson_url, without its geojson dependency (so that it runs
+    in the autoRIFT environment).
+    """
+    import requests
+
+    response = requests.get(
+        USGS_EVENT_QUERY, params={"eventid": event_id, "format": "geojson"}, timeout=60
+    )
+    response.raise_for_status()
+    products = response.json().get("properties", {}).get("products", {}).get("finite-fault", [])
+    if not products:
+        return None
+    for key, info in products[0].get("contents", {}).items():
+        if key.endswith("FFM.geojson"):
+            return info.get("url")
+    return None
+
+
 def circle_radius_km(magnitude: float) -> float:
     """Half the Wells & Coppersmith (1994) surface-rupture length for a magnitude."""
     a, b = WELLS_COPPERSMITH_SRL
@@ -59,12 +81,10 @@ def rupture_geometry(quakes: list[dict[str, Any]], epsg: int) -> tuple[Any, list
     from shapely.geometry import Point, Polygon
     from shapely.ops import transform, unary_union
 
-    from aria_coseis.usgs import get_ffm_geojson_url
-
     to_utm = Transformer.from_crs(4326, epsg, always_xy=True).transform
     parts, records = [], []
     for q in quakes:
-        url = get_ffm_geojson_url(q["event_id"]) if q.get("event_id") else None
+        url = finite_fault_url(q["event_id"]) if q.get("event_id") else None
         if url:
             feats = requests.get(url, timeout=60).json()["features"]
             peak = max(f["properties"].get("slip", 0) for f in feats)
