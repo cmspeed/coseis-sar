@@ -207,6 +207,10 @@ def scene_collection(
         .filter(ee.Filter.eq("SENSING_ORBIT_NUMBER", path))
         .linkCollection(ee.ImageCollection(CLOUD_SCORE_COLLECTION), ["cs_cdf"])
     )
+    if definition.get("processing_baseline_min"):  # baselines are "NN.NN" strings
+        col = col.filter(
+            ee.Filter.gte("PROCESSING_BASELINE", definition["processing_baseline_min"])
+        )
 
     def mask(img: Any) -> Any:
         keep = img.select("cs_cdf").gte(definition["cloud_score_min"])

@@ -90,15 +90,28 @@ def test_new_recipes_are_complete_and_med90_is_unchanged() -> None:
     assert recipes["med90"]["pre_window"] == "[event - 90 d, event)"
     assert recipes["med90"]["snow_mask"] is None and "window_days" not in recipes["med90"]
     made_here = [r for r, d in recipes.items() if "window_days" in d]
-    assert sorted(made_here) == [
-        "med30",
-        "med30ctrl",
-        "med30snow",
-        "med90snow",
-        "seas90",
-        "seas90ctrl",
-        "seas90snow",
-    ]
+    pb5 = ["med30ctrlpb5", "med30pb5", "med30snowpb5", "med90snowpb5", "seas90snowpb5"]
+    assert sorted(made_here) == sorted(
+        [
+            "med30",
+            "med30ctrl",
+            "med30snow",
+            "med90snow",
+            "seas90",
+            "seas90ctrl",
+            "seas90snow",
+            *pb5,
+        ]
+    )
+    for recipe in pb5:  # the originals, from reprocessed scenes only
+        d, original = recipes[recipe], recipes[recipe[:-3]]
+        assert d["processing_baseline_min"] == "05.00"
+        same = {"description", "processing_baseline_min", "stage_from_recipe"}
+        assert {k: v for k, v in d.items() if k not in same} == {
+            k: v for k, v in original.items() if k not in same
+        }
+    assert recipes["seas90snowpb5"]["stage_from_recipe"] == {"POST": "med90snowpb5"}
+    assert recipes["med30ctrlpb5"]["stage_from_recipe"] == {"POST": ["med30pb5", "PRE"]}
     for recipe in made_here:
         d = recipes[recipe]
         reused = d.get("stage_from_recipe", {})
