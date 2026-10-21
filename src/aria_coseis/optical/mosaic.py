@@ -4,6 +4,14 @@ Combine per-path offsets into one event mosaic (dx and dy are treated separately
 Methods:
 - "mean": the mean of the paths that have a value at each node.
 - "aligned_mean": as aligned_weighted, but the aligned paths are averaged with equal weights.
+- "aligned_total": as aligned_weighted, but each path (member) is weighted by its total error,
+  1 / (local variance + s^2). s is the structured error of the member's group (its composite
+  recipe; all members form one group without groups): the spread of the 10 km block medians of the
+  group's aligned values on the far-field nodes. Each block median pools thousands of nodes, so
+  node noise cancels and, far from the ruptures, real motion is small: what remains is the smooth
+  composite error (shadows, snow, surface change), which local scatter does not see. A group with
+  too little far field (structured_error) gets s = 0, so its weights are those of aligned_weighted.
+  The uncertainty is 1 / sqrt(sum of weights) per component, so it includes s.
 - "aligned_weighted":
   1. Align the paths. One constant offset per path is fitted by least squares to the median
      differences in all overlaps. The differences are measured on clean nodes: both paths
@@ -17,8 +25,10 @@ Methods:
 
 Ground motion is the same for every path, so the overlap differences hold only errors, and the
 alignment needs no deformation mask. It aligns the paths to each other, not to stable ground: a
-bias shared by all paths remains. sigma reflects noise, not smooth systematic errors such as the
-snow and sun biases of the composites.
+bias shared by all paths remains. For aligned_weighted and aligned_mean, sigma reflects noise only,
+not smooth systematic errors such as the snow and sun biases of the composites; aligned_total adds
+each group's structured error, assuming the members' errors are independent (members that share a
+composite are not, so its sigma is then somewhat too small).
 """
 
 from __future__ import annotations
@@ -27,10 +37,14 @@ from typing import Any
 
 import numpy as np
 
-METHODS = ("mean", "aligned_weighted", "aligned_mean")
+METHODS = ("mean", "aligned_weighted", "aligned_mean", "aligned_total")
 WINDOW = 7
 SIGMA_FLOOR_M = 0.05
 MIN_OVERLAP_NODES = 500
+BLOCK_M = 10_000.0  # structured error: block size
+MIN_BLOCK_NODES = 21  # nodes for a block median
+MIN_BLOCKS = 4  # blocks for a spread
+MIN_FAR_NODES = 1000  # far-field nodes of a group
 
 
 def local_sigma(
@@ -103,16 +117,55 @@ def path_offsets(
     return offsets, reference, pairs
 
 
+def structured_error(
+    values: np.ndarray, far: np.ndarray, x: np.ndarray, y: np.ndarray
+) -> dict[str, Any]:
+    """
+    Spread (standard deviation) of the 10 km block medians of values (stack (members, rows, cols)
+    of one group, aligned) on the far-field nodes; x, y are the node centres (m). The blocks lie
+    on multiples of BLOCK_M. s is None with fewer than MIN_FAR_NODES far-field values or
+    MIN_BLOCKS blocks of at least MIN_BLOCK_NODES.
+    """
+    X, Y = np.meshgrid(x, y)
+    keep = far[None] & np.isfinite(values)
+    v = values[keep].astype(np.float64)
+    if v.size < MIN_FAR_NODES:
+        return {"s_m": None, "far_values": int(v.size), "blocks": 0}
+    xs = np.broadcast_to(X, values.shape)[keep]
+    ys = np.broadcast_to(Y, values.shape)[keep]
+    key = np.floor(xs / BLOCK_M).astype(np.int64) * 10_000_000 + np.floor(ys / BLOCK_M).astype(
+        np.int64
+    )
+    order = np.argsort(key, kind="stable")
+    _, starts, counts = np.unique(key[order], return_index=True, return_counts=True)
+    vs = v[order]
+    medians = [np.median(vs[a : a + n]) for a, n in zip(starts, counts) if n >= MIN_BLOCK_NODES]
+    if len(medians) < MIN_BLOCKS:
+        return {"s_m": None, "far_values": int(v.size), "blocks": len(medians)}
+    return {"s_m": float(np.std(medians)), "far_values": int(v.size), "blocks": len(medians)}
+
+
 def merge(
-    dx: np.ndarray, dy: np.ndarray, interp: np.ndarray, chip: np.ndarray, method: str
+    dx: np.ndarray,
+    dy: np.ndarray,
+    interp: np.ndarray,
+    chip: np.ndarray,
+    method: str,
+    structure: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Mosaic stacks of per-path dx, dy (m), interp_mask and chip size (shape (paths, rows, cols)).
 
-    Returns dx, dy and, for aligned_weighted, sigma_h (m) and the alignment record.
+    aligned_total needs structure: "far" (bool (rows, cols), the far-field nodes), "x" and "y"
+    (node centres, m) and optionally "groups" (one label per path; default: one group).
+
+    Returns dx, dy and, for the aligned methods, sigma_h (m) and the alignment record (for
+    aligned_total with each group's structured error).
     """
     if method not in METHODS:
         raise ValueError(f"unknown mosaic method {method!r}; choose from {METHODS}")
+    if method == "aligned_total" and (structure is None or "far" not in structure):
+        raise ValueError("aligned_total needs the far-field nodes (structure['far'])")
     out: dict[str, Any] = {}
     if method == "mean":
         for name, values in (("dx", dx), ("dy", dy)):
@@ -132,6 +185,16 @@ def merge(
         aligned = values - offsets[:, None, None]
         valid = np.isfinite(aligned)
         sig = np.where(valid, sigmas, 1.0).astype(np.float64)
+        structured: dict[str, Any] = {}
+        if method == "aligned_total":  # add each group's structured error to its members' variance
+            groups = list(structure.get("groups") or ["all"] * len(values))
+            for g in sorted(set(groups)):
+                members = [k for k, name in enumerate(groups) if name == g]
+                structured[g] = structured_error(
+                    aligned[members], structure["far"], structure["x"], structure["y"]
+                )
+            s2 = np.array([(structured[g]["s_m"] or 0.0) ** 2 for g in groups])
+            sig = np.sqrt(sig**2 + s2[:, None, None])
         if method == "aligned_mean":  # equal weights; variance of the mean of the members
             w = valid.astype(np.float64)
             n = w.sum(axis=0)
@@ -153,6 +216,11 @@ def merge(
             "offsets_m": [round(float(o), 4) for o in offsets],
             "overlaps": pairs,
         }
+        if structured:
+            alignment[name]["structured_error"] = {
+                g: {**r, "s_m": None if r["s_m"] is None else round(r["s_m"], 4)}
+                for g, r in structured.items()
+            }
     out["sigma_h"] = np.sqrt(variances[0] + variances[1]).astype(np.float32)
     out["alignment"] = alignment
     return out

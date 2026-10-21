@@ -110,3 +110,61 @@ def test_aligned_mean_aligns_like_weighted_but_weighs_equally() -> None:
     overlap = slice(30, 44)  # truth 0 west of the fault, after alignment
     assert np.nanstd(plain["dy"][:, overlap]) > np.nanstd(weighted["dy"][:, overlap])
     assert np.isfinite(plain["sigma_h"]).all()
+
+
+def patchy_pair(seed: int = 3) -> Tuple[Any, Any, Any, Any, Any, Any]:
+    """
+    Two members over the same 60 x 90 km at 1 km nodes, true motion 0 everywhere. Member 0 is
+    rough (0.3 m node noise) but unbiased; member 1 is smooth (0.1 m noise) but carries patches:
+    one constant per 30 km square, between -1 and 1 m. Returns the stacks, the patch values and
+    the node centres.
+    """
+    rng = np.random.default_rng(seed)
+    patches = rng.uniform(-1.0, 1.0, (2, 3))
+    patch_field = np.kron(patches, np.ones((30, 30)))
+    dx = np.stack([rng.normal(0, 0.3, (60, 90)), patch_field + rng.normal(0, 0.1, (60, 90))])
+    dy = np.stack([rng.normal(0, 0.3, (60, 90)), patch_field + rng.normal(0, 0.1, (60, 90))])
+    interp = np.zeros_like(dx)
+    chip = np.full_like(dx, 4.0)
+    x = 400_000.0 + (np.arange(90) + 0.5) * 1000
+    y = 4_000_000.0 - (np.arange(60) + 0.5) * 1000
+    return dx.astype(np.float32), dy.astype(np.float32), interp, chip, patches, (x, y)
+
+
+def test_structured_error_measures_patches_not_noise() -> None:
+    dx, _, _, _, patches, (x, y) = patchy_pair()
+    far = np.ones((60, 90), bool)
+    patchy = mosaic.structured_error(dx[1:2], far, x, y)
+    rough = mosaic.structured_error(dx[0:1], far, x, y)
+    assert patchy["blocks"] == 54  # 6 x 9 blocks of 10 km
+    assert patchy["s_m"] == pytest.approx(np.std(patches), abs=0.05)
+    assert rough["s_m"] < 0.06  # 0.3 m node noise averages out in 100-node blocks
+    small = np.zeros((60, 90), bool)
+    small[:5, :5] = True  # 25 far-field nodes
+    assert mosaic.structured_error(dx[1:2], small, x, y)["s_m"] is None
+
+
+def test_aligned_total_down_weights_the_patchy_member() -> None:
+    dx, dy, interp, chip, _, (x, y) = patchy_pair()
+    structure = {"far": np.ones((60, 90), bool), "x": x, "y": y, "groups": ["rough", "patchy"]}
+    local = mosaic.merge(dx, dy, interp, chip, "aligned_weighted")
+    total = mosaic.merge(dx, dy, interp, chip, "aligned_total", structure)
+    for comp in ("dx", "dy"):  # the truth is 0: the merged values are the error
+        assert np.sqrt(np.nanmean(total[comp] ** 2)) < 0.7 * np.sqrt(np.nanmean(local[comp] ** 2))
+        record = total["alignment"][comp]["structured_error"]
+        assert record["patchy"]["s_m"] > 5 * record["rough"]["s_m"]
+    # the uncertainty now includes the structured error
+    assert np.nanmedian(total["sigma_h"]) > np.nanmedian(local["sigma_h"])
+    assert "structured_error" not in local["alignment"]["dx"]
+
+
+def test_aligned_total_without_a_far_field_is_aligned_weighted() -> None:
+    dx, dy, interp, chip, _, (x, y) = patchy_pair()
+    structure = {"far": np.zeros((60, 90), bool), "x": x, "y": y, "groups": ["a", "b"]}
+    local = mosaic.merge(dx, dy, interp, chip, "aligned_weighted")
+    total = mosaic.merge(dx, dy, interp, chip, "aligned_total", structure)
+    for name in ("dx", "dy", "sigma_h"):
+        np.testing.assert_allclose(total[name], local[name], atol=1e-6)
+    assert total["alignment"]["dx"]["structured_error"]["a"]["s_m"] is None
+    with pytest.raises(ValueError, match="far-field nodes"):
+        mosaic.merge(dx, dy, interp, chip, "aligned_total")

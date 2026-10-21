@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from aria_coseis.optical import mosaic
 from aria_coseis.optical.autorift_profiles import AutoriftProfile, PixelGeometry
@@ -27,6 +27,7 @@ DELIVERABLE_BANDS = {
     "mean": ("dx_m", "dy_m"),
     "aligned_weighted": ("dx_m", "dy_m", "sigma_h_m"),
     "aligned_mean": ("dx_m", "dy_m", "sigma_h_m"),
+    "aligned_total": ("dx_m", "dy_m", "sigma_h_m"),
 }
 DEFAULT_MOSAIC = "aligned_weighted"
 PATH_PRODUCT_BANDS = ("dx_m", "dy_m", "interp_mask", "chip_size_x_px")
@@ -129,9 +130,17 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
     if method == "mean":  # as recorded by the versions made before other methods existed
         spec["mosaic"] = "mean of the paths with a value at each node"
         return spec
+    if method == "aligned_total" and not far_field_km > 0:
+        raise ValueError("aligned_total needs the far-field distance (far_field_km > 0)")
     combine = {
         "aligned_weighted": "the mean of the paths weighted by 1 / local variance",
         "aligned_mean": "the mean of the paths with equal weights",
+        "aligned_total": (
+            "the mean of the paths weighted by 1 / (local variance + s^2), s the structured error "
+            "of the path's composite recipe: the standard deviation of the 10 km block medians of "
+            "the recipe's aligned paths on the nodes beyond the far-field distance from the "
+            "ruptures (s = 0 where too few)"
+        ),
     }[method]
     spec["mosaic"] = {
         "method": method,
@@ -148,13 +157,31 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
             "its 75th percentile; differences trimmed at 3 NMAD"
         ),
     }
-    spec["band_descriptions"] = {
-        "sigma_h_m": (
-            "estimated 1-sigma horizontal uncertainty sqrt(sigma_dx^2 + sigma_dy^2), each from the "
-            "local scatter of the contributing paths; does not include biases shared by all paths "
-            "or smooth composite (snow, sun) errors"
-        )
-    }
+    if method == "aligned_total":
+        spec["mosaic"]["structured_error"] = {
+            "block_m": mosaic.BLOCK_M,
+            "min_block_nodes": mosaic.MIN_BLOCK_NODES,
+            "min_blocks": mosaic.MIN_BLOCKS,
+            "min_far_field_nodes": mosaic.MIN_FAR_NODES,
+            "far_field_km": far_field_km,
+        }
+        spec["band_descriptions"] = {
+            "sigma_h_m": (
+                "estimated 1-sigma horizontal uncertainty sqrt(sigma_dx^2 + sigma_dy^2), each "
+                "1 / sqrt(sum of the weights) of the contributing paths: their local scatter plus "
+                "their recipe's structured (far-field block) error; assumes independent paths, so "
+                "it is somewhat too small where paths share a composite; does not include a bias "
+                "shared by all paths"
+            )
+        }
+    else:
+        spec["band_descriptions"] = {
+            "sigma_h_m": (
+                "estimated 1-sigma horizontal uncertainty sqrt(sigma_dx^2 + sigma_dy^2), each from "
+                "the local scatter of the contributing paths; does not include biases shared by all "
+                "paths or smooth composite (snow, sun) errors"
+            )
+        }
     if far_field_km > 0:
         spec["far_field_correction"] = {
             "distance_km": far_field_km,
@@ -234,8 +261,10 @@ def ensemble_definition(
     profiles = {json.dumps(s["definition"]["profile"], sort_keys=True) for s in sources}
     if len(profiles) != 1:
         raise ValueError("ensemble members must share one profile")
-    if method not in ("aligned_weighted", "aligned_mean"):
-        raise ValueError("an ensemble needs an aligned mosaic (aligned_weighted or aligned_mean)")
+    if method not in ("aligned_weighted", "aligned_mean", "aligned_total"):
+        raise ValueError(
+            "an ensemble needs an aligned mosaic (aligned_weighted, aligned_mean or aligned_total)"
+        )
     spec = deliverable_spec(method, far_field_km)
     spec["mosaic"] = {
         **spec["mosaic"],
@@ -344,7 +373,11 @@ def deliverable_metadata(
 
 
 def write_deliverable(
-    path_files: dict[Any, str], out_path: str, metadata: dict[str, str], method: str = "mean"
+    path_files: dict[Any, str],
+    out_path: str,
+    metadata: dict[str, str],
+    method: str = "mean",
+    far_nodes: Callable[[int, Any, Any], Any] | None = None,
 ) -> dict[str, Any]:
     """
     Mosaic per-path offset_m files ({path or member label: file}) into the deliverable GeoTIFF with
@@ -352,6 +385,9 @@ def write_deliverable(
     given metadata, plus the per-path offsets removed. All paths must share one grid (same
     projection and pixel size, origins on the same lattice). A node is valid in a path only where
     both dx and dy are.
+
+    aligned_total needs far_nodes(epsg, x, y) -> bool (rows, cols): the far-field nodes of the
+    mosaic grid (node centres x, y). Members labelled <recipe>/P<path> are grouped by recipe.
     """
     import numpy as np
     from osgeo import gdal
@@ -384,7 +420,18 @@ def write_deliverable(
     invalid = ~(np.isfinite(stacks[0]) & np.isfinite(stacks[1]))
     stacks[0][invalid] = np.nan
     stacks[1][invalid] = np.nan
-    merged = mosaic.merge(*stacks, method=method)
+    structure = None
+    if method == "aligned_total":
+        if far_nodes is None:
+            raise ValueError("aligned_total needs the far-field nodes (far_nodes)")
+        from osgeo import osr
+
+        epsg = int(osr.SpatialReference(wkt=proj).GetAuthorityCode(None))
+        x = xmin + (np.arange(cols) + 0.5) * res
+        y = ymax - (np.arange(rows) + 0.5) * res
+        groups = [str(p).split("/")[0] if "/" in str(p) else "all" for p in paths]
+        structure = {"far": far_nodes(epsg, x, y), "x": x, "y": y, "groups": groups}
+    merged = mosaic.merge(*stacks, method=method, structure=structure)
 
     bands = DELIVERABLE_BANDS[method]
     arrays = {"dx_m": merged["dx"], "dy_m": merged["dy"], "sigma_h_m": merged.get("sigma_h")}
@@ -405,6 +452,16 @@ def write_deliverable(
             {comp: a["offsets_removed_m"] for comp, a in alignment.items()}, sort_keys=True
         )
         metadata["REFERENCE_PATH"] = str(alignment["dx"]["reference_path"])
+        if "structured_error" in merged["alignment"]["dx"]:
+            for comp, a in merged["alignment"].items():
+                alignment[comp]["structured_error"] = a["structured_error"]
+            metadata["STRUCTURED_ERROR_M"] = json.dumps(
+                {
+                    comp: {g: r["s_m"] for g, r in a["structured_error"].items()}
+                    for comp, a in alignment.items()
+                },
+                sort_keys=True,
+            )
     out = gdal.GetDriverByName("GTiff").Create(
         out_path,
         cols,
@@ -456,10 +513,22 @@ def write_event_deliverable(
     run["deliverable"] = deliverable_name(event, version_record["version"])
     metadata = deliverable_metadata(version_record, event, event_meta, run)
     out_path = out_dir / run["deliverable"]
-    run["deliverable_grid"] = write_deliverable(
-        files, str(out_path), metadata, mosaic_method(version_record["definition"])
-    )
+    method = mosaic_method(version_record["definition"])
     far = version_record["definition"]["deliverable"].get("far_field_correction")
+    far_nodes: Callable[[int, Any, Any], Any] | None = None
+    if method == "aligned_total":
+        if catalog is None or not far:
+            raise ValueError("aligned_total needs the event catalogue and the far-field distance")
+        distance_m = far["distance_km"] * 1000
+
+        def beyond_far_field(epsg: int, x: Any, y: Any) -> Any:
+            from aria_coseis.optical import farfield
+
+            geom, _ = ruptures(run, catalog, event, epsg, x, y)
+            return farfield.distance_to(geom, x, y) > distance_m
+
+        far_nodes = beyond_far_field
+    run["deliverable_grid"] = write_deliverable(files, str(out_path), metadata, method, far_nodes)
     if far:
         if catalog is None:
             raise ValueError("the far-field correction needs the event catalogue")
@@ -467,26 +536,17 @@ def write_event_deliverable(
     return True
 
 
-def apply_far_field(
-    path: Path, run: dict[str, Any], catalog: dict[str, Any], distance_km: float, event: str
-) -> dict[str, Any]:
+def ruptures(
+    run: dict[str, Any], catalog: dict[str, Any], event: str, epsg: int, x: Any, y: Any
+) -> tuple[Any, list[dict[str, Any]]]:
     """
-    Subtract the far-field median (aria_coseis.optical.farfield) from the deliverable's dx and dy
-    in place, record it in the file's metadata, and save the ruptures used next to it.
+    The rupture geometry (in the grid's UTM zone) and records of every catalogued event inside the
+    grid (node centres x, y) and within the run's composite windows, plus the event itself.
     """
-    import numpy as np
-    from osgeo import gdal, osr
     from pyproj import Transformer
 
     from aria_coseis.optical import farfield
 
-    gdal.UseExceptions()
-    ds = gdal.Open(str(path), gdal.GA_Update)
-    gt = ds.GetGeoTransform()
-    srs = osr.SpatialReference(wkt=ds.GetProjection())
-    epsg = int(srs.GetAuthorityCode(None))
-    x = gt[0] + (np.arange(ds.RasterXSize) + 0.5) * gt[1]
-    y = gt[3] + (np.arange(ds.RasterYSize) + 0.5) * gt[5]
     to_ll = Transformer.from_crs(epsg, 4326, always_xy=True)
     corners = [to_ll.transform(cx, cy) for cx in x[[0, -1]] for cy in y[[0, -1]]]
     bounds = (
@@ -500,7 +560,29 @@ def apply_far_field(
     quakes = farfield.events_in(catalog, bounds, t0, t1)
     if not any(q["folder"] == event for q in quakes) and event in catalog:
         quakes += farfield.events_in({event: catalog[event]}, (-180, -90, 180, 90), "0", "9")
-    geom, records = farfield.rupture_geometry(quakes, epsg)
+    return farfield.rupture_geometry(quakes, epsg)
+
+
+def apply_far_field(
+    path: Path, run: dict[str, Any], catalog: dict[str, Any], distance_km: float, event: str
+) -> dict[str, Any]:
+    """
+    Subtract the far-field median (aria_coseis.optical.farfield) from the deliverable's dx and dy
+    in place, record it in the file's metadata, and save the ruptures used next to it.
+    """
+    import numpy as np
+    from osgeo import gdal, osr
+
+    from aria_coseis.optical import farfield
+
+    gdal.UseExceptions()
+    ds = gdal.Open(str(path), gdal.GA_Update)
+    gt = ds.GetGeoTransform()
+    srs = osr.SpatialReference(wkt=ds.GetProjection())
+    epsg = int(srs.GetAuthorityCode(None))
+    x = gt[0] + (np.arange(ds.RasterXSize) + 0.5) * gt[1]
+    y = gt[3] + (np.arange(ds.RasterYSize) + 0.5) * gt[5]
+    geom, records = ruptures(run, catalog, event, epsg, x, y)
     dx = ds.GetRasterBand(1).ReadAsArray().astype(np.float64)
     dy = ds.GetRasterBand(2).ReadAsArray().astype(np.float64)
     result = farfield.far_field_shift(dx, dy, farfield.distance_to(geom, x, y), distance_km * 1000)
