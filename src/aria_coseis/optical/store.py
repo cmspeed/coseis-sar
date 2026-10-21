@@ -195,6 +195,33 @@ COMPOSITE_RECIPES.update(
     }
 )
 
+# Test (2026-10-21): the same recipes from reprocessed scenes only. Sentinel-2 L1C in Earth Engine
+# mixes processing baselines date by date (the original 02.0x of 2015-2021 and the reprocessed
+# 05.00, with refined geolocation and another DEM). These recipes keep processing baselines
+# >= 05.00, to test whether the mix causes the patchy offsets of the older events.
+_PB5 = {"processing_baseline_min": "05.00"}
+_PB5_NOTE = " Only scenes of processing baseline 05.00 or later (reprocessed); a test recipe."
+COMPOSITE_RECIPES.update(
+    {
+        f"{rid}pb5": {
+            **COMPOSITE_RECIPES[rid],
+            **_PB5,
+            "description": COMPOSITE_RECIPES[rid]["description"] + _PB5_NOTE,
+            **(
+                {
+                    "stage_from_recipe": {
+                        stage: (f"{src}pb5" if isinstance(src, str) else [f"{src[0]}pb5", src[1]])
+                        for stage, src in COMPOSITE_RECIPES[rid]["stage_from_recipe"].items()
+                    }
+                }
+                if "stage_from_recipe" in COMPOSITE_RECIPES[rid]
+                else {}
+            ),
+        }
+        for rid in ("med30", "med30snow", "med90snow", "seas90snow", "med30ctrl")
+    }
+)
+
 # The first products ("v0"), made 2026-10-01 to 2026-10-13 in data/GEE_Optical_Downloads.
 V0_OLD_SCRIPT_EVENTS = (
     "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence",
