@@ -48,7 +48,10 @@
             ],
             "partial_job_file": "job_m_57_48_km_wnw_of_khuzdar_pakistan_DESCENDING_151_partial.json",
             "reference_date": "2026-10-08",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-10-08 (Pre) - 2026-10-20 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_57_48_km_wnw_of_khuzdar_pakistan/DESCENDING151/coseismic/DESCENDING151_20261008_20261020"
         }
     }
 }

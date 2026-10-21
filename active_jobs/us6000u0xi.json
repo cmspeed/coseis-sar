@@ -38,7 +38,10 @@
             ],
             "partial_job_file": "job_m_63_102_km_ne_of_norsup_vanuatu_ASCENDING_154_partial.json",
             "reference_date": "2026-09-26",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-09-26 (Pre) - 2026-10-20 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_63_102_km_ne_of_norsup_vanuatu/ASCENDING154/coseismic/ASCENDING154_20260926_20261020"
         }
     }
 }
