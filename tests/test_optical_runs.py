@@ -349,6 +349,12 @@ def test_ensemble_definition_rules(tmp_path: Path) -> None:
         runs.ensemble_definition([a, b], "mean", CODE, 0)
     plain = runs.ensemble_definition([a, b], "aligned_mean", CODE, 25)
     assert "equal weights" in plain["deliverable"]["mosaic"]["description"]
+    total = runs.ensemble_definition([a, b], "aligned_total", CODE, 25)
+    spec = total["deliverable"]
+    assert spec["mosaic"]["structured_error"]["block_m"] == 10_000
+    assert "structured" in spec["band_descriptions"]["sigma_h_m"]
+    with pytest.raises(ValueError, match="far-field distance"):
+        runs.ensemble_definition([a, b], "aligned_total", CODE, 0)
     dirty = {**CODE, "aria_coseis": {**CODE["aria_coseis"], "dirty": True, "diff_sha256": "d"}}
     a_dirty = {**a, "definition": {**a["definition"], "code": runs.code_signature(dirty)}}
     with pytest.raises(ValueError, match="committed code"):
@@ -436,3 +442,68 @@ def test_ensemble_of_two_recipes_with_the_far_field_removed(
     )
     version = json.loads((tmp_path / "products" / "exp-ens" / "VERSION.json").read_text())
     assert set(version["definition"]["ensemble_of"]) == {"exp-a", "exp-b"}
+
+
+def test_ensemble_with_total_error_weights(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    np = pytest.importorskip("numpy")
+    gdal = pytest.importorskip("osgeo.gdal")
+    pytest.importorskip("scipy")
+    pytest.importorskip("shapely")
+    pyproj = pytest.importorskip("pyproj")
+    from shapely.geometry import box
+
+    lon, lat = pyproj.Transformer.from_crs(32611, 4326, always_xy=True).transform(
+        402_250, 3_957_750
+    )
+    (tmp_path / "README.md").write_text("store\n")
+    catalog = {
+        EVENT: {
+            "event_id": "ci38457511",
+            "magnitude": 7.1,
+            "time_utc": "2019-07-06T03:19:53Z",
+            "longitude": lon,
+            "latitude": lat,
+        }
+    }
+    (tmp_path / "events.json").write_text(json.dumps(catalog))
+    make_recipe_version(tmp_path, "exp-a", "med30snow", 0.2, seed=1)
+    make_recipe_version(tmp_path, "exp-b", "seas90snow", 0.5, seed=5)
+    monkeypatch.setattr(store, "code_provenance", lambda: CODE)
+    monkeypatch.setattr(store, "write_environment_listing", lambda dst: dst.write_text("env\n"))
+    rupture = box(400_000, 3_955_500, 400_300, 3_960_000)
+    monkeypatch.setattr(
+        api.optical_farfield,
+        "rupture_geometry",
+        lambda quakes, epsg: (rupture, [{"folder": q["folder"], "circle_km": 0} for q in quakes]),
+    )
+    api.optical_remosaic.main(
+        [
+            "--store",
+            str(tmp_path),
+            "--source",
+            "exp-a",
+            "--source",
+            "exp-b",
+            "--version",
+            "exp-tot",
+            "--mosaic",
+            "aligned_total",
+            "--far_field_km",
+            "0.5",
+        ]
+    )
+    out_dir = tmp_path / "products" / "exp-tot" / EVENT
+    run = json.loads((out_dir / "run_info.json").read_text())
+    assert run["status"] == "COMPLETE", run.get("error")
+    structured = run["deliverable_grid"]["alignment"]["dx"]["structured_error"]
+    assert set(structured) == {"med30snow", "seas90snow"}
+    assert all(r["s_m"] is None for r in structured.values())  # too small a scene: local weights
+    ds = gdal.Open(str(out_dir / f"{EVENT}_exp-tot_offsets.tif"))
+    assert ds.GetMetadataItem("MOSAIC_METHOD") == "aligned_total"
+    assert set(json.loads(ds.GetMetadataItem("STRUCTURED_ERROR_M"))["dy"]) == {
+        "med30snow",
+        "seas90snow",
+    }
+    assert np.isfinite(ds.GetRasterBand(3).ReadAsArray()).any()
