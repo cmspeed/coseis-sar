@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_70_183_km_ene_of_nagqu_china-ASCENDING143",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us6000u43g",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20261019T114951_20261019T115018_005084_0099E9_D17A",
+                "S1D_IW_SLC__1SDV_20261019T114926_20261019T114954_005084_0099E9_144C"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]
