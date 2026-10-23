@@ -216,7 +216,14 @@ Remaining gaps:
   
   Mosaic method `aligned_scales` measures s on blocks the size of the local window. Local scatter (within a window) and s (between windows) then cover every scale.
   
-  Offline it gave 1.05 at 90 m (64 % of points within σ_h, against 63 % for Gaussian errors; 0.83 against GNSS) and 0.91–1.03 at 30 m. The values change by under 0.1 m RMS. It replaces the 15 vs 21 px window question. A new method, so existing versions keep their definitions.
+  Offline it gave 1.05 at 90 m (64 % of points within σ_h, against 63 % for Gaussian errors; 0.83 against GNSS) and 0.91–1.03 at 30 m. It replaces the 15 vs 21 px window question. A new method, so existing versions keep their definitions.
+  
+  The products `exp-g90-enscl-…` (13 events) and `exp-30m-enscl-…` (4) confirm it:
+  - against the model, 1.05 (0.88–1.73) at 90 m and 0.98 (0.91–1.02) at 30 m;
+  - against GNSS, 0.70–1.16 at 90 m.
+  
+  The model RMS error changes by −0.18 m (Nippes, which now gets an s) to +0.11 m (Taiwan). Decision doc §4.13.
+- [ ] Reprocessed-only composites (one processing version per composite). The full Collection-1 is in the Copernicus Data Space; in Earth Engine it is complete only for 28 of the store's 144 events (mostly 2024–2026). Every window of the three recipes is complete in the Data Space for the other 114 (2015–2023), but not in Earth Engine: at Palu, Taiwan, Petrinja, Nippes and Maduo some windows have no reprocessed scene. A rebuild would read the scenes from the Data Space instead of Earth Engine. Three events have edge paths missing from the Data Space query; check them first. Decision doc §4.13.
 - [ ] Far-field fallback for AOIs with too few nodes beyond the distance (Palu at 50 km), or with an unrepresentative far field: at Nippes 2,550 nodes beyond 25 km set a +5.1 m dy constant, and the product's level is 2.2 m off the elastic model. Options: a minimum share of the scene, the farthest 10 % of nodes, or a flag instead of a correction.
 - [ ] Record lock: `store.update_catalog` and `add_composite` rewrite their JSON/CSV without a lock, so parallel builds or runs can lose entries (builds were run one at a time for this reason).
 - [ ] Chips under 360 m at 90 m-class postings (synopsis §10 #25). The 360 m floor is a hyp3-autorift driver rule, not an autoRIFT limit; the JPL Ridgecrest test (Feb 2025) preferred 160–320 m chips at 90 m. Compare an 80 m posting with 160–320 m chips (r = 2) and 90 m with r = 1 against 360 m, with the 30 m tests.
