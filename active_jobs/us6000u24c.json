@@ -38,7 +38,10 @@
             ],
             "partial_job_file": "job_m_60_126_km_s_of_kokopo_papua_new_guinea_DESCENDING_16_partial.json",
             "reference_date": "2026-10-10",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-10-10 (Pre) - 2026-10-22 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_60_126_km_s_of_kokopo_papua_new_guinea/DESCENDING016/coseismic/DESCENDING016_20261010_20261022"
         }
     }
 }
