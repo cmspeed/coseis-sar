@@ -1,0 +1,83 @@
+{
+    "title": "m_57_61_km_wnw_of_leni_italy",
+    "time": 1792750756729,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    13.652,
+                    38.2199
+                ],
+                [
+                    14.652,
+                    38.2199
+                ],
+                [
+                    14.652,
+                    39.2199
+                ],
+                [
+                    13.652,
+                    39.2199
+                ],
+                [
+                    13.652,
+                    38.2199
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_44": {
+            "flight_direction": "ASCENDING",
+            "path_number": 44,
+            "frame_numbers": [
+                120,
+                123,
+                125,
+                118
+            ],
+            "partial_job_file": "job_m_57_61_km_wnw_of_leni_italy_ASCENDING_44_partial.json",
+            "reference_date": "2026-10-18",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_117": {
+            "flight_direction": "ASCENDING",
+            "path_number": 117,
+            "frame_numbers": [
+                120,
+                121,
+                125,
+                126
+            ],
+            "partial_job_file": "job_m_57_61_km_wnw_of_leni_italy_ASCENDING_117_partial.json",
+            "reference_date": "2026-10-17",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_124": {
+            "flight_direction": "DESCENDING",
+            "path_number": 124,
+            "frame_numbers": [
+                467,
+                462
+            ],
+            "partial_job_file": "job_m_57_61_km_wnw_of_leni_italy_DESCENDING_124_partial.json",
+            "reference_date": "2026-10-18",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_22": {
+            "flight_direction": "DESCENDING",
+            "path_number": 22,
+            "frame_numbers": [
+                458,
+                467,
+                462,
+                463
+            ],
+            "partial_job_file": "job_m_57_61_km_wnw_of_leni_italy_DESCENDING_22_partial.json",
+            "reference_date": "2026-10-17",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_57_61_km_wnw_of_leni_italy-DESCENDING22",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us6000u4bk",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20261017T051211_20261017T051238_009920_013C6C_40A4",
+                "S1C_IW_SLC__1SDV_20261017T051146_20261017T051213_009920_013C6C_D23B"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]
