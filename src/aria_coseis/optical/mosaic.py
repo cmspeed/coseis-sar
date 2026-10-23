@@ -12,6 +12,13 @@ Methods:
   composite error (shadows, snow, surface change), which local scatter does not see. A group with
   too little far field (structured_error) gets s = 0, so its weights are those of aligned_weighted.
   The uncertainty is 1 / sqrt(sum of weights) per component, so it includes s.
+- "aligned_correlated": as aligned_total, with two changes to the uncertainty:
+  1. The local scatter is measured over a square of WINDOW_M on the ground (WINDOW nodes at
+     90 m, 21 at 30 m), so that it sees the same scale of noise at every grid spacing.
+  2. Members' errors are not assumed independent. The correlation of each pair of members is
+     measured on the far-field nodes where both have a value (member_correlations), and the
+     uncertainty of the weighted mean is propagated with it (correlated_variance). The weights
+     are those of aligned_total.
 - "aligned_weighted":
   1. Align the paths. One constant offset per path is fitted by least squares to the median
      differences in all overlaps. The differences are measured on clean nodes: both paths
@@ -27,8 +34,9 @@ Ground motion is the same for every path, so the overlap differences hold only e
 alignment needs no deformation mask. It aligns the paths to each other, not to stable ground: a
 bias shared by all paths remains. For aligned_weighted and aligned_mean, sigma reflects noise only,
 not smooth systematic errors such as the snow and sun biases of the composites; aligned_total adds
-each group's structured error, assuming the members' errors are independent (members that share a
-composite are not, so its sigma is then somewhat too small).
+each group's structured error, assuming the members' errors are independent (members whose
+composite windows overlap are not, so its sigma is then too small); aligned_correlated measures and
+propagates those correlations.
 """
 
 from __future__ import annotations
@@ -37,8 +45,10 @@ from typing import Any
 
 import numpy as np
 
-METHODS = ("mean", "aligned_weighted", "aligned_mean", "aligned_total")
+METHODS = ("mean", "aligned_weighted", "aligned_mean", "aligned_total", "aligned_correlated")
+FAR_FIELD_METHODS = ("aligned_total", "aligned_correlated")  # need the far-field nodes
 WINDOW = 7
+WINDOW_M = 630.0  # aligned_correlated: local scatter window on the ground (WINDOW nodes at 90 m)
 SIGMA_FLOOR_M = 0.05
 MIN_OVERLAP_NODES = 500
 BLOCK_M = 10_000.0  # structured error: block size
@@ -62,6 +72,55 @@ def local_sigma(
     sigma = np.sqrt(np.clip(var, 0.0, None)) + floor
     sigma[~valid] = np.nan
     return sigma.astype(np.float32)
+
+
+def window_nodes(spacing_m: float, window_m: float = WINDOW_M) -> int:
+    """The odd number of nodes nearest to window_m at a node spacing of spacing_m (at least 3)."""
+    return max(3, int(round(window_m / spacing_m)) // 2 * 2 + 1)
+
+
+def member_correlations(
+    values: np.ndarray, far: np.ndarray, min_nodes: int = MIN_FAR_NODES
+) -> tuple[np.ndarray, list[dict[str, Any]]]:
+    """
+    Correlation of the errors of each pair of members (stack (members, rows, cols) of aligned
+    values) for one component: the correlation of their values on the far-field nodes where both
+    have one. Far from the ruptures real motion is small, so what the values share there is error.
+    0 with fewer than min_nodes such nodes, and never below 0. Returns the (members, members)
+    matrix (1 on the diagonal) and one record per pair.
+    """
+    n = len(values)
+    rho = np.eye(n)
+    pairs = []
+    valid = np.isfinite(values) & far[None]
+    for i in range(n):
+        for j in range(i + 1, n):
+            both = valid[i] & valid[j]
+            count = int(both.sum())
+            r = 0.0
+            if count >= min_nodes:
+                a, b = values[i][both].astype(np.float64), values[j][both].astype(np.float64)
+                if a.std() > 0 and b.std() > 0:
+                    r = max(0.0, float(np.corrcoef(a, b)[0, 1]))
+            rho[i, j] = rho[j, i] = r
+            pairs.append({"members": [i, j], "rho": round(r, 3), "far_nodes": count})
+    return rho, pairs
+
+
+def correlated_variance(share: np.ndarray, sigma: np.ndarray, rho: np.ndarray) -> np.ndarray:
+    """
+    Variance of the weighted mean sum_k share_k e_k (stacks (members, rows, cols); share = weight
+    / sum of the weights, 0 where a member has no value) of errors e_k with standard deviations
+    sigma and correlations rho (members x members). With rho the identity it is 1 / sum of the
+    weights, as for independent members.
+    """
+    part = share * sigma
+    variance = np.square(part).sum(axis=0)
+    for i in range(len(part)):
+        for j in range(i + 1, len(part)):
+            if rho[i, j] > 0:
+                variance += 2.0 * rho[i, j] * part[i] * part[j]
+    return variance
 
 
 def path_offsets(
@@ -156,16 +215,18 @@ def merge(
     """
     Mosaic stacks of per-path dx, dy (m), interp_mask and chip size (shape (paths, rows, cols)).
 
-    aligned_total needs structure: "far" (bool (rows, cols), the far-field nodes), "x" and "y"
-    (node centres, m) and optionally "groups" (one label per path; default: one group).
+    aligned_total and aligned_correlated need structure: "far" (bool (rows, cols), the far-field
+    nodes), "x" and "y" (node centres, m) and optionally "groups" (one label per path; default:
+    one group).
 
     Returns dx, dy and, for the aligned methods, sigma_h (m) and the alignment record (for
-    aligned_total with each group's structured error).
+    aligned_total with each group's structured error; for aligned_correlated also the local
+    window and the members' correlations).
     """
     if method not in METHODS:
         raise ValueError(f"unknown mosaic method {method!r}; choose from {METHODS}")
-    if method == "aligned_total" and (structure is None or "far" not in structure):
-        raise ValueError("aligned_total needs the far-field nodes (structure['far'])")
+    if method in FAR_FIELD_METHODS and (structure is None or "far" not in structure):
+        raise ValueError(f"{method} needs the far-field nodes (structure['far'])")
     out: dict[str, Any] = {}
     if method == "mean":
         for name, values in (("dx", dx), ("dy", dy)):
@@ -177,16 +238,20 @@ def merge(
             out[name] = mean.astype(np.float32)
         return out
 
+    window = WINDOW
+    if method == "aligned_correlated":
+        window = window_nodes(abs(float(structure["x"][1] - structure["x"][0])))
     variances = []
     alignment: dict[str, Any] = {}
     for name, values in (("dx", dx), ("dy", dy)):
-        sigmas = np.stack([local_sigma(v) for v in values])
+        sigmas = np.stack([local_sigma(v, window) for v in values])
         offsets, reference, pairs = path_offsets(values, interp, chip, sigmas)
         aligned = values - offsets[:, None, None]
         valid = np.isfinite(aligned)
         sig = np.where(valid, sigmas, 1.0).astype(np.float64)
         structured: dict[str, Any] = {}
-        if method == "aligned_total":  # add each group's structured error to its members' variance
+        if method in FAR_FIELD_METHODS:
+            # add each group's structured error to its members' variance
             groups = list(structure.get("groups") or ["all"] * len(values))
             for g in sorted(set(groups)):
                 members = [k for k, name in enumerate(groups) if name == g]
@@ -207,6 +272,11 @@ def merge(
         total = w.sum(axis=0)
         with np.errstate(invalid="ignore", divide="ignore"):
             merged = (np.where(valid, aligned, 0.0) * w).sum(axis=0) / total
+        correlations = None
+        if method == "aligned_correlated":
+            rho, correlations = member_correlations(aligned, structure["far"])
+            with np.errstate(invalid="ignore", divide="ignore"):
+                variance = correlated_variance(w / total, sig, rho)
         merged[total == 0] = np.nan
         variance[total == 0] = np.nan
         out[name] = merged.astype(np.float32)
@@ -221,6 +291,9 @@ def merge(
                 g: {**r, "s_m": None if r["s_m"] is None else round(r["s_m"], 4)}
                 for g, r in structured.items()
             }
+        if correlations is not None:
+            alignment[name]["local_window_nodes"] = window
+            alignment[name]["correlations"] = correlations
     out["sigma_h"] = np.sqrt(variances[0] + variances[1]).astype(np.float32)
     out["alignment"] = alignment
     return out

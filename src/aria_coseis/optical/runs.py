@@ -28,6 +28,7 @@ DELIVERABLE_BANDS = {
     "aligned_weighted": ("dx_m", "dy_m", "sigma_h_m"),
     "aligned_mean": ("dx_m", "dy_m", "sigma_h_m"),
     "aligned_total": ("dx_m", "dy_m", "sigma_h_m"),
+    "aligned_correlated": ("dx_m", "dy_m", "sigma_h_m"),
 }
 DEFAULT_MOSAIC = "aligned_weighted"
 PATH_PRODUCT_BANDS = ("dx_m", "dy_m", "interp_mask", "chip_size_x_px")
@@ -130,16 +131,20 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
     if method == "mean":  # as recorded by the versions made before other methods existed
         spec["mosaic"] = "mean of the paths with a value at each node"
         return spec
-    if method == "aligned_total" and not far_field_km > 0:
-        raise ValueError("aligned_total needs the far-field distance (far_field_km > 0)")
+    if method in mosaic.FAR_FIELD_METHODS and not far_field_km > 0:
+        raise ValueError(f"{method} needs the far-field distance (far_field_km > 0)")
+    total = (
+        "the mean of the paths weighted by 1 / (local variance + s^2), s the structured error "
+        "of the path's composite recipe: the standard deviation of the 10 km block medians of "
+        "the recipe's aligned paths on the nodes beyond the far-field distance from the "
+        "ruptures (s = 0 where too few)"
+    )
     combine = {
         "aligned_weighted": "the mean of the paths weighted by 1 / local variance",
         "aligned_mean": "the mean of the paths with equal weights",
-        "aligned_total": (
-            "the mean of the paths weighted by 1 / (local variance + s^2), s the structured error "
-            "of the path's composite recipe: the standard deviation of the 10 km block medians of "
-            "the recipe's aligned paths on the nodes beyond the far-field distance from the "
-            "ruptures (s = 0 where too few)"
+        "aligned_total": total,
+        "aligned_correlated": (
+            f"{total}; the local variance over a square of {mosaic.WINDOW_M:g} m on the ground"
         ),
     }[method]
     spec["mosaic"] = {
@@ -157,7 +162,7 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
             "its 75th percentile; differences trimmed at 3 NMAD"
         ),
     }
-    if method == "aligned_total":
+    if method in mosaic.FAR_FIELD_METHODS:
         spec["mosaic"]["structured_error"] = {
             "block_m": mosaic.BLOCK_M,
             "min_block_nodes": mosaic.MIN_BLOCK_NODES,
@@ -165,6 +170,28 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
             "min_far_field_nodes": mosaic.MIN_FAR_NODES,
             "far_field_km": far_field_km,
         }
+    if method == "aligned_correlated":
+        del spec["mosaic"]["local_window_nodes"]
+        spec["mosaic"]["local_window_m"] = mosaic.WINDOW_M
+        spec["mosaic"]["correlations"] = {
+            "statistic": (
+                "correlation of each pair of members' aligned values (dx and dy separately) on "
+                "the nodes beyond the far-field distance where both have a value; 0 where fewer "
+                "than min_far_field_nodes, never below 0"
+            ),
+            "min_far_field_nodes": mosaic.MIN_FAR_NODES,
+        }
+        spec["band_descriptions"] = {
+            "sigma_h_m": (
+                "estimated 1-sigma horizontal uncertainty of one node, sqrt(sigma_dx^2 + "
+                "sigma_dy^2): the weighted mean's error propagated from the contributing paths' "
+                "errors (local scatter plus their recipe's structured, far-field block error) and "
+                "the correlations between paths measured in the far field; does not include a "
+                "bias shared by all paths; averages over many nodes have smaller errors, but not "
+                "below the structured error"
+            )
+        }
+    elif method == "aligned_total":
         spec["band_descriptions"] = {
             "sigma_h_m": (
                 "estimated 1-sigma horizontal uncertainty sqrt(sigma_dx^2 + sigma_dy^2), each "
@@ -261,9 +288,10 @@ def ensemble_definition(
     profiles = {json.dumps(s["definition"]["profile"], sort_keys=True) for s in sources}
     if len(profiles) != 1:
         raise ValueError("ensemble members must share one profile")
-    if method not in ("aligned_weighted", "aligned_mean", "aligned_total"):
+    if method not in ("aligned_weighted", "aligned_mean") + mosaic.FAR_FIELD_METHODS:
         raise ValueError(
-            "an ensemble needs an aligned mosaic (aligned_weighted, aligned_mean or aligned_total)"
+            "an ensemble needs an aligned mosaic (aligned_weighted, aligned_mean, aligned_total "
+            "or aligned_correlated)"
         )
     spec = deliverable_spec(method, far_field_km)
     spec["mosaic"] = {
@@ -386,8 +414,9 @@ def write_deliverable(
     projection and pixel size, origins on the same lattice). A node is valid in a path only where
     both dx and dy are.
 
-    aligned_total needs far_nodes(epsg, x, y) -> bool (rows, cols): the far-field nodes of the
-    mosaic grid (node centres x, y). Members labelled <recipe>/P<path> are grouped by recipe.
+    aligned_total and aligned_correlated need far_nodes(epsg, x, y) -> bool (rows, cols): the
+    far-field nodes of the mosaic grid (node centres x, y). Members labelled <recipe>/P<path> are
+    grouped by recipe.
     """
     import numpy as np
     from osgeo import gdal
@@ -421,9 +450,9 @@ def write_deliverable(
     stacks[0][invalid] = np.nan
     stacks[1][invalid] = np.nan
     structure = None
-    if method == "aligned_total":
+    if method in mosaic.FAR_FIELD_METHODS:
         if far_nodes is None:
-            raise ValueError("aligned_total needs the far-field nodes (far_nodes)")
+            raise ValueError(f"{method} needs the far-field nodes (far_nodes)")
         from osgeo import osr
 
         epsg = int(osr.SpatialReference(wkt=proj).GetAuthorityCode(None))
@@ -458,6 +487,20 @@ def write_deliverable(
             metadata["STRUCTURED_ERROR_M"] = json.dumps(
                 {
                     comp: {g: r["s_m"] for g, r in a["structured_error"].items()}
+                    for comp, a in alignment.items()
+                },
+                sort_keys=True,
+            )
+        if "correlations" in merged["alignment"]["dx"]:
+            for comp, a in merged["alignment"].items():
+                alignment[comp]["local_window_nodes"] = a["local_window_nodes"]
+                alignment[comp]["correlations"] = [
+                    {**c, "members": [paths[i] for i in c["members"]]} for c in a["correlations"]
+                ]
+            metadata["LOCAL_WINDOW_NODES"] = str(merged["alignment"]["dx"]["local_window_nodes"])
+            metadata["MEMBER_CORRELATIONS"] = json.dumps(
+                {
+                    comp: {" / ".join(map(str, c["members"])): c["rho"] for c in a["correlations"]}
                     for comp, a in alignment.items()
                 },
                 sort_keys=True,
@@ -516,9 +559,9 @@ def write_event_deliverable(
     method = mosaic_method(version_record["definition"])
     far = version_record["definition"]["deliverable"].get("far_field_correction")
     far_nodes: Callable[[int, Any, Any], Any] | None = None
-    if method == "aligned_total":
+    if method in mosaic.FAR_FIELD_METHODS:
         if catalog is None or not far:
-            raise ValueError("aligned_total needs the event catalogue and the far-field distance")
+            raise ValueError(f"{method} needs the event catalogue and the far-field distance")
         distance_m = far["distance_km"] * 1000
 
         def beyond_far_field(epsg: int, x: Any, y: Any) -> Any:

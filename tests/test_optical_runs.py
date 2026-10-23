@@ -355,6 +355,13 @@ def test_ensemble_definition_rules(tmp_path: Path) -> None:
     assert "structured" in spec["band_descriptions"]["sigma_h_m"]
     with pytest.raises(ValueError, match="far-field distance"):
         runs.ensemble_definition([a, b], "aligned_total", CODE, 0)
+    correlated = runs.ensemble_definition([a, b], "aligned_correlated", CODE, 25)["deliverable"]
+    assert correlated["mosaic"]["local_window_m"] == 630
+    assert "local_window_nodes" not in correlated["mosaic"]
+    assert "never below 0" in correlated["mosaic"]["correlations"]["statistic"]
+    assert "correlations" in correlated["band_descriptions"]["sigma_h_m"]
+    with pytest.raises(ValueError, match="far-field distance"):
+        runs.ensemble_definition([a, b], "aligned_correlated", CODE, 0)
     dirty = {**CODE, "aria_coseis": {**CODE["aria_coseis"], "dirty": True, "diff_sha256": "d"}}
     a_dirty = {**a, "definition": {**a["definition"], "code": runs.code_signature(dirty)}}
     with pytest.raises(ValueError, match="committed code"):
@@ -444,8 +451,9 @@ def test_ensemble_of_two_recipes_with_the_far_field_removed(
     assert set(version["definition"]["ensemble_of"]) == {"exp-a", "exp-b"}
 
 
+@pytest.mark.parametrize("method", ["aligned_total", "aligned_correlated"])
 def test_ensemble_with_total_error_weights(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, method: str
 ) -> None:
     np = pytest.importorskip("numpy")
     gdal = pytest.importorskip("osgeo.gdal")
@@ -489,7 +497,7 @@ def test_ensemble_with_total_error_weights(
             "--version",
             "exp-tot",
             "--mosaic",
-            "aligned_total",
+            method,
             "--far_field_km",
             "0.5",
         ]
@@ -501,9 +509,17 @@ def test_ensemble_with_total_error_weights(
     assert set(structured) == {"med30snow", "seas90snow"}
     assert all(r["s_m"] is None for r in structured.values())  # too small a scene: local weights
     ds = gdal.Open(str(out_dir / f"{EVENT}_exp-tot_offsets.tif"))
-    assert ds.GetMetadataItem("MOSAIC_METHOD") == "aligned_total"
+    assert ds.GetMetadataItem("MOSAIC_METHOD") == method
     assert set(json.loads(ds.GetMetadataItem("STRUCTURED_ERROR_M"))["dy"]) == {
         "med30snow",
         "seas90snow",
     }
     assert np.isfinite(ds.GetRasterBand(3).ReadAsArray()).any()
+    if method == "aligned_correlated":  # one correlation per pair of members, per component
+        correlations = json.loads(ds.GetMetadataItem("MEMBER_CORRELATIONS"))
+        members = run["deliverable_grid"]["alignment"]["dx"]["offsets_removed_m"]
+        assert len(correlations["dx"]) == len(members) * (len(members) - 1) // 2
+        assert all(0.0 <= r <= 1.0 for r in correlations["dy"].values())
+        assert int(ds.GetMetadataItem("LOCAL_WINDOW_NODES")) % 2 == 1
+    else:
+        assert ds.GetMetadataItem("MEMBER_CORRELATIONS") is None
