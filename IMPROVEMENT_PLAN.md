@@ -212,6 +212,11 @@ Remaining gaps:
   - It propagates the members' correlations, measured on the far-field nodes, into band 3.
   
   Offline this gave 0.94–1.25 at 90 m and 0.92–1.16 at 30 m. Decision doc §4.11.
+- [x] **Band 3 counts the error at every scale** (2026-10-23). 18–47 % of the error variance lies between the 630 m local window and the 10 km blocks of s, and neither term counts it. So band 3 of `aligned_correlated` is still too small at 90 m: RMS |error|/σ_h has a median of 1.28 over the 11 events with a fault model, and 1.10 against GNSS.
+  
+  Mosaic method `aligned_scales` measures s on blocks the size of the local window. Local scatter (within a window) and s (between windows) then cover every scale.
+  
+  Offline it gave 1.05 at 90 m (64 % of points within σ_h, against 63 % for Gaussian errors; 0.83 against GNSS) and 0.91–1.03 at 30 m. The values change by under 0.1 m RMS. It replaces the 15 vs 21 px window question. A new method, so existing versions keep their definitions.
 - [ ] Far-field fallback for AOIs with too few nodes beyond the distance (Palu at 50 km), or with an unrepresentative far field: at Nippes 2,550 nodes beyond 25 km set a +5.1 m dy constant, and the product's level is 2.2 m off the elastic model. Options: a minimum share of the scene, the farthest 10 % of nodes, or a flag instead of a correction.
 - [ ] Record lock: `store.update_catalog` and `add_composite` rewrite their JSON/CSV without a lock, so parallel builds or runs can lose entries (builds were run one at a time for this reason).
 - [ ] Chips under 360 m at 90 m-class postings (synopsis §10 #25). The 360 m floor is a hyp3-autorift driver rule, not an autoRIFT limit; the JPL Ridgecrest test (Feb 2025) preferred 160–320 m chips at 90 m. Compare an 80 m posting with 160–320 m chips (r = 2) and 90 m with r = 1 against 360 m, with the 30 m tests.

@@ -220,3 +220,57 @@ def test_aligned_correlated_with_independent_members_and_a_30_m_grid() -> None:
     assert ratio == pytest.approx(1.0, abs=0.05)
     with pytest.raises(ValueError, match="far-field nodes"):
         mosaic.merge(dx, dy, interp, chip, "aligned_correlated")
+
+
+def mid_scale_pair(spacing_m: float) -> Tuple[Any, Any, Any, Any, Any]:
+    """
+    Two members over 240 x 240 nodes, true motion 0. Each member's error is its own smooth field
+    (noise smoothed over 400 m: patches of 1-2 km, 0.5 m standard deviation) plus 0.1 m node noise: error
+    that varies between the 630 m local window and the 10 km blocks. All nodes far field.
+    """
+    from scipy import ndimage
+
+    rng = np.random.default_rng(7)
+
+    def error() -> Any:
+        smooth = ndimage.gaussian_filter(rng.normal(0, 1, (240, 240)), 400 / spacing_m)
+        return 0.5 * smooth / smooth.std() + rng.normal(0, 0.1, (240, 240))
+
+    dx = np.stack([error() for _ in range(2)]).astype(np.float32)
+    dy = np.stack([error() for _ in range(2)]).astype(np.float32)
+    x = 400_000.0 + (np.arange(240) + 0.5) * spacing_m
+    y = 4_000_000.0 - (np.arange(240) + 0.5) * spacing_m
+    structure = {"far": np.ones((240, 240), bool), "x": x, "y": y, "groups": ["a", "b"]}
+    interp, chip = np.zeros_like(dx), np.full_like(dx, 4.0)
+    return dx, dy, interp, chip, structure
+
+
+def rms_ratio(merged: Any) -> float:
+    """RMS of |error| / sigma_h, the truth being 0 (1 for a calibrated uncertainty)."""
+    error = np.hypot(merged["dx"], merged["dy"])
+    return float(np.sqrt(np.nanmean((error / merged["sigma_h"]) ** 2)))
+
+
+def test_aligned_scales_counts_the_error_between_the_window_and_the_blocks() -> None:
+    dx, dy, interp, chip, structure = mid_scale_pair(90.0)
+    corr = mosaic.merge(dx, dy, interp, chip, "aligned_correlated", structure)
+    scales = mosaic.merge(dx, dy, interp, chip, "aligned_scales", structure)
+    # 10 km block medians average the km-size patches away, and the local window is too small
+    assert rms_ratio(corr) > 1.5
+    assert rms_ratio(scales) == pytest.approx(1.0, abs=0.2)
+    assert scales["alignment"]["dx"]["structured_block_m"] == pytest.approx(630.0)
+    assert "structured_block_m" not in corr["alignment"]["dx"]
+    s_corr = corr["alignment"]["dx"]["structured_error"]["a"]["s_m"]
+    s_scales = scales["alignment"]["dx"]["structured_error"]["a"]["s_m"]
+    assert s_scales == pytest.approx(0.5, abs=0.1) and s_scales > 2 * s_corr
+    assert len(scales["alignment"]["dx"]["correlations"]) == 1
+
+
+def test_aligned_scales_blocks_follow_the_window_on_a_30_m_grid() -> None:
+    dx, dy, interp, chip, structure = mid_scale_pair(30.0)
+    scales = mosaic.merge(dx, dy, interp, chip, "aligned_scales", structure)
+    assert scales["alignment"]["dy"]["local_window_nodes"] == 21
+    assert scales["alignment"]["dy"]["structured_block_m"] == pytest.approx(630.0)
+    assert rms_ratio(scales) == pytest.approx(1.0, abs=0.25)
+    with pytest.raises(ValueError, match="far-field nodes"):
+        mosaic.merge(dx, dy, interp, chip, "aligned_scales")
