@@ -29,6 +29,7 @@ DELIVERABLE_BANDS = {
     "aligned_mean": ("dx_m", "dy_m", "sigma_h_m"),
     "aligned_total": ("dx_m", "dy_m", "sigma_h_m"),
     "aligned_correlated": ("dx_m", "dy_m", "sigma_h_m"),
+    "aligned_scales": ("dx_m", "dy_m", "sigma_h_m"),
 }
 DEFAULT_MOSAIC = "aligned_weighted"
 PATH_PRODUCT_BANDS = ("dx_m", "dy_m", "interp_mask", "chip_size_x_px")
@@ -146,6 +147,11 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
         "aligned_correlated": (
             f"{total}; the local variance over a square of {mosaic.WINDOW_M:g} m on the ground"
         ),
+        "aligned_scales": (
+            f"{total.replace('10 km block medians', 'block medians')}; the local variance over a "
+            f"square of {mosaic.WINDOW_M:g} m on the ground, and s on blocks of the same square, so "
+            "that local variance (within a square) and s (between squares) cover every scale"
+        ),
     }[method]
     spec["mosaic"] = {
         "method": method,
@@ -170,7 +176,12 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
             "min_far_field_nodes": mosaic.MIN_FAR_NODES,
             "far_field_km": far_field_km,
         }
-    if method == "aligned_correlated":
+    if method == "aligned_scales":
+        spec["mosaic"]["structured_error"]["block_m"] = (
+            f"the local window: {mosaic.WINDOW_M:g} m (the window's nodes on the grid)"
+        )
+        spec["mosaic"]["structured_error"]["min_block_nodes"] = "half the block's nodes"
+    if method in mosaic.GROUND_WINDOW_METHODS:
         del spec["mosaic"]["local_window_nodes"]
         spec["mosaic"]["local_window_m"] = mosaic.WINDOW_M
         spec["mosaic"]["correlations"] = {
@@ -290,8 +301,8 @@ def ensemble_definition(
         raise ValueError("ensemble members must share one profile")
     if method not in ("aligned_weighted", "aligned_mean") + mosaic.FAR_FIELD_METHODS:
         raise ValueError(
-            "an ensemble needs an aligned mosaic (aligned_weighted, aligned_mean, aligned_total "
-            "or aligned_correlated)"
+            "an ensemble needs an aligned mosaic (aligned_weighted, aligned_mean, aligned_total, "
+            "aligned_correlated or aligned_scales)"
         )
     spec = deliverable_spec(method, far_field_km)
     spec["mosaic"] = {
@@ -414,9 +425,9 @@ def write_deliverable(
     projection and pixel size, origins on the same lattice). A node is valid in a path only where
     both dx and dy are.
 
-    aligned_total and aligned_correlated need far_nodes(epsg, x, y) -> bool (rows, cols): the
-    far-field nodes of the mosaic grid (node centres x, y). Members labelled <recipe>/P<path> are
-    grouped by recipe.
+    The far-field methods (mosaic.FAR_FIELD_METHODS) need far_nodes(epsg, x, y) -> bool
+    (rows, cols): the far-field nodes of the mosaic grid (node centres x, y). Members labelled
+    <recipe>/P<path> are grouped by recipe.
     """
     import numpy as np
     from osgeo import gdal
@@ -505,6 +516,10 @@ def write_deliverable(
                 },
                 sort_keys=True,
             )
+        if "structured_block_m" in merged["alignment"]["dx"]:
+            for comp, a in merged["alignment"].items():
+                alignment[comp]["structured_block_m"] = a["structured_block_m"]
+            metadata["STRUCTURED_BLOCK_M"] = str(merged["alignment"]["dx"]["structured_block_m"])
     out = gdal.GetDriverByName("GTiff").Create(
         out_path,
         cols,
