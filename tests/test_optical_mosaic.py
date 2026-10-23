@@ -168,3 +168,55 @@ def test_aligned_total_without_a_far_field_is_aligned_weighted() -> None:
     assert total["alignment"]["dx"]["structured_error"]["a"]["s_m"] is None
     with pytest.raises(ValueError, match="far-field nodes"):
         mosaic.merge(dx, dy, interp, chip, "aligned_total")
+
+
+def test_window_nodes_keeps_the_ground_size() -> None:
+    assert mosaic.window_nodes(90.0) == mosaic.WINDOW == 7
+    assert mosaic.window_nodes(30.0) == 21
+    assert mosaic.window_nodes(1000.0) == 3
+
+
+def shared_error_pair(spacing_m: float, shared: float) -> Tuple[Any, Any, Any, Any, Any]:
+    """
+    Two members over the same 60 x 90 nodes, true motion 0. Their errors share a common part:
+    node noise of `shared` m common to both, plus 0.1 m of each member's own. Returns the
+    stacks and the structure (all nodes far field) for the given node spacing.
+    """
+    rng = np.random.default_rng(4)
+    common = rng.normal(0, shared, (2, 60, 90))  # dx, dy
+    dx = np.stack([common[0] + rng.normal(0, 0.1, (60, 90)) for _ in range(2)])
+    dy = np.stack([common[1] + rng.normal(0, 0.1, (60, 90)) for _ in range(2)])
+    x = 400_000.0 + (np.arange(90) + 0.5) * spacing_m
+    y = 4_000_000.0 - (np.arange(60) + 0.5) * spacing_m
+    structure = {"far": np.ones((60, 90), bool), "x": x, "y": y, "groups": ["a", "b"]}
+    interp, chip = np.zeros_like(dx), np.full_like(dx, 4.0)
+    return dx.astype(np.float32), dy.astype(np.float32), interp, chip, structure
+
+
+def test_aligned_correlated_propagates_shared_errors() -> None:
+    dx, dy, interp, chip, structure = shared_error_pair(90.0, shared=0.3)
+    total = mosaic.merge(dx, dy, interp, chip, "aligned_total", structure)
+    corr = mosaic.merge(dx, dy, interp, chip, "aligned_correlated", structure)
+    rho = corr["alignment"]["dx"]["correlations"][0]["rho"]
+    assert rho == pytest.approx(0.9, abs=0.05)  # 0.3^2 / (0.3^2 + 0.1^2)
+    assert corr["alignment"]["dx"]["local_window_nodes"] == 7
+    for comp in ("dx", "dy"):  # same weights: the same values
+        np.testing.assert_allclose(corr[comp], total[comp], atol=1e-6)
+    # equal weights and rho 0.9: variance (1 + rho) / 2 of a member's, not 1 / 2
+    ratio = np.nanmedian(corr["sigma_h"]) / np.nanmedian(total["sigma_h"])
+    assert ratio == pytest.approx(np.sqrt(1 + rho), abs=0.03)
+    # the merged value keeps the shared error: assuming independence understates it
+    error = np.sqrt(np.nanmean(corr["dx"] ** 2 + corr["dy"] ** 2))
+    assert np.nanmedian(total["sigma_h"]) < error < np.nanmedian(corr["sigma_h"])
+
+
+def test_aligned_correlated_with_independent_members_and_a_30_m_grid() -> None:
+    dx, dy, interp, chip, structure = shared_error_pair(30.0, shared=0.0)
+    total = mosaic.merge(dx, dy, interp, chip, "aligned_total", structure)
+    corr = mosaic.merge(dx, dy, interp, chip, "aligned_correlated", structure)
+    assert corr["alignment"]["dy"]["local_window_nodes"] == 21
+    assert corr["alignment"]["dy"]["correlations"][0]["rho"] < 0.05
+    ratio = np.nanmedian(corr["sigma_h"]) / np.nanmedian(total["sigma_h"])
+    assert ratio == pytest.approx(1.0, abs=0.05)
+    with pytest.raises(ValueError, match="far-field nodes"):
+        mosaic.merge(dx, dy, interp, chip, "aligned_correlated")
