@@ -1,0 +1,76 @@
+{
+    "title": "m_58_209_km_ene_of_nagqu_china",
+    "time": 1792927557400,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    93.5041,
+                    31.8692
+                ],
+                [
+                    94.5041,
+                    31.8692
+                ],
+                [
+                    94.5041,
+                    32.8692
+                ],
+                [
+                    93.5041,
+                    32.8692
+                ],
+                [
+                    93.5041,
+                    31.8692
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_143": {
+            "flight_direction": "ASCENDING",
+            "path_number": 143,
+            "frame_numbers": [
+                96,
+                101
+            ],
+            "partial_job_file": "job_m_58_209_km_ene_of_nagqu_china_ASCENDING_143_partial.json",
+            "reference_date": "2026-10-19",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_70": {
+            "flight_direction": "ASCENDING",
+            "path_number": 70,
+            "frame_numbers": [
+                1287
+            ],
+            "partial_job_file": "job_m_58_209_km_ene_of_nagqu_china_ASCENDING_70_partial.json",
+            "reference_date": "2026-10-14",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_77": {
+            "flight_direction": "DESCENDING",
+            "path_number": 77,
+            "frame_numbers": [
+                481,
+                486
+            ],
+            "partial_job_file": "job_m_58_209_km_ene_of_nagqu_china_DESCENDING_77_partial.json",
+            "reference_date": "2026-10-14",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_4": {
+            "flight_direction": "DESCENDING",
+            "path_number": 4,
+            "frame_numbers": [
+                482,
+                487
+            ],
+            "partial_job_file": "job_m_58_209_km_ene_of_nagqu_china_DESCENDING_4_partial.json",
+            "reference_date": "2026-09-27",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
