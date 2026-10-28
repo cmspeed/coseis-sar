@@ -222,6 +222,51 @@ COMPOSITE_RECIPES.update(
     }
 )
 
+# Test (2026-10-27): the same recipes made by aria_coseis.optical.cdse from the Copernicus Data Space
+# Ecosystem instead of Earth Engine: the same windows, band, reducer, grid and snow rule, from
+# Collection-1 scenes only (processing baseline >= 05.00, complete in the Data Space where Earth
+# Engine mixes baselines), and with the Level-2A scene classification as the cloud mask (Cloud
+# Score+ exists only in Earth Engine). Compare with the Earth Engine recipe of the same name.
+CDSE_SCL_MASKED = (0, 1, 3, 8, 9, 10)  # no data, defective, cloud shadow, clouds, thin cirrus
+CDSE_SCL_DILATION_PX = 2  # 20 m pixels added around the masked classes
+_CDSE = {
+    "builder": "aria_coseis.optical.cdse",
+    "source": "Copernicus Data Space Ecosystem (OData API), not Earth Engine",
+    "collection": "SENTINEL-2 Level-1C (S2MSI1C), processing baseline >= 05.00 (Collection-1)",
+    "processing_baseline_min": "05.00",
+    "cloud_mask": (
+        "Level-2A scene classification (SCL, 20 m) of the same acquisition: classes "
+        f"{', '.join(map(str, CDSE_SCL_MASKED))} masked, dilated by {CDSE_SCL_DILATION_PX} pixels"
+    ),
+    "harmonization": (
+        "DN - 1000 (the RADIO_ADD_OFFSET of baselines >= 04.00), the scale of "
+        "COPERNICUS/S2_HARMONIZED; at least 1 where the scene has data"
+    ),
+    "dates": "the tiles of one acquisition are mosaicked first: one value per date and pixel",
+    "resampling": "nearest neighbour onto the grid",
+}
+COMPOSITE_RECIPES.update(
+    {
+        f"{rid}cdse": {
+            **{k: v for k, v in COMPOSITE_RECIPES[rid].items() if k != "cloud_score_min"},
+            **_CDSE,
+            "description": COMPOSITE_RECIPES[rid]["description"].rstrip(".")
+            + ". From the Copernicus Data Space (Collection-1 scenes, Level-2A cloud mask); a test.",
+            **(
+                {
+                    "stage_from_recipe": {
+                        stage: f"{src}cdse"
+                        for stage, src in COMPOSITE_RECIPES[rid]["stage_from_recipe"].items()
+                    }
+                }
+                if "stage_from_recipe" in COMPOSITE_RECIPES[rid]
+                else {}
+            ),
+        }
+        for rid in ("med30snow", "med90snow", "seas90snow")
+    }
+)
+
 # The first products ("v0"), made 2026-10-01 to 2026-10-13 in data/GEE_Optical_Downloads.
 V0_OLD_SCRIPT_EVENTS = (
     "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence",

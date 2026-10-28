@@ -42,7 +42,6 @@ from typing import Any
 
 from aria_coseis.aoi import load_aoi_from_json, make_aoi
 from aria_coseis.optical import runs, store
-from aria_coseis.usgs import get_ffm_geojson_url
 
 EE_PROJECT = "coseis-1"
 CLOUD_SCORE_COLLECTION = "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED"
@@ -106,6 +105,8 @@ def utm_epsg(lon: float, lat: float) -> int:
 
 def event_aoi(event_meta: dict[str, Any]) -> tuple[Any, str]:
     """The optical AOI of an event, as aria_coseis.pipeline makes it, and where it came from."""
+    from aria_coseis.usgs import get_ffm_geojson_url  # needs geojson, absent from autoRIFT envs
+
     url = get_ffm_geojson_url(event_meta["event_id"])
     if url:
         return load_aoi_from_json(url).buffer(AOI_BUFFER_DEG).envelope, url
@@ -535,7 +536,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "command", choices=["plan", "build"], help="plan only reads; build exports"
     )
-    choices = sorted(k for k, v in store.COMPOSITE_RECIPES.items() if "window_days" in v)
+    choices = (
+        sorted(  # recipes with another builder (e.g. aria_coseis.optical.cdse) are not made here
+            k
+            for k, v in store.COMPOSITE_RECIPES.items()
+            if "window_days" in v and "builder" not in v
+        )
+    )
     parser.add_argument("--recipe", required=True, choices=choices)
     which = parser.add_mutually_exclusive_group(required=True)
     which.add_argument("--event", action="append", help="Event folder name (repeatable)")
