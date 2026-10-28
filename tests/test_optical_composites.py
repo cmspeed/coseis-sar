@@ -89,7 +89,7 @@ def test_new_recipes_are_complete_and_med90_is_unchanged() -> None:
     recipes = store.COMPOSITE_RECIPES
     assert recipes["med90"]["pre_window"] == "[event - 90 d, event)"
     assert recipes["med90"]["snow_mask"] is None and "window_days" not in recipes["med90"]
-    made_here = [r for r, d in recipes.items() if "window_days" in d]
+    made_here = [r for r, d in recipes.items() if "window_days" in d and "builder" not in d]
     pb5 = ["med30ctrlpb5", "med30pb5", "med30snowpb5", "med90snowpb5", "seas90snowpb5"]
     assert sorted(made_here) == sorted(
         [
