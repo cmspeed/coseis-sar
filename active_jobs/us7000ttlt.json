@@ -1,0 +1,43 @@
+{
+    "title": "m_56_174_km_nw_of_portolry_vanuatu",
+    "time": 1793156388387,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    165.3001,
+                    -14.5693
+                ],
+                [
+                    166.3001,
+                    -14.5693
+                ],
+                [
+                    166.3001,
+                    -13.5693
+                ],
+                [
+                    165.3001,
+                    -13.5693
+                ],
+                [
+                    165.3001,
+                    -14.5693
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_154": {
+            "flight_direction": "ASCENDING",
+            "path_number": 154,
+            "frame_numbers": [
+                1128
+            ],
+            "partial_job_file": "job_m_56_174_km_nw_of_portolry_vanuatu_ASCENDING_154_partial.json",
+            "reference_date": "2026-10-20",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
