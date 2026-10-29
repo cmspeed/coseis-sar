@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_57_82_km_ne_of_kiunga_papua_new_guinea-DESCENDING31",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us7000ttw5",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20261023T201320_20261023T201347_005147_009C20_84F4",
+                "S1D_IW_SLC__1SDV_20261023T201255_20261023T201322_005147_009C20_5B2D"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]

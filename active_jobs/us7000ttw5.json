@@ -1,0 +1,66 @@
+{
+    "title": "m_57_82_km_ne_of_kiunga_papua_new_guinea",
+    "time": 1793244402275,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    141.4018,
+                    -6.1991
+                ],
+                [
+                    142.4018,
+                    -6.1991
+                ],
+                [
+                    142.4018,
+                    -5.1991
+                ],
+                [
+                    141.4018,
+                    -5.1991
+                ],
+                [
+                    141.4018,
+                    -6.1991
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_31": {
+            "flight_direction": "DESCENDING",
+            "path_number": 31,
+            "frame_numbers": [
+                608,
+                613
+            ],
+            "partial_job_file": "job_m_57_82_km_ne_of_kiunga_papua_new_guinea_DESCENDING_31_partial.json",
+            "reference_date": "2026-10-23",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_133": {
+            "flight_direction": "DESCENDING",
+            "path_number": 133,
+            "frame_numbers": [
+                610,
+                615
+            ],
+            "partial_job_file": "job_m_57_82_km_ne_of_kiunga_papua_new_guinea_DESCENDING_133_partial.json",
+            "reference_date": "2026-10-18",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_82": {
+            "flight_direction": "ASCENDING",
+            "path_number": 82,
+            "frame_numbers": [
+                1161,
+                1156
+            ],
+            "partial_job_file": "job_m_57_82_km_ne_of_kiunga_papua_new_guinea_ASCENDING_82_partial.json",
+            "reference_date": "2026-10-15",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
