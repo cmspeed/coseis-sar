@@ -29,20 +29,6 @@
         ]
     },
     "tracks": {
-        "ASCENDING_143": {
-            "flight_direction": "ASCENDING",
-            "path_number": 143,
-            "frame_numbers": [
-                96,
-                101
-            ],
-            "partial_job_file": "job_m_70_183_km_ene_of_nagqu_china_ASCENDING_143_partial.json",
-            "reference_date": "2026-10-19",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-10-19 (Pre) - 2026-10-31 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_70_183_km_ene_of_nagqu_china/ASCENDING143/coseismic/ASCENDING143_20261019_20261031"
-        },
         "ASCENDING_70": {
             "flight_direction": "ASCENDING",
             "path_number": 70,
