@@ -40,20 +40,6 @@
             "reference_date": "2026-10-23",
             "status": "AWAITING_POST_SEISMIC"
         },
-        "DESCENDING_133": {
-            "flight_direction": "DESCENDING",
-            "path_number": 133,
-            "frame_numbers": [
-                610,
-                615
-            ],
-            "partial_job_file": "job_m_57_82_km_ne_of_kiunga_papua_new_guinea_DESCENDING_133_partial.json",
-            "reference_date": "2026-10-18",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-10-18 (Pre) - 2026-10-30 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_57_82_km_ne_of_kiunga_papua_new_guinea/DESCENDING133/coseismic/DESCENDING133_20261018_20261030"
-        },
         "ASCENDING_82": {
             "flight_direction": "ASCENDING",
             "path_number": 82,
