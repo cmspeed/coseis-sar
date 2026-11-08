@@ -38,7 +38,10 @@
             ],
             "partial_job_file": "job_m_70_183_km_ene_of_nagqu_china_DESCENDING_77_partial.json",
             "reference_date": "2026-10-14",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "processing_status": "Success",
+            "dates": "2026-10-14 (Pre) - 2026-11-07 (Post)",
+            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_70_183_km_ene_of_nagqu_china/DESCENDING077/coseismic/DESCENDING077_20261014_20261107"
         }
     }
 }
