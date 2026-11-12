@@ -14,10 +14,11 @@ cloud mask. For each event, path and window:
    window. Baselines below the recipe's minimum are left out; per tile and acquisition date the
    highest baseline (then the latest processing) is kept, and matched with the Level-2A product of
    the same acquisition. Scenes without a Level-2A product, or offline, are left out and listed.
-2. B03, B08 and B11 of the Level-1C product and the Level-2A SCL are downloaded as single files (not
-   the whole product) into work/cdse/<event>/raw/.
+2. B03, B08 and B11 of the Level-1C product and the Level-2A SCL (and, for the *cdseprob recipes,
+   the Level-2A cloud probability MSK_CLDPRB_20m) are downloaded as single files (not the whole
+   product) into work/cdse/<event>/raw/.
 3. Per acquisition date, each tile is warped onto the grid (nearest neighbour), harmonized (DN -
-   1000), masked (the SCL classes, dilated, and the recipe's snow rule) and the date's tiles
+   1000), masked (the recipe's SCL classes and cloud probability, dilated, and its snow rule) and the date's tiles
    mosaicked into one layer, work/cdse/<event>/P<path>/dates_<masks>/<date>.tif (0 = no clear
    value).
 4. The composite is the per-pixel median of the window's date layers (uint16, nodata 0), clipped to
@@ -119,12 +120,23 @@ def snow(b3: Any, b8: Any, b11: Any, rule: dict[str, Any]) -> Any:
     return (ndsi >= rule["ndsi_min"]) & (b8 > rule["b8_min"]) & (b3 > rule["b3_min"])
 
 
-def cloud_mask(scl: Any, classes: tuple[int, ...], dilation_px: int) -> Any:
-    """Pixels of the masked scene classes, dilated by dilation_px (on the SCL's own 20 m grid)."""
+def cloud_mask(
+    scl: Any,
+    classes: tuple[int, ...] | list[int],
+    dilation_px: int,
+    probability: Any = None,
+    probability_min: int | None = None,
+) -> Any:
+    """
+    Pixels of the masked scene classes, and with probability_min those whose cloud probability (%)
+    is at least that, dilated by dilation_px (on the SCL's own 20 m grid).
+    """
     import numpy as np
     from scipy import ndimage
 
     masked = np.isin(scl, classes)
+    if probability_min is not None:
+        masked |= probability >= probability_min
     if dilation_px:
         masked = ndimage.binary_dilation(masked, structure=np.ones((3, 3)), iterations=dilation_px)
     return masked
@@ -259,11 +271,22 @@ def find_scenes(
     return {"scenes": scenes, "left_out": left_out}
 
 
+def recipe_mask(recipe: str) -> dict[str, Any]:
+    """The recipe's cloud mask: its cdse_mask, or the scene classes of the *cdse recipes."""
+    return store.COMPOSITE_RECIPES[recipe].get("cdse_mask") or {
+        "scl": store.CDSE_SCL_MASKED,
+        "dilation_px": store.CDSE_SCL_DILATION_PX,
+    }
+
+
 def mask_signature(recipe: str) -> str:
     """Folder name of the date layers: they depend on the masks only, so recipes can share them."""
     d = store.COMPOSITE_RECIPES[recipe]
     snow_rule = d.get("snow_mask")
-    tag = f"scl{''.join(map(str, store.CDSE_SCL_MASKED))}d{store.CDSE_SCL_DILATION_PX}"
+    mask = recipe_mask(recipe)
+    tag = f"scl{''.join(map(str, mask['scl']))}d{mask['dilation_px']}"
+    if mask.get("cloud_probability_min") is not None:
+        tag += f"_prb{mask['cloud_probability_min']}"
     if snow_rule:
         tag += f"_snow{snow_rule['ndsi_min']}-{snow_rule['b8_min']}-{snow_rule['b3_min']}"
     return f"dates_{tag}"
@@ -310,13 +333,32 @@ def _fetch(
     os.replace(part_file, dst)
 
 
-def download_scene(session: Session, work: Path, scene: dict[str, Any]) -> str:
-    """B03, B08, B11 of the Level-1C product and the SCL of the Level-2A one; skips files present."""
+def download_scene(
+    session: Session, work: Path, scene: dict[str, Any], probability: bool = False
+) -> str:
+    """
+    B03, B08, B11 of the Level-1C product and the SCL of the Level-2A one, and with probability the
+    Level-2A cloud probability (MSK_CLDPRB_20m); skips files present.
+    """
     folder = scene_dir(work, scene)
     done = folder / "done.json"
-    if done.exists():
-        return "present"
+    status = "present"
+    if not done.exists():
+        _download_bands(session, folder, scene)
+        status = "downloaded"
+    if probability and not (folder / "CLDPRB.jp2").exists():
+        l2a = scene["l2a"]
+        granule = _nodes(session, l2a, "GRANULE")[0]
+        files = _nodes(session, l2a, "GRANULE", granule, "QI_DATA")
+        name = next(f for f in files if f.startswith("MSK_CLDPRB_20m"))
+        _fetch(session, l2a, ["GRANULE", granule, "QI_DATA", name], folder / "CLDPRB.jp2")
+        status = "downloaded"
+    return status
+
+
+def _download_bands(session: Session, folder: Path, scene: dict[str, Any]) -> None:
     folder.mkdir(parents=True, exist_ok=True)
+    done = folder / "done.json"
     l1c, l2a = scene["l1c"], scene["l2a"]
     granule = _nodes(session, l1c, "GRANULE")[0]
     files = _nodes(session, l1c, "GRANULE", granule, "IMG_DATA")
@@ -330,7 +372,6 @@ def download_scene(session: Session, work: Path, scene: dict[str, Any]) -> str:
     if not (folder / "SCL.jp2").exists():
         _fetch(session, l2a, ["GRANULE", granule2, "IMG_DATA", "R20m", name], folder / "SCL.jp2")
     done.write_text(json.dumps({"l1c": l1c["name"], "l2a": l2a["name"]}) + "\n")
-    return "downloaded"
 
 
 def _warp(src: Any, grid: dict[str, Any], bounds: tuple[float, ...]) -> Any:
@@ -387,6 +428,8 @@ def date_layer(task: dict[str, Any]) -> str:
         return "present"
     definition = store.COMPOSITE_RECIPES[recipe]
     rule = definition.get("snow_mask")
+    mask = recipe_mask(recipe)
+    probability_min = mask.get("cloud_probability_min")
     layer = np.zeros((grid["rows"], grid["cols"]), dtype=np.uint16)
     g = composites.GRID_M
     for folder in map(Path, task["scene_dirs"]):
@@ -403,10 +446,15 @@ def date_layer(task: dict[str, Any]) -> str:
         b8 = harmonize(_warp(str(folder / "B08.jp2"), grid, bounds))
         keep = b8 > 0
         scl_ds = gdal.Open(str(folder / "SCL.jp2"))
+        probability = None
+        if probability_min is not None:  # same 20 m grid as the SCL
+            probability = gdal.Open(str(folder / "CLDPRB.jp2")).ReadAsArray()
         clouds = cloud_mask(
             scl_ds.GetRasterBand(1).ReadAsArray(),
-            store.CDSE_SCL_MASKED,
-            store.CDSE_SCL_DILATION_PX,
+            mask["scl"],
+            mask["dilation_px"],
+            probability,
+            probability_min,
         )
         mem = gdal.GetDriverByName("MEM").Create(
             "", scl_ds.RasterXSize, scl_ds.RasterYSize, 1, gdal.GDT_Byte
@@ -576,7 +624,10 @@ def build_event(
             f"  P{item['path']} {item['stage']}: {len(scenes)} scenes ({len(item['left_out'])} left out)"
         )
         with ThreadPoolExecutor(DOWNLOAD_THREADS) as pool:
-            for status in pool.map(lambda s: download_scene(session, work, s), scenes):
+            probability = recipe_mask(recipe).get("cloud_probability_min") is not None
+            for status in pool.map(
+                lambda s: download_scene(session, work, s, probability), scenes
+            ):
                 pass
         layer_dir = mask_signature(recipe)
         by_date: dict[str, list[str]] = defaultdict(list)

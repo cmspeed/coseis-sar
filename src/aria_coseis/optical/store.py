@@ -267,6 +267,44 @@ COMPOSITE_RECIPES.update(
     }
 )
 
+# Test (2026-11-11): the *cdse recipes with the Level-2A cloud probability in place of the scene
+# classification's cloud and cloud-shadow classes. At low sun the SCL labels terrain shadow as
+# cloud shadow (class 3): at Taiwan 2022 (P46, med90 POST window) 28-42 % of the steep slopes facing
+# away from the sun on the clear November-December dates, where Cloud Score+ keeps them and the
+# cloud probability is near 0, so those pixels' median came from the brighter September-October
+# dates only. Classes 0 and 1 (no data, defective) are still masked from the SCL. Lists, not
+# tuples: recipes.json must compare equal to the definition.
+CDSE_PROBABILITY_MASK = {"scl": [0, 1], "cloud_probability_min": 15, "dilation_px": 5}
+COMPOSITE_RECIPES.update(
+    {
+        f"{rid}cdseprob": {
+            **COMPOSITE_RECIPES[f"{rid}cdse"],
+            "cloud_mask": (
+                "Level-2A cloud probability (MSK_CLDPRB_20m) of the same acquisition >= "
+                f"{CDSE_PROBABILITY_MASK['cloud_probability_min']} %, and scene classification "
+                f"classes {', '.join(map(str, CDSE_PROBABILITY_MASK['scl']))} (no data, "
+                f"defective), dilated by {CDSE_PROBABILITY_MASK['dilation_px']} 20 m pixels; the "
+                "cloud-shadow class is not used (at low sun it holds terrain shadow)"
+            ),
+            "cdse_mask": CDSE_PROBABILITY_MASK,
+            "description": COMPOSITE_RECIPES[f"{rid}cdse"]["description"].replace(
+                "Level-2A cloud mask", "Level-2A cloud probability as the cloud mask"
+            ),
+            **(
+                {
+                    "stage_from_recipe": {
+                        stage: f"{src}cdseprob"
+                        for stage, src in COMPOSITE_RECIPES[rid]["stage_from_recipe"].items()
+                    }
+                }
+                if "stage_from_recipe" in COMPOSITE_RECIPES[rid]
+                else {}
+            ),
+        }
+        for rid in ("med30snow", "med90snow", "seas90snow")
+    }
+)
+
 # The first products ("v0"), made 2026-10-01 to 2026-10-13 in data/GEE_Optical_Downloads.
 V0_OLD_SCRIPT_EVENTS = (
     "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence",
