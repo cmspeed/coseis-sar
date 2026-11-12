@@ -31,7 +31,12 @@ from aria_coseis.optical.autorift_profiles import (  # noqa: E402
 )
 from aria_coseis.optical.jobs import make_optical_job_json  # noqa: E402
 from aria_coseis.pipeline import process_earthquake  # noqa: E402
-from aria_coseis.sar.pairing import generate_pairs, make_job_json  # noqa: E402
+from aria_coseis.sar import coverage  # noqa: E402
+from aria_coseis.sar.pairing import (  # noqa: E402
+    find_reference_and_secondary_pairs,
+    generate_pairs,
+    make_job_json,
+)
 from aria_coseis.significance import check_significance  # noqa: E402
 from aria_coseis.tracking import (  # noqa: E402
     add_to_tracker,
@@ -56,6 +61,8 @@ __all__ = [
     "check_tracker_for_updates",
     "cli",
     "convert_time",
+    "coverage",
+    "find_reference_and_secondary_pairs",
     "generate_pairs",
     "load_tracker",
     "main_forward",

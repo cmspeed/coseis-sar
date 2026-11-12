@@ -7,8 +7,8 @@ from itertools import combinations
 from typing import Any
 
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import unary_union
 
+from aria_coseis.sar.coverage import usable_dates
 from aria_coseis.utils import convert_time
 
 
@@ -74,26 +74,10 @@ def find_reference_and_secondary_pairs(
         slc_by_date[key].append(slc)
 
     sorted_dates = sorted(slc_by_date.keys())
-    initial_pairs = []
 
-    # Determine the maximum footprint this specific track has over the AOI
-    max_track_area = 0
-    for date in sorted_dates:
-        frames = slc_by_date[date]
-        union_geom = unary_union([slc["geometry"] for slc in frames])
-        intersection_area = union_geom.intersection(aoi).area
-        if intersection_area > max_track_area:
-            max_track_area = intersection_area
-
-    # Filter dates based on coverage
-    for date in sorted_dates:
-        frames = slc_by_date[date]
-        union_geom = unary_union([slc["geometry"] for slc in frames])
-        intersection_area = union_geom.intersection(aoi).area
-
-        # Only accept dates where the available data covers >95% of the track's max expected footprint
-        if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
-            initial_pairs.append((date, frames))
+    # Keep only dates whose frames cover the track's typical footprint over the AOI (sar/coverage.py)
+    usable = usable_dates(slc_by_date, aoi, rupture_date_dt)
+    initial_pairs = [(date, slc_by_date[date]) for date in sorted_dates if date in usable]
 
     pre_seismic = []
     post_seismic = []

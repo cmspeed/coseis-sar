@@ -11,10 +11,10 @@ from typing import Any
 
 from shapely.geometry import mapping, shape
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import unary_union
 
 from aria_coseis import config
 from aria_coseis.notify import send_email
+from aria_coseis.sar.coverage import usable_dates
 from aria_coseis.sar.pairing import make_job_json
 from aria_coseis.sar.search import get_path_and_frame_numbers, get_SLCs
 from aria_coseis.sar.topsapp import run_dockerized_topsApp
@@ -101,17 +101,11 @@ def add_to_tracker(eq: dict[str, Any], aoi: BaseGeometry, resolution: int = 30) 
         reference_date = None
 
         if slcs:
-            # Determine the maximum footprint this specific track has over the AOI
+            # Dates whose frames cover the track's typical footprint over the AOI (sar/coverage.py)
             scenes_by_date = defaultdict(list)
             for s in slcs:
                 scenes_by_date[s["date"][:10]].append(s)
-
-            max_track_area = 0
-            for date_str, scenes in scenes_by_date.items():
-                union_geom = unary_union([s["geometry"] for s in scenes])
-                intersection_area = union_geom.intersection(aoi).area
-                if intersection_area > max_track_area:
-                    max_track_area = intersection_area
+            usable = usable_dates(scenes_by_date, aoi, rupture_dt)
 
             # Filter for pre-seismic scenes and select the closest valid date
             valid_pre_scenes = [
@@ -123,12 +117,10 @@ def add_to_tracker(eq: dict[str, Any], aoi: BaseGeometry, resolution: int = 30) 
                 dates = sorted(list(set(s["date"][:10] for s in valid_pre_scenes)), reverse=True)
 
                 for ref_date in dates:
-                    candidate_scenes = [s for s in valid_pre_scenes if s["date"][:10] == ref_date]
-                    union_geom = unary_union([s["geometry"] for s in candidate_scenes])
-                    intersection_area = union_geom.intersection(aoi).area
-
-                    # Ensure coverage is at least 95% of the track's max expected footprint
-                    if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
+                    if ref_date in usable:
+                        candidate_scenes = [
+                            s for s in valid_pre_scenes if s["date"][:10] == ref_date
+                        ]
                         pre_slcs = [s["fileID"].removesuffix("-SLC") for s in candidate_scenes]
                         reference_date = ref_date
                         break  # Successfully found valid coverage
@@ -225,17 +217,12 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                 secondary_date = None
 
                 if slcs:
-                    # Determine the maximum footprint this specific track has over the AOI
+                    # Dates whose frames cover the track's typical footprint over the AOI
+                    # (sar/coverage.py)
                     scenes_by_date = defaultdict(list)
                     for s in slcs:
                         scenes_by_date[s["date"][:10]].append(s)
-
-                    max_track_area = 0
-                    for date_str, scenes in scenes_by_date.items():
-                        union_geom = unary_union([s["geometry"] for s in scenes])
-                        intersection_area = union_geom.intersection(aoi_geom).area
-                        if intersection_area > max_track_area:
-                            max_track_area = intersection_area
+                    usable = usable_dates(scenes_by_date, aoi_geom, rupture_dt)
 
                     # Filter for post-seismic scenes and select the closest valid date
                     slcs.sort(key=lambda x: x["date"])
@@ -253,11 +240,7 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                             candidate_scenes = [
                                 s for s in valid_post_scenes if s["date"][:10] == sec_date
                             ]
-                            union_geom = unary_union([s["geometry"] for s in candidate_scenes])
-                            intersection_area = union_geom.intersection(aoi_geom).area
-
-                            # Ensure coverage is at least 95% of the track's max expected footprint
-                            if max_track_area > 0 and (intersection_area / max_track_area) > 0.95:
+                            if sec_date in usable:
                                 post_slcs = [
                                     s["fileID"].removesuffix("-SLC") for s in candidate_scenes
                                 ]
