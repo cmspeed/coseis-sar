@@ -1,5 +1,6 @@
 """Copernicus Data Space composites: product names, scene choice, masks and the median."""
 
+import json
 from datetime import datetime, timezone
 
 import pytest
@@ -112,6 +113,52 @@ def test_cdseprob_recipes_change_only_the_cloud_mask():
     # the *cdse date layers keep their folder; the new mask gets its own
     assert cdse.mask_signature("med90snowcdse") == "dates_scl0138910d2_snow0.4-1100-1000"
     assert cdse.mask_signature("med90snowcdseprob") == "dates_scl01d5_prb15_snow0.4-1100-1000"
+
+
+def test_choose_scenes_keeps_only_refined_products_when_asked():
+    names = [
+        "S2A_MSIL1C_20230314T082721_N0510_R021_T36SYG_20240820T155416",  # REFINED, earlier
+        "S2A_MSIL1C_20230314T082721_N0510_R021_T36SYG_20240823T001122",  # NOT_REFINED, later
+        "S2A_MSIL1C_20230324T082721_N0510_R021_T36SYG_20240901T000000",  # only NOT_REFINED
+    ]
+    products = [cdse.parse_name(n) for n in names]
+    refined = dict(zip(names, ["REFINED", "NOT_REFINED", "NOT_REFINED"]))
+    assert [p["name"] for p in cdse.choose_scenes(products, "05.00")] == names[1:]
+    assert [p["name"] for p in cdse.choose_scenes(products, "05.00", refined)] == names[:1]
+
+
+def test_refining_flag_is_read_from_the_start_of_the_datastrip_metadata():
+    xml = b"<a>" + b"x" * 200_000 + b'<Image_Refining flag="NOT_REFINED"/>' + b"y" * 10
+    chunks = [xml[i : i + 65536] for i in range(0, len(xml), 65536)]
+    assert cdse.refining_flag(iter(chunks)) == "NOT_REFINED"
+    assert cdse.refining_flag(iter([b"<a/>"])) == "UNKNOWN"
+
+
+def test_cdseref_recipes_require_refined_products_and_keep_their_own_date_layers():
+    for rid in ("med30snow", "med90snow", "seas90snow"):
+        ref, base = store.COMPOSITE_RECIPES[f"{rid}cdseref"], store.COMPOSITE_RECIPES[f"{rid}cdse"]
+        assert ref["require_refined"] and "require_refined" not in base
+        assert (
+            ref["window_days"] == base["window_days"] and ref["cloud_mask"] == base["cloud_mask"]
+        )
+    assert store.COMPOSITE_RECIPES["seas90snowcdseref"]["stage_from_recipe"] == {
+        "POST": "med90snowcdseref"
+    }
+    assert cdse.mask_signature("med90snowcdseref") == (
+        "dates_scl0138910d2_snow0.4-1100-1000_refined"
+    )
+
+
+def test_scene_dir_keeps_another_product_of_the_same_tile_and_date_apart(tmp_path):
+    first = "S2A_MSIL1C_20230314T082721_N0510_R021_T36SYG_20240823T001122"
+    second = "S2A_MSIL1C_20230314T082721_N0510_R021_T36SYG_20240820T155416"
+    folder = cdse.scene_dir(tmp_path, {"l1c": cdse.parse_name(first)})
+    assert folder.name == "36SYG_20230314T082721"
+    folder.mkdir(parents=True)
+    (folder / "done.json").write_text(json.dumps({"l1c": first, "l2a": "x"}))
+    assert cdse.scene_dir(tmp_path, {"l1c": cdse.parse_name(first)}) == folder
+    other = cdse.scene_dir(tmp_path, {"l1c": cdse.parse_name(second)})
+    assert other.name == "36SYG_20230314T082721_20240820T155416"
 
 
 class BrokenOnce:

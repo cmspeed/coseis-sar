@@ -11,9 +11,11 @@ Collection-1 scenes only (processing baseline >= 05.00) and the Level-2A scene c
 cloud mask. For each event, path and window:
 
 1. The OData catalogue gives the path's Level-1C products intersecting the AOI rectangle in the
-   window. Baselines below the recipe's minimum are left out; per tile and acquisition date the
-   highest baseline (then the latest processing) is kept, and matched with the Level-2A product of
-   the same acquisition. Scenes without a Level-2A product, or offline, are left out and listed.
+   window. Baselines below the recipe's minimum are left out (and, for the *cdseref recipes,
+   products whose datastrip's geometric refinement failed: Image_Refining NOT_REFINED in
+   MTD_DS.xml); per tile and acquisition date the highest baseline (then the latest processing) is
+   kept, and matched with the Level-2A product of the same acquisition. Scenes without a Level-2A
+   product, or offline, are left out and listed.
 2. B03, B08 and B11 of the Level-1C product and the Level-2A SCL (and, for the *cdseprob recipes,
    the Level-2A cloud probability MSK_CLDPRB_20m) are downloaded as single files (not the whole
    product) into work/cdse/<event>/raw/.
@@ -64,6 +66,11 @@ NAME = re.compile(
     r"^(S2[ABCD])_MSIL(1C|2A)_(\d{8}T\d{6})_N(\d{4})_R(\d{3})_T(\w{5})_(\d{8}T\d{6})(\.SAFE)?$"
 )
 STAMP = "%Y%m%dT%H%M%S"
+# The geometric refinement (against the Sentinel-2 Global Reference Image) of a Level-1C datastrip:
+# REFINED or NOT_REFINED. A NOT_REFINED product can be several pixels off (Taiwan 2022: 3-12 m against
+# the refined dates). The flag sits about 110 kB into MTD_DS.xml (13-24 MB): read until it is found.
+REFINING = re.compile(rb'<Image_Refining flag="([A-Z_]+)"')
+REFINING_READ_MAX = 4 << 20
 
 
 def parse_name(name: str) -> dict[str, Any] | None:
@@ -84,14 +91,19 @@ def parse_name(name: str) -> dict[str, Any] | None:
     }
 
 
-def choose_scenes(products: list[dict[str, Any]], baseline_min: str) -> list[dict[str, Any]]:
+def choose_scenes(
+    products: list[dict[str, Any]], baseline_min: str, refined: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
     """
     One product per tile and acquisition date: baselines >= baseline_min ("NN.NN"), then the
-    highest baseline and the latest processing. Sorted by sensing time and tile.
+    highest baseline and the latest processing. With refined ({name: flag}), only REFINED products.
+    Sorted by sensing time and tile.
     """
     best: dict[tuple[str, str], dict[str, Any]] = {}
     for p in products:
         if p["baseline"] < baseline_min:
+            continue
+        if refined is not None and refined.get(p["name"]) != "REFINED":
             continue
         key = (p["tile"], p["sensing"].strftime("%Y%m%d"))
         if key not in best or (p["baseline"], p["processed"]) > (
@@ -251,15 +263,34 @@ def search(
 
 
 def find_scenes(
-    path: int, bounds: tuple[float, ...], start: datetime, end: datetime, baseline_min: str
+    path: int,
+    bounds: tuple[float, ...],
+    start: datetime,
+    end: datetime,
+    baseline_min: str,
+    flags: "RefinementFlags | None" = None,
 ) -> dict[str, Any]:
-    """The window's chosen Level-1C scenes, each with its Level-2A match, and those left out."""
-    l1c = choose_scenes(search("S2MSI1C", path, bounds, start, end), baseline_min)
+    """
+    The window's chosen Level-1C scenes, each with its Level-2A match, and those left out. With
+    flags, only geometrically refined Level-1C products are chosen; a tile and date without one is
+    left out.
+    """
+    found = search("S2MSI1C", path, bounds, start, end)
+    l1c = choose_scenes(found, baseline_min)
+    left_out: dict[str, str] = {}
+    if flags is not None:
+        refined = flags.of([p for p in found if p["baseline"] >= baseline_min])
+        chosen = choose_scenes(found, baseline_min, refined)
+        keys = {(p["tile"], p["sensing"]) for p in chosen}
+        for p in l1c:
+            if (p["tile"], p["sensing"]) not in keys:
+                left_out[p["name"]] = "geometric refinement failed (NOT_REFINED) in every product"
+        l1c = chosen
     l2a = {
         (p["tile"], p["sensing"].strftime(STAMP)): p
         for p in choose_scenes(search("S2MSI2A", path, bounds, start, end), baseline_min)
     }
-    scenes, left_out = [], {}
+    scenes = []
     for p in l1c:
         match = l2a.get((p["tile"], p["sensing"].strftime(STAMP)))
         if not match:
@@ -279,6 +310,53 @@ def recipe_mask(recipe: str) -> dict[str, Any]:
     }
 
 
+class RefinementFlags:
+    """Image_Refining flags of Level-1C products, cached per datastrip in a JSON file."""
+
+    def __init__(self, session: Session, cache: Path) -> None:
+        self.session, self.cache = session, cache
+        self.by_datastrip: dict[str, str] = json.loads(cache.read_text()) if cache.exists() else {}
+        self._lock = threading.Lock()
+
+    def flag(self, product: dict[str, Any]) -> str:
+        datastrip = _nodes(self.session, product, "DATASTRIP")[0]
+        with self._lock:
+            if datastrip in self.by_datastrip:
+                return self.by_datastrip[datastrip]
+        url = (
+            f"{DOWNLOAD}({product['id']})/Nodes({product['name']}.SAFE)/Nodes(DATASTRIP)"
+            f"/Nodes({datastrip})/Nodes(MTD_DS.xml)/$value"
+        )
+        with self.session.get(url, stream=True) as r:  # closed once the flag is read
+            flag = refining_flag(r.iter_content(1 << 16))
+        with self._lock:
+            self.by_datastrip[datastrip] = flag
+        return flag
+
+    def of(self, products: list[dict[str, Any]]) -> dict[str, str]:
+        """{product name: flag} for the products; the cache file is updated."""
+        with ThreadPoolExecutor(DOWNLOAD_THREADS) as pool:
+            flags = dict(zip((p["name"] for p in products), pool.map(self.flag, products)))
+        self.cache.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.cache.with_suffix(".part")
+        tmp.write_text(json.dumps(self.by_datastrip, indent=1, sort_keys=True) + "\n")
+        os.replace(tmp, self.cache)
+        return flags
+
+
+def refining_flag(chunks: Any) -> str:
+    """The Image_Refining flag in a stream of MTD_DS.xml chunks (UNKNOWN if not found early)."""
+    data = b""
+    for chunk in chunks:
+        data += chunk
+        m = REFINING.search(data)
+        if m:
+            return m.group(1).decode()
+        if len(data) > REFINING_READ_MAX:
+            break
+    return "UNKNOWN"
+
+
 def mask_signature(recipe: str) -> str:
     """Folder name of the date layers: they depend on the masks only, so recipes can share them."""
     d = store.COMPOSITE_RECIPES[recipe]
@@ -289,12 +367,19 @@ def mask_signature(recipe: str) -> str:
         tag += f"_prb{mask['cloud_probability_min']}"
     if snow_rule:
         tag += f"_snow{snow_rule['ndsi_min']}-{snow_rule['b8_min']}-{snow_rule['b3_min']}"
+    if d.get("require_refined"):  # a date's tiles may differ from the unfiltered recipes'
+        tag += "_refined"
     return f"dates_{tag}"
 
 
 def scene_dir(work: Path, scene: dict[str, Any]) -> Path:
+    """raw/<tile>_<sensing>; raw/<tile>_<sensing>_<processed> if that holds another product."""
     p = scene["l1c"]
-    return work / "raw" / f"{p['tile']}_{p['sensing'].strftime(STAMP)}"
+    folder = work / "raw" / f"{p['tile']}_{p['sensing'].strftime(STAMP)}"
+    done = folder / "done.json"
+    if done.exists() and json.loads(done.read_text())["l1c"] != p["name"]:
+        return folder.with_name(f"{folder.name}_{p['processed']}")
+    return folder
 
 
 def _nodes(session: Session, product: dict[str, Any], *parts: str) -> list[str]:
@@ -588,13 +673,22 @@ def plan_event(
 ) -> list[dict[str, Any]]:
     """The recipe's composites for an event, with the scenes of each window to export."""
     setup = setup or event_setup(root, event, reference)
-    baseline_min = store.COMPOSITE_RECIPES[recipe]["processing_baseline_min"]
+    definition = store.COMPOSITE_RECIPES[recipe]
+    baseline_min = definition["processing_baseline_min"]
+    flags = None
+    if definition.get("require_refined"):
+        flags = RefinementFlags(Session(), root / "work" / "cdse" / "refinement_flags.json")
     items = composites.planned_composites(root, event, recipe, setup["origin"], reference)
     for item in items:
         if item["action"] == "export":
             item.update(
                 find_scenes(
-                    item["path"], setup["aoi"].bounds, item["start"], item["end"], baseline_min
+                    item["path"],
+                    setup["aoi"].bounds,
+                    item["start"],
+                    item["end"],
+                    baseline_min,
+                    flags,
                 )
             )
     return items
