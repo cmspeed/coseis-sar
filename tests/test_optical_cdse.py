@@ -66,6 +66,15 @@ def test_cloud_mask_dilates_the_masked_classes():
     assert cdse.cloud_mask(scl, store.CDSE_SCL_MASKED, 0).sum() == 1
 
 
+def test_cloud_mask_adds_the_cloud_probability():
+    scl = np.full((7, 7), 3, dtype=np.uint8)  # cloud shadow everywhere: not a masked class here
+    probability = np.full((7, 7), 10, dtype=np.uint8)
+    probability[3, 3] = 15
+    assert cdse.cloud_mask(scl, [0, 1], 0, probability, 15).sum() == 1
+    assert cdse.cloud_mask(scl, [0, 1], 1, probability, 15).sum() == 9
+    assert cdse.cloud_mask(scl, [0, 1], 0, probability, 16).sum() == 0
+
+
 def test_nan_median_ignores_zeros_and_counts_dates():
     stack = np.array([[[0, 10]], [[0, 20]], [[0, 25]], [[0, 0]]], dtype=np.uint16)
     med, count = cdse.nan_median(stack)
@@ -85,6 +94,24 @@ def test_cdse_recipes_mirror_the_earth_engine_ones():
     assert store.COMPOSITE_RECIPES["seas90snowcdse"]["stage_from_recipe"] == {
         "POST": "med90snowcdse"
     }
+
+
+def test_cdseprob_recipes_change_only_the_cloud_mask():
+    for rid in ("med30snow", "med90snow", "seas90snow"):
+        scl, prob = (
+            store.COMPOSITE_RECIPES[f"{rid}cdse"],
+            store.COMPOSITE_RECIPES[f"{rid}cdseprob"],
+        )
+        same = {k for k in scl if k not in ("cloud_mask", "description", "stage_from_recipe")}
+        assert all(prob[k] == scl[k] for k in same)
+        assert cdse.recipe_mask(f"{rid}cdseprob") == store.CDSE_PROBABILITY_MASK
+        assert 3 not in cdse.recipe_mask(f"{rid}cdseprob")["scl"]
+    assert store.COMPOSITE_RECIPES["seas90snowcdseprob"]["stage_from_recipe"] == {
+        "POST": "med90snowcdseprob"
+    }
+    # the *cdse date layers keep their folder; the new mask gets its own
+    assert cdse.mask_signature("med90snowcdse") == "dates_scl0138910d2_snow0.4-1100-1000"
+    assert cdse.mask_signature("med90snowcdseprob") == "dates_scl01d5_prb15_snow0.4-1100-1000"
 
 
 class BrokenOnce:
