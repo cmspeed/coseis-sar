@@ -85,3 +85,55 @@ def test_cdse_recipes_mirror_the_earth_engine_ones():
     assert store.COMPOSITE_RECIPES["seas90snowcdse"]["stage_from_recipe"] == {
         "POST": "med90snowcdse"
     }
+
+
+class BrokenOnce:
+    """A response whose body breaks after the first chunk, the first time it is fetched."""
+
+    calls = 0
+
+    def __init__(self) -> None:
+        BrokenOnce.calls += 1
+        self.broken = BrokenOnce.calls == 1
+
+    def __enter__(self) -> "BrokenOnce":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def iter_content(self, size: int):  # noqa: ANN201
+        yield b"part"
+        if self.broken:
+            raise cdse.requests.exceptions.ChunkedEncodingError("Connection reset by peer")
+        yield b"-rest"
+
+
+class FakeSession:
+    def get(self, url: str, stream: bool = False) -> BrokenOnce:
+        return BrokenOnce()
+
+
+def test_a_download_broken_mid_stream_is_fetched_again(tmp_path, monkeypatch):
+    monkeypatch.setattr(cdse.time, "sleep", lambda s: None)
+    BrokenOnce.calls = 0
+    product = {"id": "abc", "name": "S2A_MSIL1C_X"}
+    cdse._fetch(FakeSession(), product, ["GRANULE"], tmp_path / "B08.jp2")
+    assert (tmp_path / "B08.jp2").read_bytes() == b"part-rest"
+    assert BrokenOnce.calls == 2
+    assert not (tmp_path / "B08.jp2.part").exists()
+
+
+def test_build_exits_with_an_error_when_an_event_fails(tmp_path, monkeypatch):
+    def fail(*args: object) -> dict:
+        raise ConnectionResetError("Connection reset by peer")
+
+    monkeypatch.setattr(cdse, "build_event", fail)
+    monkeypatch.setattr(cdse.store, "require_store", lambda root: tmp_path)
+    monkeypatch.setattr(cdse.store, "code_provenance", lambda: {})
+    monkeypatch.setattr(
+        cdse.runs, "code_signature", lambda p: {"aria_coseis": {"commit": "x", "dirty": False}}
+    )
+    with pytest.raises(SystemExit) as raised:
+        cdse.main(["build", "--recipe", "med90snowcdse", "--event", "e1", "--event", "e2"])
+    assert "2 of 2 events failed" in str(raised.value)

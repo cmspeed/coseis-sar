@@ -37,6 +37,7 @@ import json
 import netrc
 import os
 import re
+import sys
 import threading
 import time
 from collections import defaultdict
@@ -280,14 +281,32 @@ def _nodes(session: Session, product: dict[str, Any], *parts: str) -> list[str]:
     return [n["Name"] for n in session.get(url + "/Nodes").json()["result"]]
 
 
-def _fetch(session: Session, product: dict[str, Any], parts: list[str], dst: Path) -> None:
+# A connection broken while a file streams (the Data Space resets long downloads now and then):
+# Session.get retries the request, not the body, so the whole file is fetched again.
+STREAM_ERRORS = (
+    requests.exceptions.ChunkedEncodingError,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+)
+
+
+def _fetch(
+    session: Session, product: dict[str, Any], parts: list[str], dst: Path, tries: int = 6
+) -> None:
     url = f"{DOWNLOAD}({product['id']})/Nodes({product['name']}.SAFE)"
     for part in parts:
         url += f"/Nodes({part})"
     part_file = dst.with_suffix(dst.suffix + ".part")
-    with session.get(url + "/$value", stream=True) as r, open(part_file, "wb") as fh:
-        for chunk in r.iter_content(1 << 22):
-            fh.write(chunk)
+    for attempt in range(tries):
+        try:
+            with session.get(url + "/$value", stream=True) as r, open(part_file, "wb") as fh:
+                for chunk in r.iter_content(1 << 22):
+                    fh.write(chunk)
+            break
+        except STREAM_ERRORS:
+            if attempt == tries - 1:
+                raise
+            time.sleep(10 * (attempt + 1))
     os.replace(part_file, dst)
 
 
@@ -637,6 +656,7 @@ def main(argv: list[str] | None = None) -> None:
     code = runs.code_signature(store.code_provenance())["aria_coseis"]
     if code.get("dirty") or not code.get("commit"):
         parser.error(f"build needs committed aria_coseis code (got {code})")
+    failed = []
     for event in args.event:
         print(f"\n{event}")
         try:
@@ -646,6 +666,9 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"  {name}: {what}")
         except Exception as e:  # noqa: BLE001 - report the event and go on with the others
             print(f"  FAILED: {type(e).__name__}: {e}")
+            failed.append(event)
+    if failed:
+        sys.exit(f"{len(failed)} of {len(args.event)} events failed: {', '.join(failed)}")
 
 
 if __name__ == "__main__":
