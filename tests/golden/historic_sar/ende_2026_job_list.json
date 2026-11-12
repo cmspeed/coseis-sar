@@ -111,8 +111,8 @@
         "frame_id": -1,
         "goldstein_filter_power": 0.5,
         "granules": [
-          "S1D_IW_SLC__1SDV_20260826T213614_20260826T213642_004302_007ED2_B34E",
-          "S1D_IW_SLC__1SDV_20260826T213549_20260826T213616_004302_007ED2_4EDA"
+          "S1C_IW_SLC__1SDV_20260820T213556_20260820T213631_009084_01208A_BC33",
+          "S1C_IW_SLC__1SDV_20260820T213528_20260820T213558_009084_01208A_0DB0"
         ],
         "output_resolution": 30,
         "secondary_granules": [
