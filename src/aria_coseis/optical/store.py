@@ -305,6 +305,39 @@ COMPOSITE_RECIPES.update(
     }
 )
 
+# Test (2026-11-11): the *cdse recipes from geometrically refined Level-1C products only. The
+# Collection-1 reprocessing left some datastrips NOT_REFINED (Image_Refining in MTD_DS.xml): Taiwan
+# 2022 P46 from 7 October on, 3-12 m off the refined dates, which made the med90 and seas90 offsets
+# worse than Earth Engine's (whose original products of those dates are refined). Of several
+# products of a tile and date, a REFINED one is chosen; a tile and date with none is left out.
+COMPOSITE_RECIPES.update(
+    {
+        f"{rid}cdseref": {
+            **COMPOSITE_RECIPES[f"{rid}cdse"],
+            "require_refined": True,
+            "geometric_refinement": (
+                "only Level-1C products whose datastrip is REFINED (Image_Refining flag of "
+                "MTD_DS.xml); of several products of a tile and date the REFINED one, a tile and "
+                "date without one is left out"
+            ),
+            "description": COMPOSITE_RECIPES[f"{rid}cdse"]["description"].replace(
+                "Collection-1 scenes", "refined Collection-1 scenes"
+            ),
+            **(
+                {
+                    "stage_from_recipe": {
+                        stage: f"{src}cdseref"
+                        for stage, src in COMPOSITE_RECIPES[rid]["stage_from_recipe"].items()
+                    }
+                }
+                if "stage_from_recipe" in COMPOSITE_RECIPES[rid]
+                else {}
+            ),
+        }
+        for rid in ("med30snow", "med90snow", "seas90snow")
+    }
+)
+
 # The first products ("v0"), made 2026-10-01 to 2026-10-13 in data/GEE_Optical_Downloads.
 V0_OLD_SCRIPT_EVENTS = (
     "m_75_elbistan_earthquake_kahramanmaras_earthquake_sequence",
