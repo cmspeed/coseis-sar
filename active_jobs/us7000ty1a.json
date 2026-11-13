@@ -1,0 +1,79 @@
+{
+    "title": "m_58_79_km_wsw_of_changuillo_peru",
+    "time": 1794588182131,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -76.3807,
+                    -15.4934
+                ],
+                [
+                    -75.3807,
+                    -15.4934
+                ],
+                [
+                    -75.3807,
+                    -14.4934
+                ],
+                [
+                    -76.3807,
+                    -14.4934
+                ],
+                [
+                    -76.3807,
+                    -15.4934
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_120": {
+            "flight_direction": "ASCENDING",
+            "path_number": 120,
+            "frame_numbers": [
+                1130,
+                1132,
+                1126
+            ],
+            "partial_job_file": "job_m_58_79_km_wsw_of_changuillo_peru_ASCENDING_120_partial.json",
+            "reference_date": "2026-11-10",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_18": {
+            "flight_direction": "ASCENDING",
+            "path_number": 18,
+            "frame_numbers": [
+                1129,
+                1130
+            ],
+            "partial_job_file": "job_m_58_79_km_wsw_of_changuillo_peru_ASCENDING_18_partial.json",
+            "reference_date": "2026-11-09",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_171": {
+            "flight_direction": "DESCENDING",
+            "path_number": 171,
+            "frame_numbers": [
+                640,
+                641
+            ],
+            "partial_job_file": "job_m_58_79_km_wsw_of_changuillo_peru_DESCENDING_171_partial.json",
+            "reference_date": "2026-11-08",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_98": {
+            "flight_direction": "DESCENDING",
+            "path_number": 98,
+            "frame_numbers": [
+                641,
+                644,
+                639
+            ],
+            "partial_job_file": "job_m_58_79_km_wsw_of_changuillo_peru_DESCENDING_98_partial.json",
+            "reference_date": "2026-11-03",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

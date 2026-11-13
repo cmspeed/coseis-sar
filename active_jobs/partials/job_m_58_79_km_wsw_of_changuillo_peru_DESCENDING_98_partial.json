@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_58_79_km_wsw_of_changuillo_peru-DESCENDING98",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us7000ty1a",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20261103T103127_20261103T103144_010171_0144D6_E369",
+                "S1C_IW_SLC__1SDV_20261103T103102_20261103T103129_010171_0144D6_03AB"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]
