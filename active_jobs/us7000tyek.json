@@ -1,0 +1,55 @@
+{
+    "title": "m_55_9_km_e_of_union_philippines",
+    "time": 1794750095701,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    125.7,
+                    9.2595
+                ],
+                [
+                    126.7,
+                    9.2595
+                ],
+                [
+                    126.7,
+                    10.2595
+                ],
+                [
+                    125.7,
+                    10.2595
+                ],
+                [
+                    125.7,
+                    9.2595
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_163": {
+            "flight_direction": "DESCENDING",
+            "path_number": 163,
+            "frame_numbers": [
+                560,
+                554
+            ],
+            "partial_job_file": "job_m_55_9_km_e_of_union_philippines_DESCENDING_163_partial.json",
+            "reference_date": "2026-11-13",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_171": {
+            "flight_direction": "ASCENDING",
+            "path_number": 171,
+            "frame_numbers": [
+                27,
+                22
+            ],
+            "partial_job_file": "job_m_55_9_km_e_of_union_philippines_ASCENDING_171_partial.json",
+            "reference_date": "2026-11-08",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}

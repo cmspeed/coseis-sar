@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_55_9_km_e_of_union_philippines-ASCENDING171",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us7000tyek",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1C_IW_SLC__1SDV_20261108T094812_20261108T094838_010244_01475B_6D38",
+                "S1C_IW_SLC__1SDV_20261108T094747_20261108T094814_010244_01475B_EFF3"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]
