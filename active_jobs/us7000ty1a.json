@@ -41,20 +41,6 @@
             "reference_date": "2026-11-10",
             "status": "AWAITING_POST_SEISMIC"
         },
-        "ASCENDING_18": {
-            "flight_direction": "ASCENDING",
-            "path_number": 18,
-            "frame_numbers": [
-                1129,
-                1130
-            ],
-            "partial_job_file": "job_m_58_79_km_wsw_of_changuillo_peru_ASCENDING_18_partial.json",
-            "reference_date": "2026-11-09",
-            "status": "READY_FOR_EMAIL",
-            "processing_status": "Success",
-            "dates": "2026-11-09 (Pre) - 2026-11-15 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_58_79_km_wsw_of_changuillo_peru/ASCENDING018/coseismic/ASCENDING018_20261109_20261115"
-        },
         "DESCENDING_171": {
             "flight_direction": "DESCENDING",
             "path_number": 171,
