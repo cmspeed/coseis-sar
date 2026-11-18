@@ -1,0 +1,67 @@
+{
+    "title": "m_58_40_km_n_of_ruteng_indonesia",
+    "time": 1794976892015,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    120.0285,
+                    -8.7501
+                ],
+                [
+                    121.0285,
+                    -8.7501
+                ],
+                [
+                    121.0285,
+                    -7.7501
+                ],
+                [
+                    120.0285,
+                    -7.7501
+                ],
+                [
+                    120.0285,
+                    -8.7501
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "ASCENDING_112": {
+            "flight_direction": "ASCENDING",
+            "path_number": 112,
+            "frame_numbers": [
+                1153,
+                1148
+            ],
+            "partial_job_file": "job_m_58_40_km_n_of_ruteng_indonesia_ASCENDING_112_partial.json",
+            "reference_date": "2026-11-10",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_10": {
+            "flight_direction": "ASCENDING",
+            "path_number": 10,
+            "frame_numbers": [
+                1151
+            ],
+            "partial_job_file": "job_m_58_40_km_n_of_ruteng_indonesia_ASCENDING_10_partial.json",
+            "reference_date": "2026-08-23",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_61": {
+            "flight_direction": "DESCENDING",
+            "path_number": 61,
+            "frame_numbers": [
+                616,
+                620,
+                621,
+                614
+            ],
+            "partial_job_file": "job_m_58_40_km_n_of_ruteng_indonesia_DESCENDING_61_partial.json",
+            "reference_date": "2026-11-06",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
