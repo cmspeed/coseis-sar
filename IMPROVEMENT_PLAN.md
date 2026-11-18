@@ -1,6 +1,6 @@
 # COSEIS Improvement Plan
 
-**Goal:** a single `main` that does SAR and optical, is modular and tested, and supports optical in forward mode. Phases 1–2 built this on a separate `develop` branch; Phase 5 cut it over into production on 2026-10-07. Remaining: Phase 3 (optical forward mode) and Phase 4 (test gaps).
+**Goal:** a single `main` that does SAR and optical, is modular and tested, and supports optical in forward mode. Phases 1–2 built this on a separate `develop` branch; Phase 5 cut it over into production on 2026-10-07. Remaining: Phase 3 (optical forward mode), Phase 4 (test gaps), Phase 6 (optical products) and Phase 7 (urgent-response and production SAR products).
 
 ## Ground rules (since the cutover, 2026-10-07)
 1. **Feature branches into `main`.** Each change gets a branch (named by its GitHub issue number when there is one) and a PR into `main`, merged with a merge commit after CI passes. The `develop` branch is retired.
@@ -23,6 +23,7 @@
 | 4. Test suite + CI | mostly covered by 2a; gaps remain | — |
 | 5. Validation + cutover | **done** 2026-10-07 | branch `cutover` → PR #37; housekeeping → PR |
 | 6. Optical products (90 m fixes, then 30 m) | **in progress** | 6a: #43 → PR #44 (data store, done); 6b: #45 (versioned runs) |
+| 7. Urgent-response and production SAR products | **in progress** | issue #TBD |
 
 Completed tasks are checked off in place and tagged `DONE <date> (<commit/PR>)`.
 
@@ -200,6 +201,25 @@ Remaining gaps:
 **6d. Production runs.**
 - [ ] v1 at 90 m for all events.
 - [ ] 30 m on the same composites.
+
+## Phase 7: Urgent-response and production SAR products
+**Goal:** the production archive (`HISTORIC_EVENTS/`) holds only products made with precise orbits. Forward processing runs as soon as the post-event SLCs exist, when only restituted orbits are available (precise orbits take about 3 weeks), so its products become urgent-response products, and a second cron job remakes each one with precise orbits. Decisions (2026-11-18):
+- Urgent products are named `S1-COSEIS_SAR_UR-...` and go to `URGENT_RESPONSE/<year>/<title>_<event id>/`; production products keep the usual name and go to `HISTORIC_EVENTS/` in the same event folder.
+- Only events that meet the significance criteria get a production product.
+- Both cron jobs write to the onestopshop archive (`COSEIS-ONE_STOP_SHOP_COMPRESSED`, to be renamed without `_COMPRESSED` when the uncompressed copies are removed: then only `COSEIS_ARCHIVE_DIR` in the crontab changes). topsApp's working folders stay on trappist-r0.
+- Products are stored compressed only, repacked on placement until DockerizedTopsApp compresses its extra layers itself (fix to be proposed upstream by the maintainer).
+- The processing machine cannot email: its notifications go through `active_jobs/outbox/`, which the existing Action emails.
+
+**7a. Two cron jobs.**
+- [x] Urgent runner places its product in `URGENT_RESPONSE/` under the urgent name, compressed with the archive's repack code (`sar/repack.py`, checked against topsApp's file before it is renamed into place; never overwrites), and queues it (`MANIFESTS/precise_queue/`). A run that writes no product is now reported as failed.
+- [x] `python -m aria_coseis --precise` (`ops/run_coseis_precise.sh`, every 6 h): waits until ASF serves precise orbits for every SLC, checks the event against the historic criteria, reruns the same job on its own cores (17-33) and lock, checks the product name and orbits, and places it in `HISTORIC_EVENTS/`. Flags entries still without precise orbits after 30 days.
+- [x] Notifications: outbox committed by the precise wrapper, emailed by the Action; a shared `flock` around every git step of both cron wrappers; one Action run at a time.
+- [ ] Validate end to end in a sandbox (real topsApp rerun of Noda A141, which has a restituted reference orbit), then deploy: crontab entries with `COSEIS_ARCHIVE_DIR`, pause the runners for the merge.
+
+**7b. Follow-ups.**
+- [ ] The 4 HISTORIC products with a restituted orbit (Asadabad A071 and D078, Noda A141, Puerto Madero D099; the other 1,103 are precise on both dates): rerun with precise orbits, and decide whether the current files move to `URGENT_RESPONSE/` under urgent names.
+- [ ] Viewer: show production products only for now; later perhaps urgent products with a "restituted orbits" badge, replaced when the production product arrives.
+- [ ] Sync to the other copies (trappist-r0, aria-share/S3) and the catalogue for new products.
 
 ## Backlog: longer-term improvements
 Proposed along the way and not yet scheduled. Move items into a phase when picked up.
