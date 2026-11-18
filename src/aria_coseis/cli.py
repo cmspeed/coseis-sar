@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from aria_coseis.modes import main_forward, main_historic
+from aria_coseis.modes import main_forward, main_historic, main_precise
 
 
 def main() -> None:
@@ -20,6 +20,8 @@ def main() -> None:
         python coseis.py --eq_list events.json --sensor landsat --optical_backend gee
       Forward mode (GitHub Actions; local cron adds --resolution 30 --do_processing --process_only):
         python coseis.py --forward --pairing coseismic --send_email
+      Precise-orbit reruns of urgent-response products (processing machine):
+        python coseis.py --precise
     """
     parser = argparse.ArgumentParser(
         prog="aria-coseis",
@@ -32,6 +34,11 @@ def main() -> None:
     run_group.add_argument("--forward", action="store_true", help="Run forward processing.")
     run_group.add_argument(
         "--eq_list", type=str, help="Path to a custom JSON list of earthquakes to process."
+    )
+    run_group.add_argument(
+        "--precise",
+        action="store_true",
+        help="Rerun queued urgent-response SAR products with precise orbits (processing machine).",
     )
 
     parser.add_argument(
@@ -96,7 +103,7 @@ def main() -> None:
         parser.print_help()
         exit(1)
 
-    if args.sensor == "sar" and not args.pairing:
+    if args.sensor == "sar" and not args.pairing and not args.precise:
         print(
             "Error: --pairing is required when using --sensor sar. Options: 'all', 'sequential', 'coseismic'."
         )
@@ -104,7 +111,9 @@ def main() -> None:
         exit(1)
 
     # Mode routing
-    if args.historic:
+    if args.precise:
+        main_precise()
+    elif args.historic:
         if args.send_email or args.do_processing:
             print("Error: --send_email and --do_processing are only supported in --forward mode.")
             exit(1)

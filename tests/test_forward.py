@@ -17,7 +17,7 @@ import pytest
 import time_machine
 
 import coseis_api as api
-from conftest import read_json
+from conftest import FAKE_ORBITS, FAKE_PRODUCT, read_json
 
 PRODUCTION = Path(__file__).parent / "fixtures" / "production"
 LOCK_FILE = Path("/tmp/coseis_processing.lock")
@@ -141,38 +141,99 @@ def test_processing_success_matches_production(
 ) -> None:
     track = run_processing(workdir, topsapp, "success")
 
-    # Same state as production commit 92edeb3, apart from the machine-specific processing location
+    # Same state as production commit 92edeb3, apart from where the product is: since the
+    # urgent-response archive (2026-11) it is placed in URGENT_RESPONSE/ under its urgent name,
+    # and the track records the orbit type
     expected = read_json(PRODUCTION / "ende_92edeb3" / "us6000tkt2.json")["tracks"][
         "DESCENDING_61"
     ]
-    pair_dir = (
-        "m_77_68_km_nnw_of_ende_indonesia/DESCENDING061/coseismic/DESCENDING061_20260802_20260820"
+    urgent = FAKE_PRODUCT.replace("S1-COSEIS_SAR-", "S1-COSEIS_SAR_UR-")
+    urgent_dir = (
+        Path(api.settings.ARCHIVE_DIR)
+        / "URGENT_RESPONSE/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2"
+        / urgent
     )
-    assert expected["location"].endswith(pair_dir)
-    assert track["location"] == str(Path(api.settings.root_dir) / pair_dir)
-    assert {k: v for k, v in track.items() if k != "location"} == {
+    assert track["location"] == str(urgent_dir)
+    assert track["orbits"] == "restituted"
+    assert {k: v for k, v in track.items() if k not in ("location", "orbits")} == {
         k: v for k, v in expected.items() if k != "location"
     }
 
     # topsApp ran once on the pre/post pair; its resolution comes from the partial job file
+    pair_dir = (
+        "m_77_68_km_nnw_of_ende_indonesia/DESCENDING061/coseismic/DESCENDING061_20260802_20260820"
+    )
+    assert expected["location"].endswith(pair_dir)
+    processing_dir = Path(api.settings.root_dir) / pair_dir
     (call,) = topsapp["calls"]
-    assert call["cwd"] == track["location"]
+    assert call["cwd"] == str(processing_dir)
     cmd = call["cmd"]
     assert cmd[cmd.index("--reference-scenes") + 1] == (
         "S1C_IW_SLC__1SDV_20260820T213528_20260820T213558_009084_01208A_0DB0 "
         "S1C_IW_SLC__1SDV_20260820T213556_20260820T213631_009084_01208A_BC33"
     )
     assert cmd[cmd.index("--output-resolution") + 1] == "90"
+    assert cmd[cmd.index("taskset") + 2] == "0-16"
 
-    # Product kept, raw SLCs and intermediate dirs cleaned up, partial file consumed
-    location = Path(track["location"])
-    assert (location / "S1-GUNW-test-product.nc").exists()
-    assert not (location / "S1A_IW_SLC__fake.zip").exists()
-    assert not (location / "fine_interferogram").exists()
+    # Product kept in the processing folder, raw SLCs and intermediate dirs cleaned up, partial
+    # file consumed
+    assert (processing_dir / FAKE_PRODUCT / f"{FAKE_PRODUCT}.nc").exists()
+    assert not (processing_dir / "S1A_IW_SLC__fake.zip").exists()
+    assert not (processing_dir / "fine_interferogram").exists()
     assert (
-        location / "job_m_77_68_km_nnw_of_ende_indonesia_DESCENDING_61_COMPLETED.json"
+        processing_dir / "job_m_77_68_km_nnw_of_ende_indonesia_DESCENDING_61_COMPLETED.json"
     ).exists()
     assert partial_files(workdir) == {}
+
+    # The archive holds the .nc and .png only, under the urgent name
+    assert sorted(p.name for p in urgent_dir.iterdir()) == [f"{urgent}.nc", f"{urgent}.png"]
+
+    # Queued for the precise-orbit rerun, with the completed job
+    entry = read_json(
+        Path(api.settings.ARCHIVE_DIR) / "MANIFESTS" / "precise_queue" / f"{urgent}.json"
+    )
+    assert entry["status"] == "pending"
+    assert entry["event_id"] == "us6000tkt2"
+    assert entry["track"] == "DESCENDING_61"
+    assert entry["urgent_product"] == str(urgent_dir.relative_to(api.settings.ARCHIVE_DIR))
+    assert entry["production_product"] == (
+        f"HISTORIC_EVENTS/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2/{FAKE_PRODUCT}"
+    )
+    assert entry["urgent_orbits"] == sorted(FAKE_ORBITS["RESORB"])
+    assert entry["job"]["job_parameters"]["granules"] == cmd[
+        cmd.index("--reference-scenes") + 1
+    ].split(" ")
+
+
+@pytest.mark.vcr
+def test_processing_without_product_is_flagged(
+    workdir: Path, no_lock: None, topsapp: Dict[str, Any]
+) -> None:
+    """topsApp exits 0 but writes no product: nothing is placed or queued."""
+    track = run_processing(workdir, topsapp, "no_product")
+    assert track["status"] == "READY_FOR_EMAIL"
+    assert track["processing_status"].startswith("Failed: topsApp finished but wrote no product")
+    assert track["location"].endswith("DESCENDING061_20260802_20260820")
+    assert topsapp["placed"] == []
+    assert not (Path(api.settings.ARCHIVE_DIR) / "MANIFESTS").exists()
+
+
+@pytest.mark.vcr
+def test_processing_never_overwrites_the_archive(
+    workdir: Path, no_lock: None, topsapp: Dict[str, Any]
+) -> None:
+    """An urgent product already in the archive (e.g. a reset track) is left alone and flagged."""
+    urgent = FAKE_PRODUCT.replace("S1-COSEIS_SAR-", "S1-COSEIS_SAR_UR-")
+    existing = (
+        Path(api.settings.ARCHIVE_DIR)
+        / "URGENT_RESPONSE/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2"
+        / urgent
+    )
+    existing.mkdir(parents=True)
+    track = run_processing(workdir, topsapp, "success")
+    assert track["processing_status"].startswith("Failed: ")
+    assert "already exists" in track["processing_status"]
+    assert list(existing.iterdir()) == []
 
 
 @pytest.mark.vcr

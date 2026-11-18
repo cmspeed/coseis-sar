@@ -14,10 +14,10 @@ sys.path.insert(0, str(SRC_DIR))
 
 # Code under test. When a function moves to another module, update its import here only.
 # `settings` is the module holding root_dir, TRACKING_DIR, LOCK_FILE and the recipients.
-from aria_coseis import cli  # noqa: E402
+from aria_coseis import cli, precise  # noqa: E402
 from aria_coseis import config as settings  # noqa: E402
 from aria_coseis.aoi import make_aoi  # noqa: E402
-from aria_coseis.modes import main_forward, main_historic  # noqa: E402
+from aria_coseis.modes import main_forward, main_historic, main_precise  # noqa: E402
 from aria_coseis.notify import ascii_table_to_html  # noqa: E402
 from aria_coseis.optical import runs as optical_runs  # noqa: E402
 from aria_coseis.optical import store as optical_store  # noqa: E402
@@ -32,6 +32,7 @@ from aria_coseis.optical.autorift_profiles import (  # noqa: E402
 from aria_coseis.optical.jobs import make_optical_job_json  # noqa: E402
 from aria_coseis.pipeline import process_earthquake  # noqa: E402
 from aria_coseis.sar import coverage  # noqa: E402
+from aria_coseis.sar import products as sar_products  # noqa: E402
 from aria_coseis.sar.pairing import (  # noqa: E402
     find_reference_and_secondary_pairs,
     generate_pairs,
@@ -67,6 +68,9 @@ __all__ = [
     "load_tracker",
     "main_forward",
     "main_historic",
+    "main_precise",
+    "precise",
+    "sar_products",
     "make_aoi",
     "make_job_json",
     "make_optical_job_json",
@@ -82,7 +86,7 @@ __all__ = [
 def run_cli(argv: List[str]) -> List[Dict[str, Any]]:
     """
     Run the command-line entry point with `argv`, recording calls to
-    main_forward/main_historic instead of executing them.
+    main_forward/main_historic/main_precise instead of executing them.
     :return: list of {"func": name, "args": [...], "kwargs": {...}} in call order
     """
     calls: List[Dict[str, Any]] = []
@@ -93,11 +97,12 @@ def run_cli(argv: List[str]) -> List[Dict[str, Any]]:
 
         return record
 
-    real = (cli.main_forward, cli.main_historic, sys.argv)
+    real = (cli.main_forward, cli.main_historic, cli.main_precise, sys.argv)
     cli.main_forward, cli.main_historic = recorder("main_forward"), recorder("main_historic")
+    cli.main_precise = recorder("main_precise")
     sys.argv = ["coseis.py", *argv]
     try:
         cli.main()
     finally:
-        cli.main_forward, cli.main_historic, sys.argv = real
+        cli.main_forward, cli.main_historic, cli.main_precise, sys.argv = real
     return calls

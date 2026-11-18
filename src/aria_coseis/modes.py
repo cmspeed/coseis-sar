@@ -16,6 +16,7 @@ from aria_coseis.aoi import make_aoi
 from aria_coseis.config import GITHUB_PAGES_BASE_URL, USGS_api_alltime
 from aria_coseis.notify import ascii_table_to_html, get_next_pass, send_email
 from aria_coseis.pipeline import process_earthquake
+from aria_coseis.precise import check_precise_queue, send_outbox
 from aria_coseis.sar.search import get_path_and_frame_numbers
 from aria_coseis.significance import check_significance
 from aria_coseis.tracking import add_to_tracker, check_tracker_for_updates, load_tracker
@@ -414,6 +415,32 @@ def main_forward(
         # Check ASF DAAC for available SLCs for pending earthquakes
         check_tracker_for_updates(do_processing, send_email_flag)
 
+        # Email the processing machine's notifications (precise-orbit reruns)
+        if send_email_flag:
+            send_outbox()
+
+    finally:
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
+
+
+def main_precise() -> None:
+    """
+    Precise-orbit reruns (processing machine, ops/run_coseis_precise.sh): turn queued
+    urgent-response products into production products once precise orbits exist
+    (aria_coseis.precise). Uses its own lock, so it never holds up the urgent runner.
+    """
+    lock_file = config.PRECISE_LOCK_FILE
+    if lock_is_held(lock_file):
+        print("Previous precise-orbit run still active. Exiting.")
+        return
+    try:
+        with open(lock_file, "w") as f:
+            f.write(f"{os.getpid()} {datetime.now(timezone.utc).isoformat()}\n")
+        print("=========================================")
+        print(f"Precise-orbit reruns, {datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S} UTC")
+        print("=========================================")
+        check_precise_queue()
     finally:
         if os.path.exists(lock_file):
             os.remove(lock_file)

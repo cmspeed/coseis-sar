@@ -6,6 +6,12 @@ on:
     - cron: '*/50 * * * *'
   workflow_dispatch:
 
+# One run at a time: a delayed scheduled run waits for the previous one instead of overlapping it
+# (overlapping runs could email the same tracker or outbox entries twice)
+concurrency:
+  group: coseis-tracker
+  cancel-in-progress: false
+
 jobs:
   run-coseis-notifications:
     runs-on: ubuntu-latest
@@ -51,7 +57,8 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          # Stage the tracker (additions, edits and deletions, including active_jobs/partials/) and new maps
+          # Stage the tracker (additions, edits and deletions, including active_jobs/partials/ and
+          # the emailed active_jobs/outbox/ notifications) and new maps
           git add -A active_jobs/ || true
           git add docs/maps/*.html || true
           

@@ -8,6 +8,7 @@ External boundaries are faked so tests never send email, run topsApp or touch th
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import types
@@ -66,7 +67,23 @@ def workdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     repo_dir.mkdir()
     monkeypatch.chdir(repo_dir)
     monkeypatch.setattr(api.settings, "root_dir", str(repo_dir / "data"))
+    monkeypatch.setattr(api.settings, "ARCHIVE_DIR", str(tmp_path / "archive"))
     return repo_dir
+
+
+# A COSEIS_SAR product name as DockerizedTopsApp makes it, for the fake topsApp runs (the Ende D61
+# pair of tests/fixtures/production/ende_98ea2b5)
+FAKE_PRODUCT = "S1-COSEIS_SAR-D-R-061-tops-20260820_20260802-213528-00121E_00009S-PP-5d2a-v1_0_0"
+FAKE_ORBITS = {
+    "RESORB": [
+        "S1C_OPER_AUX_RESORB_OPOD_20260820T232113_V20260820T195847_20260820T231617.EOF",
+        "S1D_OPER_AUX_RESORB_OPOD_20260802T232101_V20260802T195902_20260802T231632.EOF",
+    ],
+    "POEORB": [
+        "S1C_OPER_AUX_POEORB_OPOD_20260909T070611_V20260819T225942_20260821T005942.EOF",
+        "S1D_OPER_AUX_POEORB_OPOD_20260822T070608_V20260801T225942_20260803T005942.EOF",
+    ],
+}
 
 
 @pytest.fixture(autouse=True)
@@ -92,22 +109,49 @@ def topsapp(monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
     """
     Intercept topsApp runs (subprocess.run commands containing "isce2_topsapp"); other commands,
     e.g. matplotlib's fc-list when building its font cache, run normally.
-    Set topsapp["outcome"] to choose the behavior: "success" writes a fake .nc product,
-    "nonzero_exit" raises CalledProcessError, "missing_conda" raises FileNotFoundError.
-    Calls are recorded in topsapp["calls"].
+    Set topsapp["outcome"] to choose the behavior: "success" writes a fake product
+    (topsapp["product"], with the orbit files topsapp["orbits"] in loc_data.json), "no_product"
+    exits 0 without one, "nonzero_exit" raises CalledProcessError, "missing_conda" raises
+    FileNotFoundError. Calls are recorded in topsapp["calls"].
+
+    Archive placements (aria_coseis.sar.products.place_file runs repack.py in the topsApp env)
+    copy the file instead and are recorded in topsapp["placed"].
     """
-    state: Dict[str, Any] = {"outcome": "unexpected", "calls": []}
+    state: Dict[str, Any] = {
+        "outcome": "unexpected",
+        "calls": [],
+        "placed": [],
+        "product": FAKE_PRODUCT,
+        "orbits": "RESORB",
+    }
     real_run = subprocess.run
 
     def fake_run(cmd: List[str], cwd: str = None, **kwargs: Any) -> subprocess.CompletedProcess:
+        if any(str(c).endswith("repack.py") for c in cmd):
+            src, dst = Path(cmd[-2]), Path(cmd[-1])
+            if dst.exists():
+                return subprocess.CompletedProcess(
+                    cmd, 1, stdout='{"status": "failed"}', stderr=""
+                )
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, dst)
+            state["placed"].append((str(src), str(dst)))
+            return subprocess.CompletedProcess(cmd, 0, stdout='{"status": "ok"}', stderr="")
         if "isce2_topsapp" not in cmd:
             return real_run(cmd, cwd=cwd, **kwargs)
         state["calls"].append({"cmd": cmd, "cwd": cwd})
         outcome = state["outcome"]
-        if outcome == "success":
-            Path(cwd, "S1-GUNW-test-product.nc").write_text("fake")
+        if outcome in ("success", "no_product"):
             Path(cwd, "S1A_IW_SLC__fake.zip").write_text("fake")
             Path(cwd, "fine_interferogram").mkdir()
+            orbits = [f"orbits/{name}" for name in FAKE_ORBITS[state["orbits"]]]
+            loc = {"reference_orbits": orbits[:1], "secondary_orbits": orbits[1:]}
+            Path(cwd, "loc_data.json").write_text(json.dumps(loc))
+            if outcome == "success":
+                product_dir = Path(cwd, state["product"])
+                product_dir.mkdir()
+                for ext in (".nc", ".png", ".json"):
+                    (product_dir / (state["product"] + ext)).write_text(f"fake {ext}")
             return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
         if outcome == "nonzero_exit":
             raise subprocess.CalledProcessError(1, cmd, output="", stderr="topsApp failed")

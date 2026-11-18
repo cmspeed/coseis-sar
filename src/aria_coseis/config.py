@@ -47,6 +47,35 @@ OPTICAL_DIR = os.environ.get("COSEIS_OPTICAL_DIR") or os.path.join("data", "opti
 # Prevents overlapping forward runs; run_coseis_forward.sh checks the default path too
 LOCK_FILE = os.environ.get("COSEIS_LOCK_FILE") or "/tmp/coseis_processing.lock"
 
+# SAR product archive (the one-stop shop). Forward mode places urgent-response products
+# (restituted orbits) in URGENT_RESPONSE/ and, once precise orbits exist, production products in
+# HISTORIC_EVENTS/. Production: /u/onestopshop/colespeed/COSEIS-ONE_STOP_SHOP_COMPRESSED.
+ARCHIVE_DIR = os.environ.get("COSEIS_ARCHIVE_DIR") or os.path.join("data", "COSEIS-ONE_STOP_SHOP")
+
+# Precise-orbit reruns (aria_coseis.precise): their own lock, so they never hold up urgent
+# processing, and their own cores
+PRECISE_LOCK_FILE = os.environ.get("COSEIS_PRECISE_LOCK_FILE") or "/tmp/coseis_precise.lock"
+# A queued product is flagged for attention if precise orbits are still missing after this long
+PRECISE_GIVE_UP_DAYS = 30
+
+# topsApp: conda environment and the CPU cores each runner pins it to (taskset -c)
+TOPSAPP_ENV = os.environ.get("COSEIS_TOPSAPP_ENV") or "topsapp_env_trappist_python11"
+TOPSAPP_CORES = os.environ.get("COSEIS_TOPSAPP_CORES") or "0-16"
+PRECISE_CORES = os.environ.get("COSEIS_PRECISE_CORES") or "17-33"
+
+# Notifications from the processing machine, which cannot send email: the precise runner writes
+# them to OUTBOX_STAGING_DIR (untracked), run_coseis_precise.sh moves them to OUTBOX_DIR and
+# pushes, and the GitHub Action emails and deletes them
+OUTBOX_DIR = os.environ.get("COSEIS_OUTBOX_DIR") or os.path.join(TRACKING_DIR, "outbox")
+OUTBOX_STAGING_DIR = os.environ.get("COSEIS_OUTBOX_STAGING_DIR") or os.path.join(
+    OUTPUT_DIR, "outbox_pending"
+)
+
+
+def precise_queue_dir() -> str:
+    """Queue of urgent-response products awaiting a precise-orbit rerun (one JSON per product)."""
+    return os.path.join(ARCHIVE_DIR, "MANIFESTS", "precise_queue")
+
 
 def get_recipients_from_env(var_name: str) -> list[str]:
     """

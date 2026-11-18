@@ -4,8 +4,9 @@
 # Checks tracked events for post-event Sentinel-1 data, runs topsApp, and commits the
 # updated tracker (active_jobs/, including active_jobs/partials/) to main.
 #
-# Optional environment overrides (see aria_coseis.config): COSEIS_DATA_DIR for topsApp
-# products (default <repo>/data), COSEIS_LOCK_FILE (default /tmp/coseis_processing.lock).
+# Optional environment overrides (see aria_coseis.config): COSEIS_DATA_DIR for topsApp's working
+# folders (default <repo>/data), COSEIS_ARCHIVE_DIR for the product archive (products go to its
+# URGENT_RESPONSE/), COSEIS_LOCK_FILE (default /tmp/coseis_processing.lock).
 
 # Setup Environment: ~/.bashrc normally initializes conda/mamba ("conda init")
 source ~/.bashrc
@@ -53,18 +54,32 @@ fi
 # output (including errors) to the log
 export GIT_TERMINAL_PROMPT=0
 
-# Sync with Github
-git checkout -q main >> "$LOG_FILE" 2>&1
+# Two cron jobs use git in this clone (this one and run_coseis_precise.sh): each git step holds
+# this lock, so they never run git at the same time. Processing itself runs without it (9>&-).
+exec 9> "$REPO_DIR/.git/coseis-git.lock"
 
-# Pull the latest tracker state that the GitHub Action just updated (keeps any local commits
-# left from an earlier failed push on top). On a conflict, abort and leave things as they were.
-if ! git pull -q --rebase origin main >> "$LOG_FILE" 2>&1; then
-    git rebase --abort 2> /dev/null || true
-    echo "$(date): git pull failed; processing anyway, will retry the push below." >> "$LOG_FILE"
+# Sync with Github
+if flock -w 900 9; then
+    git checkout -q main >> "$LOG_FILE" 2>&1
+
+    # Pull the latest tracker state that the GitHub Action just updated (keeps any local commits
+    # left from an earlier failed push on top). On a conflict, abort and leave things as they were.
+    if ! git pull -q --rebase origin main >> "$LOG_FILE" 2>&1; then
+        git rebase --abort 2> /dev/null || true
+        echo "$(date): git pull failed; processing anyway, will retry the push below." >> "$LOG_FILE"
+    fi
+    flock -u 9
+else
+    echo "$(date): git is busy (precise runner); processing without pulling." >> "$LOG_FILE"
 fi
 
 # Execute local processing (discovery disabled via --process_only)
-python -m aria_coseis --forward --pairing coseismic --resolution 30 --do_processing --process_only >> "$LOG_FILE" 2>&1
+python -m aria_coseis --forward --pairing coseismic --resolution 30 --do_processing --process_only >> "$LOG_FILE" 2>&1 9>&-
+
+if ! flock -w 900 9; then
+    echo "$(date): git is busy (precise runner); the next run will commit and push." >> "$LOG_FILE"
+    exit 0
+fi
 
 # Sync with Github: stage tracker edits, new files and deletions (finished partials) under active_jobs/
 git add -A active_jobs/ || true
@@ -77,18 +92,4 @@ fi
 
 # Push any local tracker commits, including ones left from an earlier failed push. If the GitHub
 # Action pushed in between, rebase onto it and try again.
-for ATTEMPT in 1 2 3; do
-    git fetch -q origin main >> "$LOG_FILE" 2>&1
-    if [ -z "$(git rev-list origin/main..HEAD)" ]; then
-        break
-    fi
-    if git pull -q --rebase origin main >> "$LOG_FILE" 2>&1 && git push -q origin main >> "$LOG_FILE" 2>&1; then
-        break
-    fi
-    git rebase --abort 2> /dev/null || true
-    echo "$(date): Push attempt $ATTEMPT failed; retrying." >> "$LOG_FILE"
-    sleep 30
-done
-if [ -n "$(git rev-list origin/main..HEAD)" ]; then
-    echo "$(date): WARNING: local tracker commits are not on GitHub yet; the next run will retry." >> "$LOG_FILE"
-fi
+source "$REPO_DIR/ops/push_main.sh"
