@@ -41,7 +41,7 @@ MAPS_DIR = os.environ.get("COSEIS_MAPS_DIR") or os.path.join("docs", "maps")
 OUTPUT_DIR = os.environ.get("COSEIS_OUTPUT_DIR") or "outputs"
 
 # Optical composites and autoRIFT products, by recipe and product version (aria_coseis.optical.store).
-# Production: /u/trappist-r0/colespeed/work/coseis_optical, outside the git clones.
+# In production it lives outside the git clones (set COSEIS_OPTICAL_DIR).
 OPTICAL_DIR = os.environ.get("COSEIS_OPTICAL_DIR") or os.path.join("data", "optical")
 
 # Prevents overlapping forward runs; run_coseis_forward.sh checks the default path too
@@ -49,7 +49,7 @@ LOCK_FILE = os.environ.get("COSEIS_LOCK_FILE") or "/tmp/coseis_processing.lock"
 
 # SAR product archive (the one-stop shop). Forward mode places urgent-response products
 # (restituted orbits) in URGENT_RESPONSE/ and, once precise orbits exist, production products in
-# HISTORIC_EVENTS/. Production: /u/onestopshop/colespeed/COSEIS-ONE_STOP_SHOP_COMPRESSED.
+# HISTORIC_EVENTS/. The processing machine sets COSEIS_ARCHIVE_DIR in its crontab.
 ARCHIVE_DIR = os.environ.get("COSEIS_ARCHIVE_DIR") or os.path.join("data", "COSEIS-ONE_STOP_SHOP")
 
 # Precise-orbit reruns (aria_coseis.precise): their own lock, so they never hold up urgent

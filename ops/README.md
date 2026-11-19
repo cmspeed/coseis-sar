@@ -50,7 +50,7 @@ Crontab entries (urgent processing at minutes 5 and 15; precise reruns every 6 h
 15,05 * * * * COSEIS_DATA_DIR=<repo>/scripts/data COSEIS_ARCHIVE_DIR=<archive> <repo>/ops/run_coseis_forward.sh
 30 */6 * * * COSEIS_DATA_DIR=<repo>/scripts/data COSEIS_ARCHIVE_DIR=<archive> <repo>/ops/run_coseis_precise.sh
 ```
-- `COSEIS_ARCHIVE_DIR` is the product archive: currently `/u/onestopshop/colespeed/COSEIS-ONE_STOP_SHOP_COMPRESSED`. When it is renamed, change it here. Without the variable, products go to `<repo>/data/COSEIS-ONE_STOP_SHOP/`.
+- `COSEIS_ARCHIVE_DIR` is the product archive (the one-stop shop). If the archive is renamed or moved, only these two crontab lines change. Without the variable, products go to `<repo>/data/COSEIS-ONE_STOP_SHOP/`.
 - `COSEIS_DATA_DIR` sets where topsApp works (SLCs, intermediate files and its copy of the product). The current machine keeps this in `scripts/data/` from before the 2026 layout change; without the variable it is `<repo>/data/`.
 - Cores: urgent processing runs topsApp on cores 0-16 and precise reruns on 17-33 (`COSEIS_TOPSAPP_CORES`, `COSEIS_PRECISE_CORES`).
 - The forward wrapper loads conda through `~/.bashrc`, activates `coseis-sar`, pulls `main`, runs processing, and pushes tracker changes. Its log is `logs/forward.log`. The precise wrapper does the same without pulling (the forward wrapper keeps the clone up to date); its log is `logs/precise.log`.
