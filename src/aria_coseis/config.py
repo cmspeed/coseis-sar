@@ -55,8 +55,11 @@ ARCHIVE_DIR = os.environ.get("COSEIS_ARCHIVE_DIR") or os.path.join("data", "COSE
 # Precise-orbit reruns (aria_coseis.precise): their own lock, so they never hold up urgent
 # processing, and their own cores
 PRECISE_LOCK_FILE = os.environ.get("COSEIS_PRECISE_LOCK_FILE") or "/tmp/coseis_precise.lock"
-# A queued product is flagged for attention if precise orbits are still missing after this long
+# A queued product is flagged for attention if precise orbits (or a historic-mode pair) are still
+# missing after this long
 PRECISE_GIVE_UP_DAYS = 30
+# Held (on local disk) while either runner reads and rewrites a queue entry
+QUEUE_LOCK_FILE = os.environ.get("COSEIS_QUEUE_LOCK_FILE") or "/tmp/coseis_precise_queue.lock"
 
 # topsApp: conda environment and the CPU cores each runner pins it to (taskset -c)
 TOPSAPP_ENV = os.environ.get("COSEIS_TOPSAPP_ENV") or "topsapp_env_trappist_python11"

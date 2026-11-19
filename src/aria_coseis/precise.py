@@ -3,14 +3,25 @@ Production products from precise orbits, and the processing machine's email outb
 
 Forward processing runs as soon as the post-event SLCs exist, when only restituted orbits are
 available, so its products are urgent-response products (URGENT_RESPONSE/, S1-COSEIS_SAR_UR-...).
-Each one is queued here (one JSON per product in config.precise_queue_dir()). The precise runner
-(`python -m aria_coseis --precise`, ops/run_coseis_precise.sh) works through the queue: once
-precise orbits (AUX_POEORB, about 3 weeks after acquisition) exist for every SLC of the job and the
-event meets the historic significance criteria, it reruns the same job (topsApp takes precise
-orbits when they exist) and places the result in HISTORIC_EVENTS/ under the production name.
+Each one is queued here (one JSON per urgent product in config.precise_queue_dir()). The precise
+runner (`python -m aria_coseis --precise`, ops/run_coseis_precise.sh) turns the queue into production
+products for HISTORIC_EVENTS/, made the way historic mode makes them:
+- the owner is the largest event (ties: the later one) among the events that used the urgent product
+  and meet the historic significance criteria, with their current USGS parameters;
+- the pair is the one historic mode selects for the owner on that track (its AOI, coverage rule and
+  SLC search), so it can differ from the urgent product's: forward mode picks the pre-event date
+  when the event is found and takes the first post-event pass;
+- it runs once precise orbits (AUX_POEORB, about 3 weeks after acquisition) exist for every SLC,
+  and a production job that another queue entry already produced is not run again.
 
-Queue statuses: pending -> done | not_eligible | failed. A failed entry is left for a human: fix
-the cause and set its status back to "pending" to retry.
+Pairs shared by several events (foreshocks, aftershocks, sequences) follow the archive's rules: one
+urgent copy per product name, in the folder of the largest event that used it; one production
+product per pair, owned by the largest eligible event.
+
+Queue statuses: pending -> done | not_eligible | failed (not_eligible goes back to pending if another
+event joins). A failed entry is left for a human: fix the cause and set its status back to
+"pending" to retry. Entries with any other status (e.g. "backfill", for urgent products placed by
+hand whose production products were made by a historic run) are left alone.
 
 The processing machine cannot send email: the precise runner writes notifications to
 config.OUTBOX_STAGING_DIR, ops/run_coseis_precise.sh moves them to config.OUTBOX_DIR (in git) and
@@ -19,9 +30,13 @@ pushes, and the GitHub Action emails them (send_outbox) and deletes them.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import glob
 import json
 import os
+import shutil
+from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -41,12 +56,13 @@ from aria_coseis.sar.products import (
     find_product,
     orbits_used,
     place_product,
+    production_name,
     urgent_name,
 )
 from aria_coseis.sar.topsapp import run_dockerized_topsApp
 from aria_coseis.significance import check_significance
 from aria_coseis.usgs import parse_geojson
-from aria_coseis.utils import convert_time
+from aria_coseis.utils import to_snake_case
 
 # ASF's orbit service: redirects to the orbit file it would serve for a scene (precise if it
 # exists, else restituted), the same lookup DockerizedTopsApp makes (s1_orbits.fetch_for_scene)
@@ -66,6 +82,27 @@ def write_json(path: str, data: Any) -> None:
     os.replace(tmp, path)
 
 
+@contextlib.contextmanager
+def queue_lock() -> Iterator[None]:
+    """Both runners read and rewrite queue entries: one at a time (a lock file on local disk)."""
+    with open(config.QUEUE_LOCK_FILE, "a") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def update_entry(path: str, change: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
+    """Apply change to the entry as it is on disk now, under the queue lock, and save it."""
+    with queue_lock():
+        with open(path) as f:
+            entry = json.load(f)
+        change(entry)
+        write_json(path, entry)
+    return entry
+
+
 def orbit_type(scene: str) -> str | None:
     """'POEORB' (precise) or 'RESORB' (restituted) for the orbit ASF would serve; None if none."""
     res = requests.get(f"{ORBIT_API}/{scene}", allow_redirects=False, timeout=60)
@@ -82,10 +119,11 @@ def orbit_type(scene: str) -> str | None:
     return None
 
 
-def meets_criteria(event_id: str) -> bool | None:
+def event_info(event_id: str) -> dict[str, Any] | None:
     """
-    Whether the event meets the historic significance criteria, with its current USGS parameters.
-    None if that cannot be decided now (USGS or the coastline service unreachable).
+    The event as USGS describes it now (parse_geojson's format), plus "historic": whether it meets
+    the historic significance criteria. {} if USGS has no such event (deleted or merged); None if
+    that cannot be decided now (USGS or the coastline service unreachable).
     """
     try:
         res = requests.get(
@@ -93,16 +131,30 @@ def meets_criteria(event_id: str) -> bool | None:
             params={"eventid": event_id, "format": "geojson"},
             timeout=60,
         )
-        if res.status_code in (404, 409):  # deleted or merged into another event
+        if res.status_code in (404, 409):
             print(f"    USGS has no event {event_id} (HTTP {res.status_code}).")
-            return False
+            return {}
         res.raise_for_status()
-        earthquakes = parse_geojson({"features": [res.json()]})
-        date = convert_time(earthquakes[0]["time"]).strftime("%Y-%m-%d")
-        return bool(check_significance(earthquakes, date, mode="historic"))
+        (eq,) = parse_geojson({"features": [res.json()]})
+        date = datetime.fromtimestamp(eq["time"] / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+        eq["historic"] = bool(check_significance([dict(eq)], date, mode="historic"))
+        return eq
     except (requests.RequestException, AttributeError, KeyError, ValueError) as e:
-        print(f"    Could not check the significance of {event_id}: {e}")
+        print(f"    Could not check event {event_id}: {e}")
         return None
+
+
+def outranks(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """True if event a owns over b: a larger magnitude, or the same magnitude and later."""
+    return (a.get("mag") or 0, a["time"]) > (b.get("mag") or 0, b["time"])
+
+
+def largest(events: list[dict[str, Any]]) -> dict[str, Any]:
+    owner = events[0]
+    for e in events[1:]:
+        if outranks(e, owner):
+            owner = e
+    return owner
 
 
 def queue_urgent_product(
@@ -116,32 +168,65 @@ def queue_urgent_product(
 ) -> str:
     """
     Place a forward-mode product in URGENT_RESPONSE/ under its urgent name and queue it for a
-    precise-orbit rerun. Returns the urgent product's folder.
+    production product. If another event already queued the same product (the same SLCs), it is not
+    placed again: this event is added to the entry, and the copy moves to this event's folder if this
+    event outranks the others. Returns the urgent product's folder.
     """
-    name = Path(nc_file).stem
-    year = event_year(event_data["time"])
-    folder = event_folder(event_data["title"], event_id)
-    urgent_rel = archive_rel_dir(URGENT_SET, year, folder, urgent_name(name))
-    production_rel = archive_rel_dir(PRODUCTION_SET, year, folder, name)
-
-    urgent_dir = place_product(
-        nc_file, os.path.join(config.ARCHIVE_DIR, urgent_rel), urgent_name(name)
-    )
-    entry = {
-        "status": "pending",
+    urgent = urgent_name(Path(nc_file).stem)
+    queue_file = os.path.join(config.precise_queue_dir(), f"{urgent}.json")
+    info = event_info(event_id) or {}
+    event = {
         "event_id": event_id,
         "title": event_data["title"],
         "time": event_data["time"],
-        "track": track_key,
-        "dates": dates,
-        "urgent_product": urgent_rel,
-        "production_product": production_rel,
-        "urgent_orbits": orbits_used(processing_dir),
-        "job": job,
-        "log": [f"{now_utc()} queued"],
+        "mag": info.get("mag"),
     }
-    write_json(os.path.join(config.precise_queue_dir(), f"{urgent_name(name)}.json"), entry)
-    return urgent_dir
+
+    def folder_of(e: dict[str, Any]) -> str:
+        return archive_rel_dir(
+            URGENT_SET, event_year(e["time"]), event_folder(e["title"], e["event_id"]), urgent
+        )
+
+    with queue_lock():
+        if not os.path.exists(queue_file):
+            rel = folder_of(event)
+            place_product(nc_file, os.path.join(config.ARCHIVE_DIR, rel), urgent)
+            entry = {
+                "status": "pending",
+                "urgent_product": rel,
+                "events": [event],
+                "track": track_key,
+                "dates": dates,
+                "urgent_orbits": orbits_used(processing_dir),
+                "job": job,
+                "production": {},
+                "log": [f"{now_utc()} queued for {event_id}"],
+            }
+            write_json(queue_file, entry)
+            return os.path.join(config.ARCHIVE_DIR, rel)
+
+        with open(queue_file) as f:
+            entry = json.load(f)
+        if event_id not in {e["event_id"] for e in entry["events"]}:
+            entry["events"].append(event)
+            entry["log"].append(f"{now_utc()} also used by {event_id}")
+            if entry["status"] == "not_eligible":
+                entry["status"] = "pending"  # the new event may be significant
+        rel = folder_of(largest(entry["events"]))
+        if rel != entry["urgent_product"]:
+            # The event that outranks the others keeps the copy (the archive's ownership rule)
+            src = os.path.join(config.ARCHIVE_DIR, entry["urgent_product"])
+            dst = os.path.join(config.ARCHIVE_DIR, rel)
+            if os.path.exists(dst):
+                raise FileExistsError(f"{dst} already exists")
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            os.rename(src, dst)
+            with contextlib.suppress(OSError):
+                os.rmdir(os.path.dirname(src))  # the other event's folder, if now empty
+            entry["log"].append(f"{now_utc()} moved to {os.path.dirname(rel)}")
+            entry["urgent_product"] = rel
+        write_json(queue_file, entry)
+        return os.path.join(config.ARCHIVE_DIR, rel)
 
 
 def load_queue() -> list[tuple[str, dict[str, Any]]]:
@@ -155,11 +240,12 @@ def load_queue() -> list[tuple[str, dict[str, Any]]]:
 
 def notify(kind: str, entry: dict[str, Any], location: str, message: str) -> None:
     """Leave an email notification for the GitHub Action (see the module docstring)."""
+    production = entry.get("production", {})
     note = {
         "kind": kind,
-        "title": entry["title"],
+        "title": production.get("owner_title") or entry["events"][0]["title"],
         "track": entry["track"],
-        "dates": entry["dates"],
+        "dates": production.get("dates") or entry["dates"],
         "location": location,
         "message": message,
         "time": now_utc(),
@@ -169,115 +255,236 @@ def notify(kind: str, entry: dict[str, Any], location: str, message: str) -> Non
     write_json(os.path.join(config.OUTBOX_STAGING_DIR, name), note)
 
 
+def log(entry: dict[str, Any], message: str) -> None:
+    entry["log"].append(f"{now_utc()} {message}")
+    print(f"    {message}")
+
+
 def set_status(entry: dict[str, Any], status: str, message: str) -> None:
     entry["status"] = status
-    entry["log"].append(f"{now_utc()} {status}: {message}")
-    print(f"    {status}: {message}")
+    log(entry, f"{status}: {message}")
 
 
-def make_production(entry: dict[str, Any]) -> None:
-    """Rerun the entry's job with precise orbits and place the product in HISTORIC_EVENTS/."""
-    job = entry["job"]
-    params = job["job_parameters"]
-    production_dir = os.path.join(config.ARCHIVE_DIR, entry["production_product"])
-    expected = os.path.basename(entry["production_product"])
+def fail(entry: dict[str, Any], location: str, message: str) -> None:
+    set_status(entry, "failed", message)
+    notify("failed", entry, location, message)
 
-    # The urgent run may already have had precise orbits (processed late): same product
-    if all_precise(entry["urgent_orbits"]):
-        urgent_dir = os.path.join(config.ARCHIVE_DIR, entry["urgent_product"])
-        urgent_nc = os.path.join(urgent_dir, os.path.basename(urgent_dir) + ".nc")
-        place_product(urgent_nc, production_dir, expected)
-        set_status(entry, "done", "urgent product already had precise orbits; copied")
-        return
 
-    # Scratch folder named like forward mode's: <title>/<track>/precise/<track>_<older>_<newer>
-    flight_dir, path_num = entry["track"].split("_")
-    track = f"{flight_dir}{int(path_num):03d}"
-    newer, older = expected.split("-")[6].split("_")
-    work_dir = os.path.join(
-        config.root_dir, entry["title"], track, "precise", f"{track}_{older}_{newer}"
+def scene_key(job: dict[str, Any]) -> list[list[str]]:
+    p = job["job_parameters"]
+    return [sorted(p["granules"]), sorted(p["secondary_granules"])]
+
+
+def pair_dates(job: dict[str, Any]) -> tuple[str, str]:
+    p = job["job_parameters"]
+    return min(s[17:25] for s in p["secondary_granules"]), min(s[17:25] for s in p["granules"])
+
+
+def contains(job: dict[str, Any], event_time: int | float) -> bool:
+    """True if the event's origin falls between the pair's pre- and post-event acquisitions."""
+    p = job["job_parameters"]
+    origin = datetime.fromtimestamp(event_time / 1000, tz=timezone.utc).strftime("%Y%m%dT%H%M%S")
+    return (
+        max(s[17:32] for s in p["secondary_granules"])
+        < origin
+        < min(s[17:32] for s in p["granules"])
     )
-    print(f"    Rerunning with precise orbits in {work_dir}")
+
+
+def historic_job(owner: dict[str, Any], track_key: str) -> dict[str, Any] | None:
+    """
+    The coseismic job historic mode makes for the owner event on this track (30 m, as the archive),
+    or None if it makes none (the track misses the owner's AOI, or there is no pair yet).
+    """
+    from aria_coseis.pipeline import event_aoi
+    from aria_coseis.sar.pairing import find_reference_and_secondary_pairs
+    from aria_coseis.sar.search import get_path_and_frame_numbers, get_SLCs
+
+    flight_direction, path_number = track_key.split("_")
+    aoi = event_aoi(owner)
+    tracks, _ = get_path_and_frame_numbers(aoi, owner["time"])
+    if not any(fd == flight_direction and int(pn) == int(path_number) for fd, pn in tracks):
+        return None
+    slcs = get_SLCs(
+        flight_direction, path_number, aoi.wkt, owner["time"], processing_mode="historic"
+    )
+    jobs = find_reference_and_secondary_pairs(
+        slcs,
+        owner["time"],
+        flight_direction,
+        path_number,
+        to_snake_case(owner["title"]),
+        aoi,
+        owner["id"],
+        "coseismic",
+        job_list=True,
+        resolution=30,
+    )
+    return jobs[0] if jobs else None
+
+
+def wait_or_give_up(entry: dict[str, Any], what: str) -> None:
+    """Keep waiting for what, or flag the entry once it has waited too long."""
+    queued = datetime.strptime(entry["log"][0].split()[0], "%Y-%m-%dT%H:%M:%SZ")
+    days = (datetime.now(timezone.utc) - queued.replace(tzinfo=timezone.utc)).days
+    if days >= config.PRECISE_GIVE_UP_DAYS:
+        fail(entry, entry["urgent_product"], f"{what} after {days} days")
+    else:
+        print(f"    Waiting: {what}.")
+
+
+def make_production(entry: dict[str, Any], job: dict[str, Any], production_dir: str) -> str:
+    """
+    Make the production product for job and place it in production_dir (relative to the archive).
+    The urgent product is copied instead if it is the same pair and already had precise orbits.
+    Returns the product's folder relative to the archive.
+    """
+    if scene_key(job) == scene_key(entry["job"]) and all_precise(entry["urgent_orbits"]):
+        urgent_dir = os.path.join(config.ARCHIVE_DIR, entry["urgent_product"])
+        name = production_name(os.path.basename(urgent_dir))
+        rel = os.path.join(production_dir, name)
+        place_product(
+            os.path.join(urgent_dir, os.path.basename(urgent_dir) + ".nc"),
+            os.path.join(config.ARCHIVE_DIR, rel),
+            name,
+        )
+        log(entry, f"copied the urgent product (same pair, precise orbits) as {name}")
+        return rel
+
+    # Scratch folder named like historic mode's: <title>/<track>/precise/<track>_<pre>_<post>
+    folder, track = job["name"].rsplit("-", 1)
+    pre, post = pair_dates(job)
+    work_dir = os.path.join(config.root_dir, folder, track, "precise", f"{track}_{pre}_{post}")
+    if find_product(work_dir) is None and os.path.exists(work_dir):
+        shutil.rmtree(work_dir)  # an earlier attempt that left no product
+    print(f"    Running with precise orbits in {work_dir}")
     run_dockerized_topsApp(job, work_dir, cores=config.PRECISE_CORES)
 
     nc_file = find_product(work_dir)
     if nc_file is None:
         raise RuntimeError(f"topsApp finished but wrote no product in {work_dir}")
-    if Path(nc_file).stem != expected:
-        raise RuntimeError(f"product {Path(nc_file).stem} is not the expected {expected}")
     orbits = orbits_used(work_dir)
     if not all_precise(orbits):
         raise RuntimeError(f"topsApp did not use precise orbits for every SLC: {orbits}")
     clean_processing_dir(work_dir)
-    place_product(nc_file, production_dir, expected)
-    set_status(
-        entry,
-        "done",
-        f"placed {expected} ({len(params['granules'])} + "
-        f"{len(params['secondary_granules'])} SLCs, orbits {', '.join(orbits)})",
-    )
+    name = Path(nc_file).stem
+    rel = os.path.join(production_dir, name)
+    place_product(nc_file, os.path.join(config.ARCHIVE_DIR, rel), name)
+    log(entry, f"placed {name} (orbits {', '.join(orbits)})")
+    return rel
 
 
-def process_entry(entry: dict[str, Any]) -> bool:
-    """Advance one pending entry. Returns True if its status changed."""
-    production_dir = os.path.join(config.ARCHIVE_DIR, entry["production_product"])
-    if os.path.exists(production_dir):
-        set_status(entry, "done", "production product already in the archive")
-        return True
+def process_entry(entry: dict[str, Any], others: list[dict[str, Any]]) -> None:
+    """Advance one pending entry (others: the rest of the queue, as on disk)."""
+    production = entry.setdefault("production", {})
 
-    params = entry["job"]["job_parameters"]
-    scenes = params["granules"] + params["secondary_granules"]
-    if not all_precise(entry["urgent_orbits"]):
+    # Owner: the largest event the pair contains that meets the historic criteria. Contained: the
+    # events that used this urgent product, and events queued on the same track (with other
+    # frames) whose origin falls between the pair's acquisitions
+    events = {e["event_id"] for e in entry["events"]}
+    for other in others:
+        if other["track"] == entry["track"]:
+            events |= {e["event_id"] for e in other["events"] if contains(entry["job"], e["time"])}
+    infos = []
+    for e in sorted(events):
+        info = event_info(e)
+        if info is None:
+            return  # try again next run
+        if info and info["historic"]:
+            infos.append(info)
+    if not infos:
+        set_status(entry, "not_eligible", "no event meets the significance criteria")
+        return
+    owner = largest(infos)
+    if production.get("owner") not in (None, owner["id"]):
+        production.pop("job", None)  # the owner changed: select the pair again
+    production.update(owner=owner["id"], owner_title=to_snake_case(owner["title"]))
+
+    # The pair historic mode selects for the owner on this track
+    if "job" not in production:
         try:
-            types = {scene: orbit_type(scene) for scene in scenes}
+            job = historic_job(owner, entry["track"])
+        except requests.RequestException as e:
+            print(f"    Could not search ASF (trying again next run): {e}")
+            return
+        if job is None:
+            wait_or_give_up(entry, "no historic-mode pair for the owner on this track")
+            return
+        production["job"] = job
+        log(
+            entry,
+            f"historic-mode pair for {owner['id']}: {job['name']} {'_'.join(pair_dates(job))}",
+        )
+    job = production["job"]
+    pre, post = pair_dates(job)
+    production["dates"] = f"{pre} (Pre) - {post} (Post)"
+
+    # Made already through another urgent product (the same pair of the same owner)
+    for other in others:
+        o = other.get("production", {})
+        if o.get("product") and o.get("job") and scene_key(o["job"]) == scene_key(job):
+            production["product"] = o["product"]
+            set_status(entry, "done", f"same production product as {other['urgent_product']}")
+            return
+
+    # Precise orbits for every SLC of the production job
+    if not (scene_key(job) == scene_key(entry["job"]) and all_precise(entry["urgent_orbits"])):
+        p = job["job_parameters"]
+        scenes = p["granules"] + p["secondary_granules"]
+        try:
+            missing = [s for s in scenes if orbit_type(s) != "POEORB"]
         except requests.RequestException as e:
             print(f"    Could not check the orbits (trying again next run): {e}")
-            return False
-        missing = [scene for scene, kind in types.items() if kind != "POEORB"]
+            return
         if missing:
-            queued = datetime.strptime(entry["log"][0].split()[0], "%Y-%m-%dT%H:%M:%SZ")
-            waited = datetime.now(timezone.utc) - queued.replace(tzinfo=timezone.utc)
-            if waited.days >= config.PRECISE_GIVE_UP_DAYS:
-                message = (
-                    f"no precise orbits after {waited.days} days for {len(missing)} of "
-                    f"{len(scenes)} SLCs"
-                )
-                set_status(entry, "failed", message)
-                notify("failed", entry, production_dir, message)
-                return True
-            print(f"    Waiting for precise orbits ({len(missing)} of {len(scenes)} SLCs).")
-            return False
+            wait_or_give_up(entry, f"no precise orbits for {len(missing)} of {len(scenes)} SLCs")
+            return
 
-    eligible = meets_criteria(entry["event_id"])
-    if eligible is None:
-        return False
-    if not eligible:
-        set_status(entry, "not_eligible", "event does not meet the significance criteria")
-        return True
-
+    production_dir = os.path.join(
+        PRODUCTION_SET,
+        event_year(owner["time"]),
+        event_folder(production["owner_title"], owner["id"]),
+    )
     try:
-        make_production(entry)
+        production["product"] = make_production(entry, job, production_dir)
     except Exception as e:
-        set_status(entry, "failed", str(e))
-        notify("failed", entry, production_dir, str(e))
-        return True
-    notify("production", entry, production_dir, entry["log"][-1].split(" ", 1)[1])
-    return True
+        fail(entry, os.path.join(config.ARCHIVE_DIR, production_dir), str(e))
+        return
+    message = entry["log"][-1].split(" ", 1)[1]
+    set_status(entry, "done", f"production product {production['product']}")
+    notify("production", entry, os.path.join(config.ARCHIVE_DIR, production["product"]), message)
 
 
 def check_precise_queue() -> None:
     """Work through the queue of urgent-response products (one precise-runner run)."""
-    queue = [(path, entry) for path, entry in load_queue() if entry["status"] == "pending"]
-    print(f"{len(queue)} urgent-response products await a precise-orbit rerun.")
-    for path, entry in queue:
+    pending = [path for path, entry in load_queue() if entry["status"] == "pending"]
+    print(f"{len(pending)} urgent-response products await a production product.")
+    for path in pending:
+        with open(path) as f:
+            entry = json.load(f)
         print(f"  {os.path.basename(entry['urgent_product'])}")
+        others = [e for p, e in load_queue() if p != path]
+        before = json.dumps(entry, sort_keys=True)
         try:
-            changed = process_entry(entry)
+            process_entry(entry, others)
         except Exception as e:  # one bad entry must not stop the others
             print(f"    Unexpected error (trying again next run): {type(e).__name__}: {e}")
             continue
-        if changed:
-            write_json(path, entry)
+        if json.dumps(entry, sort_keys=True) == before:
+            continue
+
+        def merge(current: dict[str, Any], mine: dict[str, Any] = entry) -> None:
+            """Save this run's changes, keeping events the urgent runner added meanwhile."""
+            known = {e["event_id"] for e in mine["events"]}
+            added = [e for e in current["events"] if e["event_id"] not in known]
+            urgent_product = current["urgent_product"]  # the urgent runner may have moved it
+            current.update(mine)
+            current["urgent_product"] = urgent_product
+            current["events"] = mine["events"] + added
+            if added and current["status"] == "not_eligible":
+                current["status"] = "pending"  # an event joined: it may be significant
+
+        update_entry(path, merge)
 
 
 def outbox_ready() -> bool:
@@ -313,7 +520,7 @@ def send_outbox() -> None:
         <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 20px;">
         <div style="max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px;">
             <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-top: 0;">Production Products Update</h2>
-            <p>Urgent-response products rerun with precise orbits for the production archive:</p>
+            <p>Production products made with precise orbits after urgent-response products:</p>
     """
     for n in notes:
         ok = n["kind"] == "production"

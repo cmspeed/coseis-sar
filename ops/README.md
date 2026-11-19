@@ -20,20 +20,23 @@ Tracker states, per event and track:
 `active_jobs/<event_id>.json` holds one event; `active_jobs/partials/` holds its HyP3-style job files waiting for post-event granules; `active_jobs/outbox/` holds the precise runner's notifications until the Action emails them.
 
 ## Urgent-response and production products
-Precise orbits (AUX_POEORB) appear about 3 weeks after an acquisition, so the urgent runner always works with restituted orbits. Each product is therefore made twice from the same job (the same SLCs, hence the same dates, corner and scene hash):
+Precise orbits (AUX_POEORB) appear about 3 weeks after an acquisition, so the urgent runner always works with restituted orbits. Each event therefore gets two records:
 
 ```
 <archive>/URGENT_RESPONSE/<year>/<title>_<event id>/S1-COSEIS_SAR_UR-<...>/S1-COSEIS_SAR_UR-<...>.{nc,png}
 <archive>/HISTORIC_EVENTS/<year>/<title>_<event id>/S1-COSEIS_SAR-<...>/S1-COSEIS_SAR-<...>.{nc,png}
 <archive>/MANIFESTS/precise_queue/S1-COSEIS_SAR_UR-<...>.json
 ```
+- **Urgent response:** what forward mode delivered, as it delivered it: its pair, its frames, restituted orbits. Every forward-processed event gets one (forward significance criteria). The folder uses the title the event had when forward mode found it.
+- **Production:** made the way historic mode makes it, for events that meet the historic significance criteria with their current USGS parameters: historic mode's pair on that track (its AOI, coverage rule and SLC search), so the dates or frames can differ from the urgent product's, with precise orbits. The folder uses the event's current USGS title, as in the rest of `HISTORIC_EVENTS/`.
+- **Shared pairs** (foreshocks, aftershocks, sequences) follow the archive's rules. A product forward mode made for several events is placed once, in the folder of the largest of them (ties: the later one); it moves there if a larger event uses it later. A production product belongs to the largest significant event its pair contains, and a production pair is run once, however many urgent products lead to it.
 - Both runners place products compressed, with the code that built the compressed archive (`src/aria_coseis/sar/repack.py`, run in the topsApp environment): the extra layers DockerizedTopsApp writes uncompressed get gzip, everything else is copied as is, and the result is checked against topsApp's file before it is renamed into place. Nothing in the archive is ever overwritten. topsApp's own folder (under `COSEIS_DATA_DIR`) keeps its copy of the product; SLCs and intermediate files are deleted.
-- The event folder and year are set when the urgent product is placed, and the production product uses the same ones.
-- **Queue entries** (`MANIFESTS/precise_queue/`, one per urgent product) hold the job, the orbit files the urgent run used, and a status with a log:
-  - `pending`: waiting. Each precise run asks ASF's orbit service whether precise orbits exist for every SLC; once they do, it checks the event against the historic significance criteria with its current USGS parameters, reruns topsApp, checks that the product has the expected name and used precise orbits, and places it.
-  - `done`: the production product is in `HISTORIC_EVENTS/` (or the urgent run already had precise orbits and was copied).
-  - `not_eligible`: the event doesn't meet the significance criteria; no production product.
-  - `failed`: something needs a person (rerun error, unexpected product, or no precise orbits after 30 days); it is emailed. To retry, fix the cause and set `"status"` back to `"pending"`. A failed rerun keeps its topsApp folder (`<title>/<track>/precise/...` under `COSEIS_DATA_DIR`).
+- **Queue entries** (`MANIFESTS/precise_queue/`, one per urgent product) list the events that used the product, the urgent job and orbit files, the production owner and job once chosen, and a status with a log:
+  - `pending`: waiting. Each precise run finds the owner, selects historic mode's pair for it (kept once found), asks ASF's orbit service whether precise orbits exist for every SLC of that pair, and then runs topsApp, checks that it used precise orbits, and places the product.
+  - `done`: the production product is in `HISTORIC_EVENTS/` (or was made through another entry; or the urgent product was the same pair with precise orbits and was copied).
+  - `not_eligible`: no event the pair contains meets the historic criteria; no production product.
+  - `failed`: something needs a person (rerun error, a product already in the archive, or no historic pair or precise orbits after 30 days); it is emailed. To retry, fix the cause and set `"status"` back to `"pending"`. A failed rerun keeps its topsApp folder (`<title>/<track>/precise/...` under `COSEIS_DATA_DIR`).
+- Both runners rewrite queue entries; they take turns through a lock file on local disk (`/tmp/coseis_precise_queue.lock`, `COSEIS_QUEUE_LOCK_FILE`).
 - **Notifications:** the processing machine can't send email. The precise runner writes one JSON per placed or failed product to `outputs/outbox_pending/`; its wrapper moves them to `active_jobs/outbox/` and pushes; the next Action run emails them together to the secondary recipients and deletes them. Urgent products are reported as before, by the tracker's processing-results email.
 
 ## Processing machine setup

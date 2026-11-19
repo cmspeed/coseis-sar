@@ -68,7 +68,25 @@ def workdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(repo_dir)
     monkeypatch.setattr(api.settings, "root_dir", str(repo_dir / "data"))
     monkeypatch.setattr(api.settings, "ARCHIVE_DIR", str(tmp_path / "archive"))
+    monkeypatch.setattr(api.settings, "QUEUE_LOCK_FILE", str(tmp_path / "queue.lock"))
     return repo_dir
+
+
+@pytest.fixture(autouse=True)
+def usgs_events(monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
+    """
+    Fake aria_coseis.precise.event_info (the current USGS parameters of an event and its historic
+    significance): set usgs_events[event_id] to the dict it should return; unknown events give {}
+    (no such event), and the value None means USGS is unreachable. Calls go to usgs_events["calls"].
+    """
+    events: Dict[str, Any] = {"calls": []}
+
+    def event_info(event_id: str) -> Any:
+        events["calls"].append(event_id)
+        return events.get(event_id, {})
+
+    monkeypatch.setattr(api.precise, "event_info", event_info)
+    return events
 
 
 # A COSEIS_SAR product name as DockerizedTopsApp makes it, for the fake topsApp runs (the Ende D61

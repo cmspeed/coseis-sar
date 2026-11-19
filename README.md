@@ -105,9 +105,9 @@ Relative to the repository root; each location can be changed with an environmen
 ## Forward mode
 Forward mode watches USGS for new significant earthquakes. For each one it emails an alert with predicted Sentinel-1 and NISAR overpasses, and processes the SAR pair once post-event data are available. It runs on a schedule (GitHub Actions plus cron jobs on a processing machine) and keeps its state in `active_jobs/`. Operator notes are in [ops/README.md](ops/README.md).
 
-Each SAR product is made twice from the same SLCs:
-- **Urgent response:** as soon as the post-event SLCs exist, with restituted orbits (precise orbits take about 3 weeks). Named `S1-COSEIS_SAR_UR-...`, in the archive's `URGENT_RESPONSE/`.
-- **Production:** rerun once precise orbits exist, for events that meet the significance criteria. Named `S1-COSEIS_SAR-...` like the rest of the archive, in `HISTORIC_EVENTS/`.
+Each SAR product is made twice:
+- **Urgent response:** as soon as the post-event SLCs exist, with restituted orbits (precise orbits take about 3 weeks). Named `S1-COSEIS_SAR_UR-...`, in the archive's `URGENT_RESPONSE/`; for every event forward mode processes.
+- **Production:** once precise orbits exist, for events that meet the historic significance criteria, with historic mode's pair selection. Named `S1-COSEIS_SAR-...` like the rest of the archive, in `HISTORIC_EVENTS/`.
 
 ```
 <archive>/URGENT_RESPONSE/2025/m_88_2025_kamchatka_peninsula_russia_earthquake_us6000qw60/

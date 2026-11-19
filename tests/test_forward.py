@@ -193,12 +193,10 @@ def test_processing_success_matches_production(
         Path(api.settings.ARCHIVE_DIR) / "MANIFESTS" / "precise_queue" / f"{urgent}.json"
     )
     assert entry["status"] == "pending"
-    assert entry["event_id"] == "us6000tkt2"
+    assert [e["event_id"] for e in entry["events"]] == ["us6000tkt2"]
     assert entry["track"] == "DESCENDING_61"
     assert entry["urgent_product"] == str(urgent_dir.relative_to(api.settings.ARCHIVE_DIR))
-    assert entry["production_product"] == (
-        f"HISTORIC_EVENTS/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2/{FAKE_PRODUCT}"
-    )
+    assert entry["production"] == {}
     assert entry["urgent_orbits"] == sorted(FAKE_ORBITS["RESORB"])
     assert entry["job"]["job_parameters"]["granules"] == cmd[
         cmd.index("--reference-scenes") + 1

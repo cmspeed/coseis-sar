@@ -204,19 +204,22 @@ Remaining gaps:
 
 ## Phase 7: Urgent-response and production SAR products
 **Goal:** the production archive (`HISTORIC_EVENTS/`) holds only products made with precise orbits. Forward processing runs as soon as the post-event SLCs exist, when only restituted orbits are available (precise orbits take about 3 weeks), so its products become urgent-response products, and a second cron job remakes each one with precise orbits. Decisions (2026-11-18):
-- Urgent products are named `S1-COSEIS_SAR_UR-...` and go to `URGENT_RESPONSE/<year>/<title>_<event id>/`; production products keep the usual name and go to `HISTORIC_EVENTS/` in the same event folder.
-- Only events that meet the significance criteria get a production product.
+- Urgent products are named `S1-COSEIS_SAR_UR-...` and go to `URGENT_RESPONSE/<year>/<title>_<event id>/`: the record of what forward mode delivered (its pair and frames), for every forward-processed event. The record starts with events after 2026-07-31, the end of the historic archive.
+- Production products keep the usual name and go to `HISTORIC_EVENTS/`: only events that meet the historic significance criteria, with historic mode's pair selection (re-selected by the precise runner, not the urgent job), so `HISTORIC_EVENTS/` stays what a historic run makes.
+- Shared pairs follow the archive's rules: one urgent copy per product, in the largest event's folder; a production product belongs to the largest significant event its pair contains and is made once.
 - Both cron jobs write to the onestopshop archive (`COSEIS-ONE_STOP_SHOP_COMPRESSED`, to be renamed without `_COMPRESSED` when the uncompressed copies are removed: then only `COSEIS_ARCHIVE_DIR` in the crontab changes). topsApp's working folders stay on trappist-r0.
 - Products are stored compressed only, repacked on placement until DockerizedTopsApp compresses its extra layers itself (fix to be proposed upstream by the maintainer).
 - The processing machine cannot email: its notifications go through `active_jobs/outbox/`, which the existing Action emails.
 
 **7a. Two cron jobs.**
 - [x] Urgent runner places its product in `URGENT_RESPONSE/` under the urgent name, compressed with the archive's repack code (`sar/repack.py`, checked against topsApp's file before it is renamed into place; never overwrites), and queues it (`MANIFESTS/precise_queue/`). A run that writes no product is now reported as failed.
-- [x] `python -m aria_coseis --precise` (`ops/run_coseis_precise.sh`, every 6 h): waits until ASF serves precise orbits for every SLC, checks the event against the historic criteria, reruns the same job on its own cores (17-33) and lock, checks the product name and orbits, and places it in `HISTORIC_EVENTS/`. Flags entries still without precise orbits after 30 days.
+- [x] `python -m aria_coseis --precise` (`ops/run_coseis_precise.sh`, every 6 h): finds the owner (largest event that meets the historic criteria, current USGS values), selects historic mode's pair for it on the track, waits until ASF serves precise orbits for every SLC of that pair, runs it on its own cores (17-33) and lock, checks the orbits, and places it in `HISTORIC_EVENTS/`. Flags entries still without a pair or precise orbits after 30 days.
+- [x] Shared pairs: an urgent product used by several events is placed once (moved to the largest event's folder), a production pair is run once; queue entries are rewritten under a local lock by both runners.
 - [x] Notifications: outbox committed by the precise wrapper, emailed by the Action; a shared `flock` around every git step of both cron wrappers; one Action run at a time.
 - [ ] Validate end to end in a sandbox (real topsApp rerun of Noda A141, which has a restituted reference orbit), then deploy: crontab entries with `COSEIS_ARCHIVE_DIR`, pause the runners for the merge.
 
 **7b. Follow-ups.**
+- [ ] Backfill: production products for the 12 historic-significant events after 2026-07-31 (14 jobs run locally 2026-11-18, 5 waiting for precise orbits: Nagqu A143/A070/D077, Vanuatu A154 twice); urgent products for the events forward mode processed since 2026-08-01.
 - [ ] The 4 HISTORIC products with a restituted orbit (Asadabad A071 and D078, Noda A141, Puerto Madero D099; the other 1,103 are precise on both dates): rerun with precise orbits, and decide whether the current files move to `URGENT_RESPONSE/` under urgent names.
 - [ ] Viewer: show production products only for now; later perhaps urgent products with a "restituted orbits" badge, replaced when the production product arrives.
 - [ ] Sync to the other copies (trappist-r0, aria-share/S3) and the catalogue for new products.
