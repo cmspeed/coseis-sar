@@ -11,6 +11,8 @@ products for HISTORIC_EVENTS/, made the way historic mode makes them:
 - the pair is the one historic mode selects for the owner on that track (its AOI, coverage rule and
   SLC search), so it can differ from the urgent product's: forward mode picks the pre-event date
   when the event is found and takes the first post-event pass;
+- if that pair contains a larger eligible event queued on the same track, the larger event owns it
+  and its own pair is used; containment is judged on the historic pair, not on the urgent window;
 - it runs once precise orbits (AUX_POEORB, about 3 weeks after acquisition) exist for every SLC,
   and a production job that another queue entry already produced is not run again.
 
@@ -67,6 +69,10 @@ from aria_coseis.utils import to_snake_case
 # ASF's orbit service: redirects to the orbit file it would serve for a scene (precise if it
 # exists, else restituted), the same lookup DockerizedTopsApp makes (s1_orbits.fetch_for_scene)
 ORBIT_API = "https://s1-orbits.asf.alaska.edu/scene"
+
+# Owner changes followed when a selected pair contains a larger event (each one moves to a larger
+# event, so a sequence settles within a few)
+MAX_OWNER_CHANGES = 5
 
 
 def now_utc() -> str:
@@ -155,6 +161,18 @@ def largest(events: list[dict[str, Any]]) -> dict[str, Any]:
         if outranks(e, owner):
             owner = e
     return owner
+
+
+def eligible_events(event_ids: set[str]) -> list[dict[str, Any]] | None:
+    """The events that meet the historic criteria now (event_info), or None if USGS cannot say."""
+    out = []
+    for event_id in sorted(event_ids):
+        info = event_info(event_id)
+        if info is None:
+            return None
+        if info and info["historic"]:
+            out.append(info)
+    return out
 
 
 def urgent_event(event_id: str, event_data: dict[str, Any]) -> dict[str, Any]:
@@ -414,43 +432,61 @@ def process_entry(entry: dict[str, Any], others: list[dict[str, Any]]) -> None:
     """Advance one pending entry (others: the rest of the queue, as on disk)."""
     production = entry.setdefault("production", {})
 
-    # Owner: the largest event the pair contains that meets the historic criteria. Contained: the
-    # events that used this urgent product, and events queued on the same track (with other
-    # frames) whose origin falls between the pair's acquisitions
-    events = {e["event_id"] for e in entry["events"]}
-    for other in others:
-        if other["track"] == entry["track"]:
-            events |= {e["event_id"] for e in other["events"] if contains(entry["job"], e["time"])}
-    infos = []
-    for e in sorted(events):
-        info = event_info(e)
-        if info is None:
-            return  # try again next run
-        if info and info["historic"]:
-            infos.append(info)
-    if not infos:
+    # Owner: the largest event that used this urgent product and meets the historic criteria. If the
+    # pair historic mode selects for it contains a larger such event queued on the same track (with
+    # another urgent product), that event owns the pair and its own pair is used. Containment is
+    # judged on the historic pair, not on the urgent product's window, which can be longer: a smaller
+    # event whose own pair misses the larger one keeps its own product.
+    own = eligible_events({e["event_id"] for e in entry["events"]})
+    if own is None:
+        return  # try again next run
+    if not own:
         set_status(entry, "not_eligible", "no event meets the significance criteria")
         return
-    owner = largest(infos)
-    if production.get("owner") not in (None, owner["id"]):
-        production.pop("job", None)  # the owner changed: select the pair again
-    production.update(owner=owner["id"], owner_title=to_snake_case(owner["title"]))
+    owner = largest(own)
+    on_track: list[dict[str, Any]] | None = None
+    for _ in range(MAX_OWNER_CHANGES):
+        if production.get("owner") not in (None, owner["id"]):
+            production.pop("job", None)  # the owner changed: select the pair again
+        production.update(owner=owner["id"], owner_title=to_snake_case(owner["title"]))
 
-    # The pair historic mode selects for the owner on this track
-    if "job" not in production:
-        try:
-            job = historic_job(owner, entry["track"])
-        except requests.RequestException as e:
-            print(f"    Could not search ASF (trying again next run): {e}")
-            return
-        if job is None:
-            wait_or_give_up(entry, "no historic-mode pair for the owner on this track")
-            return
-        production["job"] = job
-        log(
-            entry,
-            f"historic-mode pair for {owner['id']}: {job['name']} {'_'.join(pair_dates(job))}",
+        # The pair historic mode selects for the owner on this track
+        if "job" not in production:
+            try:
+                job = historic_job(owner, entry["track"])
+            except requests.RequestException as e:
+                print(f"    Could not search ASF (trying again next run): {e}")
+                return
+            if job is None:
+                wait_or_give_up(entry, "no historic-mode pair for the owner on this track")
+                return
+            production["job"] = job
+            log(
+                entry,
+                f"historic-mode pair for {owner['id']}: {job['name']} {'_'.join(pair_dates(job))}",
+            )
+
+        if on_track is None:
+            ids = {
+                e["event_id"]
+                for other in others
+                if other["track"] == entry["track"]
+                for e in other["events"]
+            }
+            on_track = eligible_events(ids)
+            if on_track is None:
+                return  # try again next run
+        larger = [
+            e for e in on_track if outranks(e, owner) and contains(production["job"], e["time"])
+        ]
+        if not larger:
+            break
+        owner = largest(larger)
+    else:
+        fail(
+            entry, entry["urgent_product"], f"owner still changing after {MAX_OWNER_CHANGES} pairs"
         )
+        return
     job = production["job"]
     pre, post = pair_dates(job)
     production["dates"] = f"{pre} (Pre) - {post} (Post)"

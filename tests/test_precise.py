@@ -108,6 +108,8 @@ def services(monkeypatch: pytest.MonkeyPatch, usgs_events: Dict[str, Any]) -> Di
             job = urgent_job()
             job["name"] = "m_78_66_km_nnw_of_ende_indonesia-D061"
             return job
+        if isinstance(state["job"], dict) and "job_parameters" not in state["job"]:
+            return copy.deepcopy(state["job"][owner["id"]])  # a pair per owner
         return copy.deepcopy(state["job"])
 
     monkeypatch.setattr(api.precise, "orbit_type", orbit_type)
@@ -329,6 +331,51 @@ def test_a_production_pair_runs_once(
         f"HISTORIC_EVENTS/{MAIN_FOLDER}/{FAKE_PRODUCT}"
     }
     assert len(staged_notes()) == 1
+
+
+def test_smaller_event_keeps_its_own_pair(
+    workdir: Path, topsapp: Dict[str, Any], services: Dict[str, Any]
+) -> None:
+    """
+    The aftershock's urgent window contains the main shock, but the pair historic mode selects for
+    the aftershock starts after the main shock: each event gets its own production product (as for
+    Vanuatu's M6.1 and M6.0 on A154, 2026-10/11).
+    """
+    queue_product(workdir, MAIN)
+    other = FAKE_PRODUCT.replace("5d2a", "beef")
+    processing_dir = workdir / "data" / "other"
+    (processing_dir / other).mkdir(parents=True)
+    (processing_dir / other / f"{other}.nc").write_text("urgent")
+    job = urgent_job()
+    job["job_parameters"]["granules"] = POST_SLCS[:1]
+    api.precise.queue_urgent_product(
+        str(processing_dir / other / f"{other}.nc"),
+        str(processing_dir),
+        AFTERSHOCK,
+        {"title": TITLE[AFTERSHOCK], "time": TIME[AFTERSHOCK]},
+        "DESCENDING_61",
+        job,
+        "2026-08-02 (Pre) - 2026-08-20 (Post)",
+    )
+    between = "S1D_IW_SLC__1SDV_20260814T221500_20260814T221530_004127_007B2C_A1B2"  # 22:15
+    main_job, after_job = urgent_job(), urgent_job()
+    main_job["name"] = "m_78_66_km_nnw_of_ende_indonesia-D061"
+    main_job["job_parameters"]["granules"] = [between]  # 08-02 -> 08-14 22:15: main shock only
+    after_job["name"] = "m_61_62_km_n_of_ende_indonesia-D061"
+    after_job["job_parameters"]["secondary_granules"] = [between]  # 22:15 -> 08-20: aftershock
+    services["job"] = {MAIN: main_job, AFTERSHOCK: after_job}
+    topsapp.update(outcome="success", orbits="POEORB")
+    api.precise.check_precise_queue()
+    assert len(topsapp["calls"]) == 2
+    entries = {e["events"][0]["event_id"]: e for _, e in api.precise.load_queue()}
+    assert [entries[e]["status"] for e in (MAIN, AFTERSHOCK)] == ["done", "done"]
+    assert entries[AFTERSHOCK]["production"]["owner"] == AFTERSHOCK
+    assert entries[AFTERSHOCK]["production"]["product"] == (
+        f"HISTORIC_EVENTS/2026/m_61_62_km_n_of_ende_indonesia_{AFTERSHOCK}/{FAKE_PRODUCT}"
+    )
+    assert (
+        entries[MAIN]["production"]["product"] == f"HISTORIC_EVENTS/{MAIN_FOLDER}/{FAKE_PRODUCT}"
+    )
 
 
 @pytest.mark.parametrize(
