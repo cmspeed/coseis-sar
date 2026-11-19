@@ -14,7 +14,7 @@ from shapely.geometry.base import BaseGeometry
 
 from aria_coseis import config
 from aria_coseis.notify import send_email
-from aria_coseis.precise import queue_urgent_product
+from aria_coseis.precise import find_urgent_entry, link_urgent_product, queue_urgent_product
 from aria_coseis.sar.coverage import usable_dates
 from aria_coseis.sar.pairing import make_job_json
 from aria_coseis.sar.products import all_precise, clean_processing_dir, find_product, orbits_used
@@ -276,44 +276,67 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                             pair_folder_name,
                         )
 
-                        print(f"    Starting automatic processing for {pair_folder_name}")
                         dates = f"{pre_seismic_date} (Pre) - {post_seismic_date} (Post)"
                         location = processing_dir
-                        try:
-                            run_dockerized_topsApp(job, processing_dir)
-                            nc_file = find_product(processing_dir)
-                            if nc_file is None:
-                                raise RuntimeError(
-                                    f"topsApp finished but wrote no product in {processing_dir}"
+                        same_job = find_urgent_entry(job)
+                        if same_job:
+                            # Another event (foreshock, aftershock) already needed exactly these
+                            # SLCs: link to its urgent product instead of running topsApp again
+                            try:
+                                entry = link_urgent_product(same_job, event_id, event_data)
+                                location = os.path.join(
+                                    config.ARCHIVE_DIR, entry["urgent_product"]
                                 )
+                                print(
+                                    f"    Same job as {os.path.basename(location)}: not run again."
+                                )
+                                track_info["orbits"] = (
+                                    "precise"
+                                    if all_precise(entry["urgent_orbits"])
+                                    else "restituted"
+                                )
+                                track_info["processing_status"] = "Success"
+                            except Exception as e:
+                                print(f"    Linking to {same_job} failed: {e}")
+                                track_info["processing_status"] = f"Failed: {str(e)}"
+                        else:
+                            print(f"    Starting automatic processing for {pair_folder_name}")
+                            try:
+                                run_dockerized_topsApp(job, processing_dir)
+                                nc_file = find_product(processing_dir)
+                                if nc_file is None:
+                                    raise RuntimeError(
+                                        f"topsApp finished but wrote no product in {processing_dir}"
+                                    )
 
-                            # Delete raw SLCs and heavy intermediate files; the product stays
-                            print(
-                                f"    Product found. Cleaning up SLCs and heavy intermediate files in {pair_folder_name}..."
-                            )
-                            clean_processing_dir(processing_dir)
+                                # Delete raw SLCs and heavy intermediate files; the product stays
+                                print(
+                                    f"    Product found. Cleaning up SLCs and heavy intermediate files in {pair_folder_name}..."
+                                )
+                                clean_processing_dir(processing_dir)
 
-                            # Urgent-response product: compressed into URGENT_RESPONSE/ and
-                            # queued for a precise-orbit rerun (aria_coseis.precise)
-                            orbits = orbits_used(processing_dir)
-                            track_info["orbits"] = (
-                                "precise" if all_precise(orbits) else "restituted"
-                            )
-                            location = queue_urgent_product(
-                                nc_file,
-                                processing_dir,
-                                event_id,
-                                event_data,
-                                track_key,
-                                job,
-                                dates,
-                            )
-                            track_info["processing_status"] = "Success"
+                                # Urgent-response product: compressed into URGENT_RESPONSE/ and
+                                # queued for a production product (aria_coseis.precise)
+                                orbits = orbits_used(processing_dir)
+                                track_info["orbits"] = (
+                                    "precise" if all_precise(orbits) else "restituted"
+                                )
+                                location = queue_urgent_product(
+                                    nc_file,
+                                    processing_dir,
+                                    event_id,
+                                    event_data,
+                                    track_key,
+                                    job,
+                                    dates,
+                                )
+                                track_info["processing_status"] = "Success"
 
-                        except Exception as e:
-                            print(f"    Processing failed for {pair_folder_name}: {e}")
-                            track_info["processing_status"] = f"Failed: {str(e)}"
+                            except Exception as e:
+                                print(f"    Processing failed for {pair_folder_name}: {e}")
+                                track_info["processing_status"] = f"Failed: {str(e)}"
 
+                        os.makedirs(processing_dir, exist_ok=True)
                         completed_filename = os.path.join(
                             processing_dir, f"job_{title}_{track_key}_COMPLETED.json"
                         )

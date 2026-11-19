@@ -157,6 +157,75 @@ def largest(events: list[dict[str, Any]]) -> dict[str, Any]:
     return owner
 
 
+def urgent_event(event_id: str, event_data: dict[str, Any]) -> dict[str, Any]:
+    """An event as queue entries list it (with its current USGS magnitude, if USGS answers)."""
+    info = event_info(event_id) or {}
+    return {
+        "event_id": event_id,
+        "title": event_data["title"],
+        "time": event_data["time"],
+        "mag": info.get("mag"),
+    }
+
+
+def urgent_folder(event: dict[str, Any], urgent: str) -> str:
+    return archive_rel_dir(
+        URGENT_SET,
+        event_year(event["time"]),
+        event_folder(event["title"], event["event_id"]),
+        urgent,
+    )
+
+
+def find_urgent_entry(job: dict[str, Any]) -> str | None:
+    """The queue entry of an urgent product made from exactly this job's SLCs, if there is one."""
+    key = scene_key(job)
+    for path, entry in load_queue():
+        if scene_key(entry["job"]) == key:
+            return path
+    return None
+
+
+def _add_event(queue_file: str, entry: dict[str, Any], event: dict[str, Any]) -> str:
+    """Add event to entry (queue lock held): the copy moves to the folder of the event that
+    outranks the others. Saves the entry; returns the urgent product's folder."""
+    if event["event_id"] not in {e["event_id"] for e in entry["events"]}:
+        entry["events"].append(event)
+        entry["log"].append(f"{now_utc()} also used by {event['event_id']}")
+        if entry["status"] == "not_eligible":
+            entry["status"] = "pending"  # the new event may be significant
+    rel = urgent_folder(largest(entry["events"]), os.path.basename(entry["urgent_product"]))
+    if rel != entry["urgent_product"]:
+        # The event that outranks the others keeps the copy (the archive's ownership rule)
+        src = os.path.join(config.ARCHIVE_DIR, entry["urgent_product"])
+        dst = os.path.join(config.ARCHIVE_DIR, rel)
+        if os.path.exists(dst):
+            raise FileExistsError(f"{dst} already exists")
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        os.rename(src, dst)
+        with contextlib.suppress(OSError):
+            os.rmdir(os.path.dirname(src))  # the other event's folder, if now empty
+        entry["log"].append(f"{now_utc()} moved to {os.path.dirname(rel)}")
+        entry["urgent_product"] = rel
+    write_json(queue_file, entry)
+    return os.path.join(config.ARCHIVE_DIR, rel)
+
+
+def link_urgent_product(
+    queue_file: str, event_id: str, event_data: dict[str, Any]
+) -> dict[str, Any]:
+    """
+    Another event needs exactly the SLCs of an urgent product already made: add it to that product's
+    entry instead of running topsApp again. Returns the entry (urgent_product is where it is now).
+    """
+    event = urgent_event(event_id, event_data)
+    with queue_lock():
+        with open(queue_file) as f:
+            entry = json.load(f)
+        _add_event(queue_file, entry, event)
+    return entry
+
+
 def queue_urgent_product(
     nc_file: str,
     processing_dir: str,
@@ -174,57 +243,24 @@ def queue_urgent_product(
     """
     urgent = urgent_name(Path(nc_file).stem)
     queue_file = os.path.join(config.precise_queue_dir(), f"{urgent}.json")
-    info = event_info(event_id) or {}
-    event = {
-        "event_id": event_id,
-        "title": event_data["title"],
-        "time": event_data["time"],
-        "mag": info.get("mag"),
-    }
-
-    def folder_of(e: dict[str, Any]) -> str:
-        return archive_rel_dir(
-            URGENT_SET, event_year(e["time"]), event_folder(e["title"], e["event_id"]), urgent
-        )
-
+    event = urgent_event(event_id, event_data)
     with queue_lock():
-        if not os.path.exists(queue_file):
-            rel = folder_of(event)
-            place_product(nc_file, os.path.join(config.ARCHIVE_DIR, rel), urgent)
-            entry = {
-                "status": "pending",
-                "urgent_product": rel,
-                "events": [event],
-                "track": track_key,
-                "dates": dates,
-                "urgent_orbits": orbits_used(processing_dir),
-                "job": job,
-                "production": {},
-                "log": [f"{now_utc()} queued for {event_id}"],
-            }
-            write_json(queue_file, entry)
-            return os.path.join(config.ARCHIVE_DIR, rel)
-
-        with open(queue_file) as f:
-            entry = json.load(f)
-        if event_id not in {e["event_id"] for e in entry["events"]}:
-            entry["events"].append(event)
-            entry["log"].append(f"{now_utc()} also used by {event_id}")
-            if entry["status"] == "not_eligible":
-                entry["status"] = "pending"  # the new event may be significant
-        rel = folder_of(largest(entry["events"]))
-        if rel != entry["urgent_product"]:
-            # The event that outranks the others keeps the copy (the archive's ownership rule)
-            src = os.path.join(config.ARCHIVE_DIR, entry["urgent_product"])
-            dst = os.path.join(config.ARCHIVE_DIR, rel)
-            if os.path.exists(dst):
-                raise FileExistsError(f"{dst} already exists")
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            os.rename(src, dst)
-            with contextlib.suppress(OSError):
-                os.rmdir(os.path.dirname(src))  # the other event's folder, if now empty
-            entry["log"].append(f"{now_utc()} moved to {os.path.dirname(rel)}")
-            entry["urgent_product"] = rel
+        if os.path.exists(queue_file):
+            with open(queue_file) as f:
+                return _add_event(queue_file, json.load(f), event)
+        rel = urgent_folder(event, urgent)
+        place_product(nc_file, os.path.join(config.ARCHIVE_DIR, rel), urgent)
+        entry = {
+            "status": "pending",
+            "urgent_product": rel,
+            "events": [event],
+            "track": track_key,
+            "dates": dates,
+            "urgent_orbits": orbits_used(processing_dir),
+            "job": job,
+            "production": {},
+            "log": [f"{now_utc()} queued for {event_id}"],
+        }
         write_json(queue_file, entry)
         return os.path.join(config.ARCHIVE_DIR, rel)
 

@@ -6,6 +6,7 @@ so these tests also check that this branch reproduces what `main` did.
 """
 
 import glob
+import json
 import os
 import shutil
 import time
@@ -349,3 +350,59 @@ def test_stale_lock_is_removed_and_live_lock_blocks(
     else:
         assert "Previous processing run still active" in out
         assert lock.read_text() == lock_content
+
+
+@pytest.mark.vcr
+def test_identical_job_of_another_event_is_not_run_again(
+    workdir: Path, no_lock: None, topsapp: Dict[str, Any], usgs_events: Dict[str, Any]
+) -> None:
+    """
+    A second tracked event (here a doublet: same area, origin and pre-event SLCs, so the recorded
+    ASF searches replay) needs exactly the SLCs of the first event's job: topsApp runs once, and the
+    second event is linked to the product. The larger event keeps the copy.
+    """
+    seed(workdir, "ende_98ea2b5")
+    main = read_json(workdir / "active_jobs" / "us6000tkt2.json")
+    aftershock = json.loads(json.dumps(main))
+    aftershock["title"] = "m_61_58_km_n_of_ende_indonesia"
+    partial = "job_m_61_58_km_n_of_ende_indonesia_DESCENDING_61_partial.json"
+    aftershock["tracks"]["DESCENDING_61"]["partial_job_file"] = partial
+    shutil.copy(
+        workdir
+        / "active_jobs"
+        / "partials"
+        / "job_m_77_68_km_nnw_of_ende_indonesia_DESCENDING_61_partial.json",
+        workdir / "active_jobs" / "partials" / partial,
+    )
+    (workdir / "active_jobs" / "us6000tkuc.json").write_text(json.dumps(aftershock))
+    usgs_events["us6000tkt2"] = {"mag": 7.8}
+    usgs_events["us6000tkuc"] = {"mag": 6.1}
+
+    topsapp["outcome"] = "success"
+    with time_machine.travel(ENDE_PROCESSING, tick=False):
+        api.main_forward(
+            pairing_mode="coseismic", resolution=30, do_processing=True, process_only=True
+        )
+
+    assert len(topsapp["calls"]) == 1
+    tracks = {
+        eid: tracker_files(workdir)[f"{eid}.json"]["tracks"]["DESCENDING_61"]
+        for eid in ("us6000tkt2", "us6000tkuc")
+    }
+    urgent = FAKE_PRODUCT.replace("S1-COSEIS_SAR-", "S1-COSEIS_SAR_UR-")
+    expected = str(
+        Path(api.settings.ARCHIVE_DIR)
+        / "URGENT_RESPONSE/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2"
+        / urgent
+    )
+    for track in tracks.values():
+        assert track["status"] == "READY_FOR_EMAIL"
+        assert track["processing_status"] == "Success"
+        assert track["location"] == expected
+        assert track["orbits"] == "restituted"
+    assert len(topsapp["placed"]) == 2  # .nc and .png, once
+    entry = read_json(
+        Path(api.settings.ARCHIVE_DIR) / "MANIFESTS" / "precise_queue" / f"{urgent}.json"
+    )
+    assert sorted(e["event_id"] for e in entry["events"]) == ["us6000tkt2", "us6000tkuc"]
+    assert partial_files(workdir) == {}
