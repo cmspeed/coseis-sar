@@ -46,7 +46,7 @@ from typing import Any
 import requests
 
 from aria_coseis import config
-from aria_coseis.notify import send_email
+from aria_coseis.notify import displayed, portable, send_email
 from aria_coseis.sar.products import (
     PRODUCTION_SET,
     URGENT_SET,
@@ -300,8 +300,8 @@ def notify(kind: str, entry: dict[str, Any], location: str, message: str) -> Non
         "title": production.get("owner_title") or entry["events"][0]["title"],
         "track": entry["track"],
         "dates": production.get("dates") or entry["dates"],
-        "location": location,
-        "message": message,
+        "location": portable(location),
+        "message": portable(message),
         "time": now_utc(),
     }
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
@@ -603,9 +603,9 @@ def send_outbox() -> None:
             <p style="margin: 0 0 5px;"><strong>Event:</strong> {n["title"]}</p>
             <p style="margin: 0 0 5px;"><strong>Track:</strong> {n["track"]}</p>
             <p style="margin: 0 0 5px;"><strong>Dates:</strong> {n["dates"]}</p>
-            <p style="margin: 0 0 5px;"><strong>Status:</strong> <span style="color: {color}; font-weight: bold;">{status}</span>: {n["message"]}</p>
+            <p style="margin: 0 0 5px;"><strong>Status:</strong> <span style="color: {color}; font-weight: bold;">{status}</span>: {displayed(n["message"])}</p>
             <p style="margin: 0;"><strong>Location:</strong> <br>
-                <code style="background: #e9ecef; padding: 4px; display: block; margin-top: 5px; word-wrap: break-word; font-size: 12px; color: #c0392b;">{n["location"]}</code>
+                <code style="background: #e9ecef; padding: 4px; display: block; margin-top: 5px; word-wrap: break-word; font-size: 12px; color: #c0392b;">{displayed(n["location"])}</code>
             </p>
             </div>
         """

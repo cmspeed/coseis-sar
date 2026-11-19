@@ -149,12 +149,10 @@ def test_processing_success_matches_production(
         "DESCENDING_61"
     ]
     urgent = FAKE_PRODUCT.replace("S1-COSEIS_SAR-", "S1-COSEIS_SAR_UR-")
-    urgent_dir = (
-        Path(api.settings.ARCHIVE_DIR)
-        / "URGENT_RESPONSE/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2"
-        / urgent
-    )
-    assert track["location"] == str(urgent_dir)
+    urgent_rel = f"URGENT_RESPONSE/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2/{urgent}"
+    urgent_dir = Path(api.settings.ARCHIVE_DIR) / urgent_rel
+    # stored as <archive>/...: files in git never hold machine paths
+    assert track["location"] == f"<archive>/{urgent_rel}"
     assert track["orbits"] == "restituted"
     assert {k: v for k, v in track.items() if k not in ("location", "orbits")} == {
         k: v for k, v in expected.items() if k != "location"
@@ -212,7 +210,12 @@ def test_processing_without_product_is_flagged(
     track = run_processing(workdir, topsapp, "no_product")
     assert track["status"] == "READY_FOR_EMAIL"
     assert track["processing_status"].startswith("Failed: topsApp finished but wrote no product")
-    assert track["location"].endswith("DESCENDING061_20260802_20260820")
+    assert track["location"] == (
+        "<data>/m_77_68_km_nnw_of_ende_indonesia/DESCENDING061/coseismic/"
+        "DESCENDING061_20260802_20260820"
+    )
+    assert "<data>/" in track["processing_status"]
+    assert str(workdir) not in json.dumps(track)  # no machine path in the tracker (in git)
     assert topsapp["placed"] == []
     assert not (Path(api.settings.ARCHIVE_DIR) / "MANIFESTS").exists()
 
@@ -241,7 +244,7 @@ def test_processing_never_overwrites_the_archive(
     [
         (
             "nonzero_exit",
-            "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11'",
+            "Failed: Command '['conda', 'run', '-n', 'topsapp'",
         ),
         ("missing_conda", "Failed: conda"),
     ],
@@ -390,10 +393,8 @@ def test_identical_job_of_another_event_is_not_run_again(
         for eid in ("us6000tkt2", "us6000tkuc")
     }
     urgent = FAKE_PRODUCT.replace("S1-COSEIS_SAR-", "S1-COSEIS_SAR_UR-")
-    expected = str(
-        Path(api.settings.ARCHIVE_DIR)
-        / "URGENT_RESPONSE/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2"
-        / urgent
+    expected = (
+        f"<archive>/URGENT_RESPONSE/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2/{urgent}"
     )
     for track in tracks.values():
         assert track["status"] == "READY_FOR_EMAIL"

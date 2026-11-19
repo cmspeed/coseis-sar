@@ -47,10 +47,12 @@ crontab -e
 ```
 Crontab entries (urgent processing at minutes 5 and 15; precise reruns every 6 hours):
 ```
-15,05 * * * * COSEIS_DATA_DIR=<repo>/scripts/data COSEIS_ARCHIVE_DIR=<archive> <repo>/ops/run_coseis_forward.sh
-30 */6 * * * COSEIS_DATA_DIR=<repo>/scripts/data COSEIS_ARCHIVE_DIR=<archive> <repo>/ops/run_coseis_precise.sh
+15,05 * * * * COSEIS_DATA_DIR=<repo>/scripts/data COSEIS_ARCHIVE_DIR=<archive> COSEIS_TOPSAPP_ENV=<topsapp env> <repo>/ops/run_coseis_forward.sh
+30 */6 * * * COSEIS_DATA_DIR=<repo>/scripts/data COSEIS_ARCHIVE_DIR=<archive> COSEIS_TOPSAPP_ENV=<topsapp env> <repo>/ops/run_coseis_precise.sh
 ```
-- `COSEIS_ARCHIVE_DIR` is the product archive (the one-stop shop). If the archive is renamed or moved, only these two crontab lines change. Without the variable, products go to `<repo>/data/COSEIS-ONE_STOP_SHOP/`.
+- `COSEIS_ARCHIVE_DIR` is the product archive (the one-stop shop). If the archive is renamed or moved, only these two crontab lines change (and the Action's secret below). Without the variable, products go to `<repo>/data/COSEIS-ONE_STOP_SHOP/`.
+- `COSEIS_TOPSAPP_ENV` is the conda environment with DockerizedTopsApp (`isce2_topsapp`); without it, the environment named `topsapp` is used.
+- **No machine paths in git.** The tracker and the outbox store locations as `<archive>/...` and `<data>/...` (relative to `COSEIS_ARCHIVE_DIR` and `COSEIS_DATA_DIR`). The emails show the real paths: the Action reads the two roots from the repository secrets `COSEIS_ARCHIVE_DISPLAY_ROOT` and `COSEIS_DATA_DISPLAY_ROOT` (Settings → Secrets and variables → Actions). Without them the emails show the tags.
 - `COSEIS_DATA_DIR` sets where topsApp works (SLCs, intermediate files and its copy of the product). The current machine keeps this in `scripts/data/` from before the 2026 layout change; without the variable it is `<repo>/data/`.
 - Cores: urgent processing runs topsApp on cores 0-16 and precise reruns on 17-33 (`COSEIS_TOPSAPP_CORES`, `COSEIS_PRECISE_CORES`).
 - The forward wrapper loads conda through `~/.bashrc`, activates `coseis-sar`, pulls `main`, runs processing, and pushes tracker changes. Its log is `logs/forward.log`. The precise wrapper does the same without pulling (the forward wrapper keeps the clone up to date); its log is `logs/precise.log`.
@@ -60,7 +62,7 @@ Crontab entries (urgent processing at minutes 5 and 15; precise reruns every 6 h
     bash -c 'cd <repo> && git fetch origin && git push --dry-run origin main'
   ```
   "Everything up-to-date" means it works.
-- topsApp runs through `conda run -n topsapp_env_trappist_python11 isce2_topsapp ...`, so that environment must exist. It also needs NASA Earthdata credentials (e.g. `~/.netrc`) to download SLCs.
+- topsApp runs through `conda run -n <COSEIS_TOPSAPP_ENV> isce2_topsapp ...`, so that environment must exist. It also needs NASA Earthdata credentials (e.g. `~/.netrc`) to download SLCs.
 
 ## GitHub Actions setup
 Repository secrets used by `coseis-cron.yml`:

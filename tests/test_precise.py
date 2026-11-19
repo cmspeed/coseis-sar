@@ -268,7 +268,7 @@ def test_production_product(
     assert entry["production"]["product"] == f"HISTORIC_EVENTS/{MAIN_FOLDER}/{FAKE_PRODUCT}"
     (note,) = staged_notes()
     assert note["kind"] == "production"
-    assert note["location"] == str(production)
+    assert note["location"] == f"<archive>/HISTORIC_EVENTS/{MAIN_FOLDER}/{FAKE_PRODUCT}"
     assert note["title"] == "m_78_66_km_nnw_of_ende_indonesia"
     assert note["dates"] == "20260802 (Pre) - 20260820 (Post)"
 
@@ -464,6 +464,21 @@ def test_other_statuses_are_left_alone(
     api.precise.check_precise_queue()
     entry = read_json(queue_file())
     assert entry["status"] == "backfill" and services["owners"] == [] and topsapp["calls"] == []
+
+
+def test_git_files_hold_no_machine_paths(workdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Locations and messages for git use <archive>/<data>; emails put the configured roots back."""
+    archive_dir, data_dir = api.settings.ARCHIVE_DIR, api.settings.root_dir
+    message = f"{archive_dir}/HISTORIC_EVENTS/x already exists; folder {data_dir}/t/D061 kept"
+    stored = api.portable(message)
+    assert stored == "<archive>/HISTORIC_EVENTS/x already exists; folder <data>/t/D061 kept"
+    assert api.portable("science/grids/metadata/data") == "science/grids/metadata/data"
+    assert api.displayed(stored) == stored  # no roots configured: the tags stay
+    monkeypatch.setattr(api.settings, "ARCHIVE_DISPLAY_ROOT", "/archive/root/")
+    monkeypatch.setattr(api.settings, "DATA_DISPLAY_ROOT", "/data/root")
+    assert api.displayed(stored) == (
+        "/archive/root/HISTORIC_EVENTS/x already exists; folder /data/root/t/D061 kept"
+    )
 
 
 def test_lock_blocks_a_second_run(

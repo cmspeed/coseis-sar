@@ -13,7 +13,7 @@ from shapely.geometry import mapping, shape
 from shapely.geometry.base import BaseGeometry
 
 from aria_coseis import config
-from aria_coseis.notify import send_email
+from aria_coseis.notify import displayed, portable, send_email
 from aria_coseis.precise import find_urgent_entry, link_urgent_product, queue_urgent_product
 from aria_coseis.sar.coverage import usable_dates
 from aria_coseis.sar.pairing import make_job_json
@@ -335,6 +335,7 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                             except Exception as e:
                                 print(f"    Processing failed for {pair_folder_name}: {e}")
                                 track_info["processing_status"] = f"Failed: {str(e)}"
+                        track_info["processing_status"] = portable(track_info["processing_status"])
 
                         os.makedirs(processing_dir, exist_ok=True)
                         completed_filename = os.path.join(
@@ -346,7 +347,7 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                         # Notify GitHub Actions that the job is done and ready for email
                         track_info["status"] = "READY_FOR_EMAIL"
                         track_info["dates"] = dates
-                        track_info["location"] = location
+                        track_info["location"] = portable(location)
 
                         if os.path.exists(partial_file):
                             os.remove(partial_file)
@@ -428,10 +429,10 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                 <p style="margin: 0 0 5px;"><strong>Event:</strong> {item["title"]}</p>
                 <p style="margin: 0 0 5px;"><strong>Track:</strong> {item["track"]}</p>
                 <p style="margin: 0 0 5px;"><strong>Dates:</strong> {item["dates"]}</p>
-                <p style="margin: 0 0 5px;"><strong>Status:</strong> <span style="color: {status_color}; font-weight: bold;">{item["status"]}</span></p>{orbits_line}
+                <p style="margin: 0 0 5px;"><strong>Status:</strong> <span style="color: {status_color}; font-weight: bold;">{displayed(item["status"])}</span></p>{orbits_line}
                 <p style="margin: 0;"><strong>Location:</strong> <br>
                     <code style="background: #e9ecef; padding: 4px; display: block; margin-top: 5px; word-wrap: break-word; font-size: 12px; color: #c0392b;">
-                    {item["location"]}
+                    {displayed(item["location"])}
                     </code>
                 </p>
                 </div>

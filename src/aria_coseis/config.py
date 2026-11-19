@@ -52,6 +52,13 @@ LOCK_FILE = os.environ.get("COSEIS_LOCK_FILE") or "/tmp/coseis_processing.lock"
 # HISTORIC_EVENTS/. The processing machine sets COSEIS_ARCHIVE_DIR in its crontab.
 ARCHIVE_DIR = os.environ.get("COSEIS_ARCHIVE_DIR") or os.path.join("data", "COSEIS-ONE_STOP_SHOP")
 
+# Files in git (trackers, the outbox) never hold machine paths: locations in the archive and in the
+# data folder are written as <archive>/... and <data>/... (notify.portable). Emails put the real
+# roots back (notify.displayed) from these variables, which the Action reads from repository
+# secrets; unset, the tags stay.
+ARCHIVE_DISPLAY_ROOT = os.environ.get("COSEIS_ARCHIVE_DISPLAY_ROOT") or ""
+DATA_DISPLAY_ROOT = os.environ.get("COSEIS_DATA_DISPLAY_ROOT") or ""
+
 # Precise-orbit reruns (aria_coseis.precise): their own lock, so they never hold up urgent
 # processing, and their own cores
 PRECISE_LOCK_FILE = os.environ.get("COSEIS_PRECISE_LOCK_FILE") or "/tmp/coseis_precise.lock"
@@ -61,8 +68,9 @@ PRECISE_GIVE_UP_DAYS = 30
 # Held (on local disk) while either runner reads and rewrites a queue entry
 QUEUE_LOCK_FILE = os.environ.get("COSEIS_QUEUE_LOCK_FILE") or "/tmp/coseis_precise_queue.lock"
 
-# topsApp: conda environment and the CPU cores each runner pins it to (taskset -c)
-TOPSAPP_ENV = os.environ.get("COSEIS_TOPSAPP_ENV") or "topsapp_env_trappist_python11"
+# topsApp: conda environment (the processing machine sets COSEIS_TOPSAPP_ENV in its crontab) and
+# the CPU cores each runner pins it to (taskset -c)
+TOPSAPP_ENV = os.environ.get("COSEIS_TOPSAPP_ENV") or "topsapp"
 TOPSAPP_CORES = os.environ.get("COSEIS_TOPSAPP_CORES") or "0-16"
 PRECISE_CORES = os.environ.get("COSEIS_PRECISE_CORES") or "17-33"
 

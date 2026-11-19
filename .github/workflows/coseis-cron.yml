@@ -50,6 +50,9 @@ jobs:
           COSEIS_SECONDARY_RECIPIENTS: ${{ secrets.COSEIS_SECONDARY_RECIPIENTS }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PSWD: ${{ secrets.GMAIL_APP_PSWD }}
+          # Roots of the <archive>/ and <data>/ locations in the tracker and outbox (kept out of git)
+          COSEIS_ARCHIVE_DISPLAY_ROOT: ${{ secrets.COSEIS_ARCHIVE_DISPLAY_ROOT }}
+          COSEIS_DATA_DISPLAY_ROOT: ${{ secrets.COSEIS_DATA_DISPLAY_ROOT }}
         run: python -m aria_coseis --forward --pairing coseismic --send_email
 
       - name: Save Tracking State

@@ -18,7 +18,7 @@ from aria_coseis import cli, precise  # noqa: E402
 from aria_coseis import config as settings  # noqa: E402
 from aria_coseis.aoi import make_aoi  # noqa: E402
 from aria_coseis.modes import main_forward, main_historic, main_precise  # noqa: E402
-from aria_coseis.notify import ascii_table_to_html  # noqa: E402
+from aria_coseis.notify import ascii_table_to_html, displayed, portable  # noqa: E402
 from aria_coseis.optical import runs as optical_runs  # noqa: E402
 from aria_coseis.optical import store as optical_store  # noqa: E402
 from aria_coseis.optical.autorift_profiles import PROFILES as AUTORIFT_PROFILES  # noqa: E402
@@ -58,6 +58,8 @@ __all__ = [
     "SRC_DIR",
     "add_to_tracker",
     "ascii_table_to_html",
+    "displayed",
+    "portable",
     "check_significance",
     "check_tracker_for_updates",
     "cli",
