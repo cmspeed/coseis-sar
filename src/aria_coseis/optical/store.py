@@ -23,7 +23,9 @@ No GDAL here, so the store can be managed from the SAR environment.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
+import fcntl
 import hashlib
 import json
 import os
@@ -32,7 +34,7 @@ import shutil
 import stat
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from importlib.util import find_spec
 from pathlib import Path
@@ -469,6 +471,30 @@ def sha256(path: str | os.PathLike[str], chunk: int = 1 << 24) -> str:
     return digest.hexdigest()
 
 
+@contextlib.contextmanager
+def locked(path: Path) -> Iterator[None]:
+    """
+    Hold an exclusive lock for a read-modify-write of path (a version's catalog.csv, an event's
+    composites.json, ...), so that runs in parallel do not lose each other's updates.
+
+    The lock file is in COSEIS_OPTICAL_LOCK_DIR when that is set, else next to path. Set it to a
+    local folder when the store is on NFS without working locks (all processes on one machine).
+    """
+    lock_dir = os.environ.get("COSEIS_OPTICAL_LOCK_DIR")
+    if lock_dir:
+        key = hashlib.sha256(str(path.resolve()).encode()).hexdigest()[:16]
+        lock = Path(lock_dir) / f"{path.name}.{key}.lock"
+    else:
+        lock = path.with_name(path.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock, "a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 def _read_json(path: Path, default: Any) -> Any:
     return json.loads(path.read_text()) if path.exists() else default
 
@@ -495,11 +521,12 @@ def _link_or_copy(src: Path, dst: Path, allow_copy: bool) -> str:
 def write_recipes(root: Path) -> None:
     """Write composites/recipes.json; refuse to change the definition of an existing recipe."""
     path = root / "composites" / "recipes.json"
-    existing = _read_json(path, {})
-    for rid, definition in COMPOSITE_RECIPES.items():
-        if rid in existing and existing[rid] != definition:
-            raise ValueError(f"recipe {rid!r} already exists with a different definition")
-    _write_json(path, {**existing, **COMPOSITE_RECIPES})
+    with locked(path):
+        existing = _read_json(path, {})
+        for rid, definition in COMPOSITE_RECIPES.items():
+            if rid in existing and existing[rid] != definition:
+                raise ValueError(f"recipe {rid!r} already exists with a different definition")
+        _write_json(path, {**existing, **COMPOSITE_RECIPES})
 
 
 def add_composite(
@@ -528,6 +555,19 @@ def add_composite(
         record["end"],
     )
     folder = root / "composites" / event
+    folder.mkdir(parents=True, exist_ok=True)
+    with locked(folder / "composites.json"):
+        return _add_composite(folder, name, src, record, allow_copy, source)
+
+
+def _add_composite(
+    folder: Path,
+    name: str,
+    src: Path,
+    record: dict[str, Any],
+    allow_copy: bool,
+    source: str | None,
+) -> Path:
     dst = folder / name
     index_path = folder / "composites.json"
     index = _read_json(index_path, {})
@@ -671,6 +711,14 @@ def start_version(
             )
     path = root / "products" / version / "VERSION.json"
     definition = json.loads(json.dumps(definition, sort_keys=True))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with locked(path):
+        return _start_version(path, version, description, definition)
+
+
+def _start_version(
+    path: Path, version: str, description: str, definition: dict[str, Any]
+) -> dict[str, Any]:
     existing = _read_json(path, None)
     if existing is not None:
         if existing.get("definition") != definition:
@@ -990,20 +1038,24 @@ CATALOG_COLUMNS = (
 
 
 def update_catalog(path: Path, row: dict[str, Any]) -> None:
-    """Add or replace one event's row in a version's catalog.csv."""
-    rows = []
-    if path.exists():
-        with open(path, newline="") as f:
-            rows = [r for r in csv.DictReader(f) if r["event"] != row["event"]]
-    write_catalog(path, sorted([*rows, row], key=lambda r: r["event"]))
+    """Add or replace one event's row in a version's catalog.csv (locked: runs may be parallel)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with locked(path):
+        rows = []
+        if path.exists():
+            with open(path, newline="") as f:
+                rows = [r for r in csv.DictReader(f) if r["event"] != row["event"]]
+        write_catalog(path, sorted([*rows, row], key=lambda r: r["event"]))
 
 
 def write_catalog(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="") as f:
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CATALOG_COLUMNS, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+    tmp.replace(path)
 
 
 def info(root: str | os.PathLike[str] | None = None) -> str:

@@ -191,3 +191,28 @@ def test_register_new_downloads(downloads: Path, tmp_path: Path) -> None:
     assert not (root / "products").exists()  # composites only; no product version
     with pytest.raises(ValueError, match="unknown composite recipe"):
         store.register_downloads(downloads, root, recipe="nope", resolve=False)
+
+
+def _catalog_rows(args: tuple) -> None:
+    path, first, count = args
+    for i in range(first, first + count):
+        store.update_catalog(Path(path), {"event": f"e{i:03d}", "status": "ok"})
+
+
+@pytest.mark.parametrize("lock_dir", [False, True])
+def test_parallel_catalog_updates_keep_every_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lock_dir: bool
+) -> None:
+    import multiprocessing
+
+    if lock_dir:
+        monkeypatch.setenv("COSEIS_OPTICAL_LOCK_DIR", str(tmp_path / "locks"))
+    else:
+        monkeypatch.delenv("COSEIS_OPTICAL_LOCK_DIR", raising=False)
+    path = tmp_path / "products" / "v1" / "catalog.csv"
+    with multiprocessing.get_context("fork").Pool(6) as pool:
+        pool.map(_catalog_rows, [(str(path), 20 * k, 20) for k in range(6)])
+    with open(path, newline="") as f:
+        events = [r["event"] for r in csv.DictReader(f)]
+    assert events == [f"e{i:03d}" for i in range(120)]
+    assert (tmp_path / "locks").exists() == lock_dir
