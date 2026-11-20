@@ -38,7 +38,11 @@
             ],
             "partial_job_file": "job_m_55_9_km_e_of_union_philippines_DESCENDING_163_partial.json",
             "reference_date": "2026-11-13",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "orbits": "restituted",
+            "processing_status": "Success",
+            "dates": "2026-11-13 (Pre) - 2026-11-19 (Post)",
+            "location": "<archive>/URGENT_RESPONSE/2026/m_55_9_km_e_of_union_philippines_us7000tyek/S1-COSEIS_SAR_UR-D-R-163-tops-20261119_20261113-212239-00125E_00009N-PP-5c75-v1_0_0"
         },
         "ASCENDING_171": {
             "flight_direction": "ASCENDING",
@@ -49,7 +53,11 @@
             ],
             "partial_job_file": "job_m_55_9_km_e_of_union_philippines_ASCENDING_171_partial.json",
             "reference_date": "2026-11-08",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "orbits": "restituted",
+            "processing_status": "Success",
+            "dates": "2026-11-08 (Pre) - 2026-11-20 (Post)",
+            "location": "<archive>/URGENT_RESPONSE/2026/m_55_9_km_e_of_union_philippines_us7000tyek/S1-COSEIS_SAR_UR-A-R-171-tops-20261120_20261108-094812-00125E_00007N-PP-5a82-v1_0_0"
         }
     }
 }
