@@ -6,6 +6,12 @@ on:
     - cron: '*/50 * * * *'
   workflow_dispatch:
 
+# One run at a time: a delayed scheduled run waits for the previous one instead of overlapping it
+# (overlapping runs could email the same tracker or outbox entries twice)
+concurrency:
+  group: coseis-tracker
+  cancel-in-progress: false
+
 jobs:
   run-coseis-notifications:
     runs-on: ubuntu-latest
@@ -44,6 +50,9 @@ jobs:
           COSEIS_SECONDARY_RECIPIENTS: ${{ secrets.COSEIS_SECONDARY_RECIPIENTS }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PSWD: ${{ secrets.GMAIL_APP_PSWD }}
+          # Roots of the <archive>/ and <data>/ locations in the tracker and outbox (kept out of git)
+          COSEIS_ARCHIVE_DISPLAY_ROOT: ${{ secrets.COSEIS_ARCHIVE_DISPLAY_ROOT }}
+          COSEIS_DATA_DISPLAY_ROOT: ${{ secrets.COSEIS_DATA_DISPLAY_ROOT }}
         run: python -m aria_coseis --forward --pairing coseismic --send_email
 
       - name: Save Tracking State
@@ -51,7 +60,8 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          # Stage the tracker (additions, edits and deletions, including active_jobs/partials/) and new maps
+          # Stage the tracker (additions, edits and deletions, including active_jobs/partials/ and
+          # the emailed active_jobs/outbox/ notifications) and new maps
           git add -A active_jobs/ || true
           git add docs/maps/*.html || true
           

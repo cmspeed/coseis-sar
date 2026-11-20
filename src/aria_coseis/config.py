@@ -41,11 +41,51 @@ MAPS_DIR = os.environ.get("COSEIS_MAPS_DIR") or os.path.join("docs", "maps")
 OUTPUT_DIR = os.environ.get("COSEIS_OUTPUT_DIR") or "outputs"
 
 # Optical composites and autoRIFT products, by recipe and product version (aria_coseis.optical.store).
-# Production: /u/trappist-r0/colespeed/work/coseis_optical, outside the git clones.
+# In production it lives outside the git clones (set COSEIS_OPTICAL_DIR).
 OPTICAL_DIR = os.environ.get("COSEIS_OPTICAL_DIR") or os.path.join("data", "optical")
 
 # Prevents overlapping forward runs; run_coseis_forward.sh checks the default path too
 LOCK_FILE = os.environ.get("COSEIS_LOCK_FILE") or "/tmp/coseis_processing.lock"
+
+# SAR product archive (the one-stop shop). Forward mode places urgent-response products
+# (restituted orbits) in URGENT_RESPONSE/ and, once precise orbits exist, production products in
+# HISTORIC_EVENTS/. The processing machine sets COSEIS_ARCHIVE_DIR in its crontab.
+ARCHIVE_DIR = os.environ.get("COSEIS_ARCHIVE_DIR") or os.path.join("data", "COSEIS-ONE_STOP_SHOP")
+
+# Files in git (trackers, the outbox) never hold machine paths: locations in the archive and in the
+# data folder are written as <archive>/... and <data>/... (notify.portable). Emails put the real
+# roots back (notify.displayed) from these variables, which the Action reads from repository
+# secrets; unset, the tags stay.
+ARCHIVE_DISPLAY_ROOT = os.environ.get("COSEIS_ARCHIVE_DISPLAY_ROOT") or ""
+DATA_DISPLAY_ROOT = os.environ.get("COSEIS_DATA_DISPLAY_ROOT") or ""
+
+# Precise-orbit reruns (aria_coseis.precise): their own lock, so they never hold up urgent
+# processing, and their own cores
+PRECISE_LOCK_FILE = os.environ.get("COSEIS_PRECISE_LOCK_FILE") or "/tmp/coseis_precise.lock"
+# A queued product is flagged for attention if precise orbits (or a historic-mode pair) are still
+# missing after this long
+PRECISE_GIVE_UP_DAYS = 30
+# Held (on local disk) while either runner reads and rewrites a queue entry
+QUEUE_LOCK_FILE = os.environ.get("COSEIS_QUEUE_LOCK_FILE") or "/tmp/coseis_precise_queue.lock"
+
+# topsApp: conda environment (the processing machine sets COSEIS_TOPSAPP_ENV in its crontab) and
+# the CPU cores each runner pins it to (taskset -c)
+TOPSAPP_ENV = os.environ.get("COSEIS_TOPSAPP_ENV") or "topsapp"
+TOPSAPP_CORES = os.environ.get("COSEIS_TOPSAPP_CORES") or "0-16"
+PRECISE_CORES = os.environ.get("COSEIS_PRECISE_CORES") or "17-33"
+
+# Notifications from the processing machine, which cannot send email: the precise runner writes
+# them to OUTBOX_STAGING_DIR (untracked), run_coseis_precise.sh moves them to OUTBOX_DIR and
+# pushes, and the GitHub Action emails and deletes them
+OUTBOX_DIR = os.environ.get("COSEIS_OUTBOX_DIR") or os.path.join(TRACKING_DIR, "outbox")
+OUTBOX_STAGING_DIR = os.environ.get("COSEIS_OUTBOX_STAGING_DIR") or os.path.join(
+    OUTPUT_DIR, "outbox_pending"
+)
+
+
+def precise_queue_dir() -> str:
+    """Queue of urgent-response products awaiting a precise-orbit rerun (one JSON per product)."""
+    return os.path.join(ARCHIVE_DIR, "MANIFESTS", "precise_queue")
 
 
 def get_recipients_from_env(var_name: str) -> list[str]:

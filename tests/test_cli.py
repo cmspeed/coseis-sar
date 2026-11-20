@@ -194,3 +194,8 @@ def test_module_entry_point_runs_from_repo_root() -> None:
     assert proc.returncode == 0, err
     assert out.startswith("usage: aria-coseis")
     assert "--forward" in out and "--process_only" in out
+
+
+def test_precise_cron_command() -> None:
+    """ops/run_coseis_precise.sh"""
+    assert single_call(["--precise"]) == {"func": "main_precise", "args": [], "kwargs": {}}

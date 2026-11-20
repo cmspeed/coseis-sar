@@ -13,9 +13,11 @@ from shapely.geometry import mapping, shape
 from shapely.geometry.base import BaseGeometry
 
 from aria_coseis import config
-from aria_coseis.notify import send_email
+from aria_coseis.notify import displayed, portable, send_email
+from aria_coseis.precise import find_urgent_entry, link_urgent_product, queue_urgent_product
 from aria_coseis.sar.coverage import usable_dates
 from aria_coseis.sar.pairing import make_job_json
+from aria_coseis.sar.products import all_precise, clean_processing_dir, find_product, orbits_used
 from aria_coseis.sar.search import get_path_and_frame_numbers, get_SLCs
 from aria_coseis.sar.topsapp import run_dockerized_topsApp
 from aria_coseis.utils import convert_time, to_snake_case
@@ -28,7 +30,7 @@ def load_tracker() -> dict[str, dict[str, Any]]:
         os.makedirs(config.TRACKING_DIR, exist_ok=True)
         return tracker
 
-    for file in glob.glob(os.path.join(config.TRACKING_DIR, "*.json")):
+    for file in sorted(glob.glob(os.path.join(config.TRACKING_DIR, "*.json"))):
         try:
             with open(file, "r") as f:
                 event_data = json.load(f)
@@ -274,59 +276,78 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                             pair_folder_name,
                         )
 
-                        print(f"    Starting automatic processing for {pair_folder_name}")
-                        try:
-                            run_dockerized_topsApp(job, processing_dir)
-                            track_info["processing_status"] = "Success"
-
-                            # Delete raw SLCs and intermediate files if final .nc product exists
-                            nc_files = glob.glob(
-                                os.path.join(processing_dir, "**", "*.nc"), recursive=True
-                            )
-
-                            if nc_files:
-                                print(
-                                    f"    Output .nc file found. Cleaning up SLCs and heavy intermediate files in {pair_folder_name}..."
+                        dates = f"{pre_seismic_date} (Pre) - {post_seismic_date} (Post)"
+                        location = processing_dir
+                        same_job = find_urgent_entry(job)
+                        if same_job:
+                            # Another event (foreshock, aftershock) already needed exactly these
+                            # SLCs: link to its urgent product instead of running topsApp again
+                            try:
+                                with open(same_job) as f:
+                                    before = json.load(f)["urgent_product"]
+                                entry = link_urgent_product(same_job, event_id, event_data)
+                                location = os.path.join(
+                                    config.ARCHIVE_DIR, entry["urgent_product"]
                                 )
-                                import shutil
-
-                                # Delete raw .zip and .SAFE files
-                                for slc_zip in glob.glob(
-                                    os.path.join(processing_dir, "S1[A-D]*.zip")
-                                ):
-                                    os.remove(slc_zip)
-                                for slc_safe in glob.glob(
-                                    os.path.join(processing_dir, "S1[A-D]*.SAFE")
-                                ):
-                                    shutil.rmtree(slc_safe, ignore_errors=True)
-
-                                # Delete intermediate ISCE2 folders
-                                intermediate_dirs = [
-                                    "geom_reference",
-                                    "ion",
-                                    "fine_interferogram",
-                                    "fine_offsets",
-                                    "fine_coreg",
-                                    "mask",
-                                    "reference",
-                                    "secondary",
-                                    "PICKLE",
-                                    "aux_cal",
-                                    "orbits",
-                                ]
-                                for idir in intermediate_dirs:
-                                    dir_path = os.path.join(processing_dir, idir)
-                                    if os.path.exists(dir_path):
-                                        shutil.rmtree(dir_path, ignore_errors=True)
-                            else:
+                                if entry["urgent_product"] != before:
+                                    # Moved to this (larger) event's folder: tracks recorded
+                                    # earlier in this run point to the old place
+                                    moved_from = portable(os.path.join(config.ARCHIVE_DIR, before))
+                                    for other in tracker.values():
+                                        for t in other.get("tracks", {}).values():
+                                            if t.get("location") == moved_from:
+                                                t["location"] = portable(location)
                                 print(
-                                    f"    WARNING: No final .nc product found in {pair_folder_name}. Retaining raw and intermediate files for debugging."
+                                    f"    Same job as {os.path.basename(location)}: not run again."
                                 )
+                                track_info["orbits"] = (
+                                    "precise"
+                                    if all_precise(entry["urgent_orbits"])
+                                    else "restituted"
+                                )
+                                track_info["processing_status"] = "Success"
+                            except Exception as e:
+                                print(f"    Linking to {same_job} failed: {e}")
+                                track_info["processing_status"] = f"Failed: {str(e)}"
+                        else:
+                            print(f"    Starting automatic processing for {pair_folder_name}")
+                            try:
+                                run_dockerized_topsApp(job, processing_dir)
+                                nc_file = find_product(processing_dir)
+                                if nc_file is None:
+                                    raise RuntimeError(
+                                        f"topsApp finished but wrote no product in {processing_dir}"
+                                    )
 
-                        except Exception as e:
-                            print(f"    Processing failed for {pair_folder_name}: {e}")
-                            track_info["processing_status"] = f"Failed: {str(e)}"
+                                # Delete raw SLCs and heavy intermediate files; the product stays
+                                print(
+                                    f"    Product found. Cleaning up SLCs and heavy intermediate files in {pair_folder_name}..."
+                                )
+                                clean_processing_dir(processing_dir)
 
+                                # Urgent-response product: compressed into URGENT_RESPONSE/ and
+                                # queued for a production product (aria_coseis.precise)
+                                orbits = orbits_used(processing_dir)
+                                track_info["orbits"] = (
+                                    "precise" if all_precise(orbits) else "restituted"
+                                )
+                                location = queue_urgent_product(
+                                    nc_file,
+                                    processing_dir,
+                                    event_id,
+                                    event_data,
+                                    track_key,
+                                    job,
+                                    dates,
+                                )
+                                track_info["processing_status"] = "Success"
+
+                            except Exception as e:
+                                print(f"    Processing failed for {pair_folder_name}: {e}")
+                                track_info["processing_status"] = f"Failed: {str(e)}"
+                        track_info["processing_status"] = portable(track_info["processing_status"])
+
+                        os.makedirs(processing_dir, exist_ok=True)
                         completed_filename = os.path.join(
                             processing_dir, f"job_{title}_{track_key}_COMPLETED.json"
                         )
@@ -335,10 +356,8 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
 
                         # Notify GitHub Actions that the job is done and ready for email
                         track_info["status"] = "READY_FOR_EMAIL"
-                        track_info["dates"] = (
-                            f"{pre_seismic_date} (Pre) - {post_seismic_date} (Post)"
-                        )
-                        track_info["location"] = processing_dir
+                        track_info["dates"] = dates
+                        track_info["location"] = portable(location)
 
                         if os.path.exists(partial_file):
                             os.remove(partial_file)
@@ -360,6 +379,7 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                         "dates": track_info.get("dates", "Unknown"),
                         "status": track_info.get("processing_status", "Unknown"),
                         "location": track_info.get("location", "Unknown"),
+                        "orbits": track_info.get("orbits"),
                     }
                 )
 
@@ -406,16 +426,23 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
         # Generate a styled card for each completed job
         for item in completed_jobs_summary:
             status_color = "#e74c3c" if item["status"].startswith("Failed") else "#27ae60"
+            orbits_line = ""
+            if item.get("orbits") == "restituted":
+                orbits_line = """
+                <p style="margin: 0 0 5px;"><strong>Orbits:</strong> restituted (urgent response). A production product with precise orbits follows in about 3 weeks if the event meets the significance criteria.</p>"""
+            elif item.get("orbits") == "precise":
+                orbits_line = """
+                <p style="margin: 0 0 5px;"><strong>Orbits:</strong> precise.</p>"""
 
             body += f"""
                 <div style="background-color: #f8f9fa; padding: 15px; margin-bottom: 15px; border-left: 5px solid {status_color}; border-radius: 4px;">
                 <p style="margin: 0 0 5px;"><strong>Event:</strong> {item["title"]}</p>
                 <p style="margin: 0 0 5px;"><strong>Track:</strong> {item["track"]}</p>
                 <p style="margin: 0 0 5px;"><strong>Dates:</strong> {item["dates"]}</p>
-                <p style="margin: 0 0 5px;"><strong>Status:</strong> <span style="color: {status_color}; font-weight: bold;">{item["status"]}</span></p>
+                <p style="margin: 0 0 5px;"><strong>Status:</strong> <span style="color: {status_color}; font-weight: bold;">{displayed(item["status"])}</span></p>{orbits_line}
                 <p style="margin: 0;"><strong>Location:</strong> <br>
                     <code style="background: #e9ecef; padding: 4px; display: block; margin-top: 5px; word-wrap: break-word; font-size: 12px; color: #c0392b;">
-                    {item["location"]}
+                    {displayed(item["location"])}
                     </code>
                 </p>
                 </div>

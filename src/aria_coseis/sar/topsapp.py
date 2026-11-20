@@ -6,6 +6,8 @@ import os
 import subprocess
 from typing import Any
 
+from aria_coseis import config
+
 
 def create_directories_from_json(
     eq_jsons: list[list[dict[str, Any]]], root_dir: str
@@ -46,12 +48,15 @@ def create_directories_from_json(
     return dirnames, total
 
 
-def run_dockerized_topsApp(json_data: dict[str, Any], working_dir: str) -> None:
+def run_dockerized_topsApp(
+    json_data: dict[str, Any], working_dir: str, cores: str | None = None
+) -> None:
     """
     Run dockerized topsApp InSAR processing workflow using the provided JSON data.
     Outputs are added to the root dir + an extension for each pair.
     :param json_data: JSON object containing the parameters for dockerized topsApp
     :param working_dir: Working directory where the outputs will be stored
+    :param cores: CPU cores to pin topsApp to (taskset -c); default config.TOPSAPP_CORES
     """
     # Extract the parameters from the JSON data
     params = json_data["job_parameters"]
@@ -73,10 +78,10 @@ def run_dockerized_topsApp(json_data: dict[str, Any], working_dir: str) -> None:
         "conda",
         "run",
         "-n",
-        "topsapp_env_trappist_python11",
+        config.TOPSAPP_ENV,
         "taskset",
         "-c",
-        "0-16",
+        cores or config.TOPSAPP_CORES,
         "isce2_topsapp",
         "--reference-scenes",
         reference_scenes,

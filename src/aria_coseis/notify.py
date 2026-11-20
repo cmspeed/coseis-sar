@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -41,6 +42,33 @@ def send_email(subject: str, body: str, recipients: list[str] | None = None) -> 
 
     yag.send(bcc=recipients, subject=subject, contents=[body])
     return
+
+
+ARCHIVE_TAG = "<archive>"
+DATA_TAG = "<data>"
+
+
+def portable(text: str) -> str:
+    """
+    text (a location or a message) for a file in git: the archive's and the data folder's paths
+    replaced by <archive> and <data> (the archive first: by default it lies inside the data folder).
+    """
+    for root, tag in ((config.ARCHIVE_DIR, ARCHIVE_TAG), (config.root_dir, DATA_TAG)):
+        for form in {os.path.abspath(root), os.path.normpath(root)}:
+            # whole path components only: "data" must not match ".../metadata/..."
+            text = re.sub(rf"(?<![\w.\-/]){re.escape(form)}(?![\w.\-])", tag, text)
+    return text
+
+
+def displayed(text: str) -> str:
+    """text from a file in git, for an email: the roots put back where they are configured."""
+    for tag, root in (
+        (ARCHIVE_TAG, config.ARCHIVE_DISPLAY_ROOT),
+        (DATA_TAG, config.DATA_DISPLAY_ROOT),
+    ):
+        if root:
+            text = text.replace(tag, root.rstrip("/"))
+    return text
 
 
 def ascii_table_to_html(ascii_table: str | None) -> str:

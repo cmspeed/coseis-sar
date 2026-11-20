@@ -11,6 +11,7 @@ from typing import Any
 import geojson
 import geopandas as gpd
 from shapely.geometry import mapping
+from shapely.geometry.base import BaseGeometry
 
 from aria_coseis import config
 from aria_coseis.aoi import load_aoi_from_json, make_aoi
@@ -29,6 +30,39 @@ from aria_coseis.sar.pairing import find_reference_and_secondary_pairs
 from aria_coseis.sar.search import get_path_and_frame_numbers, get_SLCs
 from aria_coseis.usgs import get_ffm_geojson_url
 from aria_coseis.utils import convert_time, to_snake_case
+
+
+def event_aoi(eq: dict[str, Any], aoi: str | None = None, sensor: str = "sar") -> BaseGeometry:
+    """
+    The event's area of interest, as historic mode chooses it: the USGS finite-fault model if there
+    is one (buffered for optical), else the AOI file given, else a box around the epicenter.
+    :param eq: dictionary containing earthquake data (USGS)
+    :param aoi: optional path to an AOI GeoJSON file
+    :param sensor: 'sar', 'sentinel-2' or 'landsat'
+    """
+    # Get the FFM geometry (if it exists)
+    ffm_url = get_ffm_geojson_url(eq.get("id", ""))
+
+    if ffm_url:
+        print("FFM URL found. Loading AOI from FFM GeoJSON...")
+        # Load the FFM geometry
+        geom = load_aoi_from_json(ffm_url)
+
+        # Buffer the FFM to capture the full deformation field (optical only; SAR frame
+        # selection on main is tuned to the unbuffered FFM). .envelope forces a clean rectangle.
+        if sensor != "sar":
+            buffer_deg = 0.15
+            geom = geom.buffer(buffer_deg).envelope
+            print(f"  -> Buffered FFM bounds by {buffer_deg} degrees to ensure coverage.")
+        return geom
+
+    if aoi:
+        print("AOI provided. Using the provided AOI...")
+        # Load the AOI from the provided JSON file
+        return load_aoi_from_json(aoi)
+
+    # Generate AOI or use the user-provided AOI
+    return make_aoi(eq.get("coordinates", []))  # Create AOI if not provided
 
 
 def process_earthquake(
@@ -59,29 +93,7 @@ def process_earthquake(
     coords = eq.get("coordinates", [])
     event_id = eq.get("id", "")
 
-    # Get the FFM geometry (if it exists)
-    ffm_url = get_ffm_geojson_url(event_id)
-
-    if ffm_url:
-        print("FFM URL found. Loading AOI from FFM GeoJSON...")
-        # Load the FFM geometry
-        aoi = load_aoi_from_json(ffm_url)
-
-        # Buffer the FFM to capture the full deformation field (optical only; SAR frame
-        # selection on main is tuned to the unbuffered FFM). .envelope forces a clean rectangle.
-        if sensor != "sar":
-            buffer_deg = 0.15
-            aoi = aoi.buffer(buffer_deg).envelope
-            print(f"  -> Buffered FFM bounds by {buffer_deg} degrees to ensure coverage.")
-
-    elif aoi:
-        print("AOI provided. Using the provided AOI...")
-        # Load the AOI from the provided JSON file
-        aoi = load_aoi_from_json(aoi)
-
-    # Generate AOI or use the user-provided AOI
-    else:
-        aoi = make_aoi(coords)  # Create AOI if not provided
+    aoi = event_aoi(eq, aoi, sensor)
 
     # Write AOI to a geojson file
     with open(config.output_path(f"{title}_{sensor}_{optical_level}_AOI.geojson"), "w") as f:

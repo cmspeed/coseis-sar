@@ -78,7 +78,7 @@ Listed events are processed as given; the significance criteria below are not ap
 ## Options
 | Option | Meaning |
 |---|---|
-| `--historic` / `--eq_list FILE` / `--forward` | Run mode (choose one) |
+| `--historic` / `--eq_list FILE` / `--forward` / `--precise` | Run mode (choose one; `--precise` is the processing machine's precise-orbit reruns) |
 | `--dates START [END]` | Day or date range, `YYYY-MM-DD` (historic) |
 | `--pairing {coseismic,sequential,all}` | SAR pair selection; required for SAR |
 | `--job_list` | Write HyP3 job JSON |
@@ -96,13 +96,27 @@ Relative to the repository root; each location can be changed with an environmen
 | Location | Contents | Override |
 |---|---|---|
 | `outputs/` | job lists, event summaries, significance tables, AOIs, frame maps | `COSEIS_OUTPUT_DIR` |
-| `data/` | Earth Engine downloads, topsApp products | `COSEIS_DATA_DIR` |
+| `data/` | Earth Engine downloads, topsApp working folders | `COSEIS_DATA_DIR` |
+| `data/COSEIS-ONE_STOP_SHOP/` | SAR product archive written by forward mode (`URGENT_RESPONSE/`, `HISTORIC_EVENTS/`) | `COSEIS_ARCHIVE_DIR` |
 | `data/optical/` | optical data store: composites and autoRIFT product versions | `COSEIS_OPTICAL_DIR` |
 
 `outputs/` and `data/` are not tracked by git.
 
 ## Forward mode
-Forward mode watches USGS for new significant earthquakes. For each one it emails an alert with predicted Sentinel-1 and NISAR overpasses, and processes the SAR pair once post-event data are available. It runs on a schedule (GitHub Actions plus a cron job on a processing machine) and keeps its state in `active_jobs/`. Operator notes are in [ops/README.md](ops/README.md).
+Forward mode watches USGS for new significant earthquakes. For each one it emails an alert with predicted Sentinel-1 and NISAR overpasses, and processes the SAR pair once post-event data are available. It runs on a schedule (GitHub Actions plus cron jobs on a processing machine) and keeps its state in `active_jobs/`. Operator notes are in [ops/README.md](ops/README.md).
+
+Each SAR product is made twice:
+- **Urgent response:** as soon as the post-event SLCs exist, with restituted orbits (precise orbits take about 3 weeks). Named `S1-COSEIS_SAR_UR-...`, in the archive's `URGENT_RESPONSE/`; for every event forward mode processes.
+- **Production:** once precise orbits exist, for events that meet the historic significance criteria, with historic mode's pair selection. Named `S1-COSEIS_SAR-...` like the rest of the archive, in `HISTORIC_EVENTS/`.
+
+```
+<archive>/URGENT_RESPONSE/2025/m_88_2025_kamchatka_peninsula_russia_earthquake_us6000qw60/
+    S1-COSEIS_SAR_UR-A-R-111-tops-20250804_20250723-071639-00155E_00051N-PP-ba44-v1_0_0/
+        S1-COSEIS_SAR_UR-A-R-111-tops-20250804_20250723-071639-00155E_00051N-PP-ba44-v1_0_0.nc (and .png)
+<archive>/HISTORIC_EVENTS/2025/m_88_2025_kamchatka_peninsula_russia_earthquake_us6000qw60/
+    S1-COSEIS_SAR-A-R-111-tops-20250804_20250723-071639-00155E_00051N-PP-ba44-v1_0_0/
+        S1-COSEIS_SAR-A-R-111-tops-20250804_20250723-071639-00155E_00051N-PP-ba44-v1_0_0.nc (and .png)
+```
 
 ## Development
 ```bash
@@ -116,11 +130,11 @@ ruff check src tests && ruff format --check src tests
 
 Code layout:
 ```
-src/aria_coseis/   config, usgs, significance, aoi, notify, tracking, pipeline, modes, cli
-                   sar/      search, pairing, topsapp
+src/aria_coseis/   config, usgs, significance, aoi, notify, tracking, precise, pipeline, modes, cli
+                   sar/      search, pairing, coverage, topsapp, products, repack
                    optical/  copernicus, element84, gee, jobs, autorift
 tests/             pytest suite
-ops/               forward-mode cron wrapper and operator notes
+ops/               forward-mode cron wrappers and operator notes
 active_jobs/       forward-mode tracker (written by the scheduled runners)
 docs/maps/         overpass maps published on GitHub Pages (written by the runners)
 ```
