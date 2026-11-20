@@ -38,7 +38,11 @@
             ],
             "partial_job_file": "job_m_58_79_km_wsw_of_changuillo_peru_DESCENDING_171_partial.json",
             "reference_date": "2026-11-08",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "orbits": "restituted",
+            "processing_status": "Success",
+            "dates": "2026-11-08 (Pre) - 2026-11-20 (Post)",
+            "location": "<archive>/URGENT_RESPONSE/2026/m_58_79_km_wsw_of_changuillo_peru_us7000ty1a/S1-COSEIS_SAR_UR-D-R-171-tops-20261120_20261108-103929-00078W_00015S-PP-57d9-v1_0_0"
         }
     }
 }
