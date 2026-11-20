@@ -356,13 +356,19 @@ def test_stale_lock_is_removed_and_live_lock_blocks(
 
 
 @pytest.mark.vcr
+@pytest.mark.parametrize("larger", ["us6000tkt2", "us6000tkuc"])
 def test_identical_job_of_another_event_is_not_run_again(
-    workdir: Path, no_lock: None, topsapp: Dict[str, Any], usgs_events: Dict[str, Any]
+    larger: str,
+    workdir: Path,
+    no_lock: None,
+    topsapp: Dict[str, Any],
+    usgs_events: Dict[str, Any],
 ) -> None:
     """
     A second tracked event (here a doublet: same area, origin and pre-event SLCs, so the recorded
     ASF searches replay) needs exactly the SLCs of the first event's job: topsApp runs once, and the
-    second event is linked to the product. The larger event keeps the copy.
+    second event is linked to the product. The larger event keeps the copy, whichever is processed
+    first (us6000tkt2 is); every track points to where the copy ends up.
     """
     seed(workdir, "ende_98ea2b5")
     main = read_json(workdir / "active_jobs" / "us6000tkt2.json")
@@ -378,8 +384,9 @@ def test_identical_job_of_another_event_is_not_run_again(
         workdir / "active_jobs" / "partials" / partial,
     )
     (workdir / "active_jobs" / "us6000tkuc.json").write_text(json.dumps(aftershock))
-    usgs_events["us6000tkt2"] = {"mag": 7.8}
-    usgs_events["us6000tkuc"] = {"mag": 6.1}
+    smaller = "us6000tkuc" if larger == "us6000tkt2" else "us6000tkt2"
+    usgs_events[larger] = {"mag": 7.8}
+    usgs_events[smaller] = {"mag": 6.1}
 
     topsapp["outcome"] = "success"
     with time_machine.travel(ENDE_PROCESSING, tick=False):
@@ -393,9 +400,9 @@ def test_identical_job_of_another_event_is_not_run_again(
         for eid in ("us6000tkt2", "us6000tkuc")
     }
     urgent = FAKE_PRODUCT.replace("S1-COSEIS_SAR-", "S1-COSEIS_SAR_UR-")
-    expected = (
-        f"<archive>/URGENT_RESPONSE/2026/m_77_68_km_nnw_of_ende_indonesia_us6000tkt2/{urgent}"
-    )
+    title = {"us6000tkt2": main["title"], "us6000tkuc": aftershock["title"]}[larger]
+    expected = f"<archive>/URGENT_RESPONSE/2026/{title}_{larger}/{urgent}"
+    assert (Path(api.settings.ARCHIVE_DIR) / expected.removeprefix("<archive>/")).is_dir()
     for track in tracks.values():
         assert track["status"] == "READY_FOR_EMAIL"
         assert track["processing_status"] == "Success"

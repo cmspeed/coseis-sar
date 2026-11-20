@@ -30,7 +30,7 @@ def load_tracker() -> dict[str, dict[str, Any]]:
         os.makedirs(config.TRACKING_DIR, exist_ok=True)
         return tracker
 
-    for file in glob.glob(os.path.join(config.TRACKING_DIR, "*.json")):
+    for file in sorted(glob.glob(os.path.join(config.TRACKING_DIR, "*.json"))):
         try:
             with open(file, "r") as f:
                 event_data = json.load(f)
@@ -283,10 +283,20 @@ def check_tracker_for_updates(do_processing: bool = False, send_email_flag: bool
                             # Another event (foreshock, aftershock) already needed exactly these
                             # SLCs: link to its urgent product instead of running topsApp again
                             try:
+                                with open(same_job) as f:
+                                    before = json.load(f)["urgent_product"]
                                 entry = link_urgent_product(same_job, event_id, event_data)
                                 location = os.path.join(
                                     config.ARCHIVE_DIR, entry["urgent_product"]
                                 )
+                                if entry["urgent_product"] != before:
+                                    # Moved to this (larger) event's folder: tracks recorded
+                                    # earlier in this run point to the old place
+                                    moved_from = portable(os.path.join(config.ARCHIVE_DIR, before))
+                                    for other in tracker.values():
+                                        for t in other.get("tracks", {}).values():
+                                            if t.get("location") == moved_from:
+                                                t["location"] = portable(location)
                                 print(
                                     f"    Same job as {os.path.basename(location)}: not run again."
                                 )
