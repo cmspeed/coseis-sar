@@ -674,8 +674,7 @@ def require_store(root: str | os.PathLike[str] | None = None) -> Path:
     store = store_root(root)
     if not (store / "README.md").exists():
         raise FileNotFoundError(
-            f"no optical data store at {store.resolve()}; set COSEIS_OPTICAL_DIR (production: "
-            "/u/trappist-r0/colespeed/work/coseis_optical) or pass --store"
+            f"no optical data store at {store.resolve()}; set COSEIS_OPTICAL_DIR or pass --store"
         )
     return store
 

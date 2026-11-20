@@ -181,7 +181,7 @@ Remaining gaps:
 **Goal:** one reproducible set of optical offset mosaics for every event, with no doubt about how each one was made. The deliverable is a GeoTIFF per event: dx and dy in metres, a quality measure in band 3, and metadata. Decisions (2026-10-14): fix and test at 90 m before any 30 m run; the testbed is Ridgecrest 2019 (control: desert, little sun change), Pazarcık 2023 (snow, winter to spring) and Palu 2018 (tropical forest, sun crossing the zenith); composites and product versions are kept apart in one data store outside the git clones.
 
 **6a. Data store and provenance.** **DONE 2026-10-14 (issue #43 → PR #44)**
-- [x] `aria_coseis.optical.store`: composites by recipe (`composites/<event>/`, read-only, one record each with checksum and source), product versions (`products/<version>/` with `VERSION.json` and `catalog.csv`), intermediates (`work/`), and USGS metadata for every event (`events.json`). Root: `COSEIS_OPTICAL_DIR` (production: `/u/trappist-r0/colespeed/work/coseis_optical`).
+- [x] `aria_coseis.optical.store`: composites by recipe (`composites/<event>/`, read-only, one record each with checksum and source), product versions (`products/<version>/` with `VERSION.json` and `catalog.csv`), intermediates (`work/`), and USGS metadata for every event (`events.json`). Root: `COSEIS_OPTICAL_DIR` (production: a folder outside the git clones).
 - [x] Register the first products as version `v0` (hard links; `data/GEE_Optical_Downloads` is frozen) with the code that made each event.
 - [x] hyp3-autorift: the uncommitted driver edits behind every v0 product are committed on the fork (`cmspeed/hyp3-autorift`, branch `coseis`, tag `coseis-v0`); later driver fixes follow on that branch. **DONE 2026-10-14**
 
