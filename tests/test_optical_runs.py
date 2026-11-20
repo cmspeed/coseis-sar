@@ -539,3 +539,75 @@ def test_ensemble_with_total_error_weights(
         assert run["deliverable_grid"]["alignment"]["dy"]["structured_block_m"] == float(block)
     else:
         assert block is None
+
+
+def test_far_field_level_can_be_kept(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """--keep_far_field_level: the same product, with the far-field median recorded, not removed."""
+    np = pytest.importorskip("numpy")
+    gdal = pytest.importorskip("osgeo.gdal")
+    pytest.importorskip("scipy")
+    pytest.importorskip("shapely")
+    pyproj = pytest.importorskip("pyproj")
+    from shapely.geometry import box
+
+    lon, lat = pyproj.Transformer.from_crs(32611, 4326, always_xy=True).transform(
+        402_250, 3_957_750
+    )
+    (tmp_path / "README.md").write_text("store\n")
+    catalog = {
+        EVENT: {
+            "event_id": "ci38457511",
+            "magnitude": 7.1,
+            "time_utc": "2019-07-06T03:19:53Z",
+            "longitude": lon,
+            "latitude": lat,
+        }
+    }
+    (tmp_path / "events.json").write_text(json.dumps(catalog))
+    make_recipe_version(tmp_path, "exp-a", "med30snow", 0.2, seed=1)
+    make_recipe_version(tmp_path, "exp-b", "seas90snow", 0.5, seed=5)
+    monkeypatch.setattr(store, "code_provenance", lambda: CODE)
+    monkeypatch.setattr(store, "write_environment_listing", lambda dst: dst.write_text("env\n"))
+    rupture = box(400_000, 3_955_500, 400_300, 3_960_000)
+    monkeypatch.setattr(
+        api.optical_farfield,
+        "rupture_geometry",
+        lambda quakes, epsg: (rupture, [{"folder": q["folder"], "circle_km": 0} for q in quakes]),
+    )
+    common = ["--store", str(tmp_path), "--source", "exp-a", "--source", "exp-b"]
+    common += ["--mosaic", "aligned_scales", "--far_field_km", "0.5"]
+    api.optical_remosaic.main([*common, "--version", "exp-ff"])
+    api.optical_remosaic.main([*common, "--version", "exp-level", "--keep_far_field_level"])
+
+    def read(version: str) -> tuple[Any, Any, dict[str, Any]]:
+        out_dir = tmp_path / "products" / version / EVENT
+        ds = gdal.Open(str(out_dir / f"{EVENT}_{version}_offsets.tif"))
+        bands = np.stack([ds.GetRasterBand(b).ReadAsArray() for b in (1, 2, 3)])
+        run = json.loads((out_dir / "run_info.json").read_text())
+        return ds, bands, run
+
+    ds_ff, ff, run_ff = read("exp-ff")
+    ds_lv, lv, run_lv = read("exp-level")
+    shift = run_ff["far_field"]["shift_m"]
+    assert run_lv["far_field"]["shift_m"] == shift and not run_lv["far_field"]["subtracted"]
+    assert np.allclose(lv[0], ff[0] + shift[0], atol=1e-5, equal_nan=True)
+    assert np.allclose(lv[1], ff[1] + shift[1], atol=1e-5, equal_nan=True)
+    assert np.array_equal(lv[2], ff[2], equal_nan=True)  # band 3 does not depend on the level
+    assert json.loads(ds_lv.GetMetadataItem("FAR_FIELD_SHIFT_MEASURED_M")) == shift
+    assert ds_ff.GetMetadataItem("FAR_FIELD_SHIFT_MEASURED_M") is None
+    level = json.loads((tmp_path / "products" / "exp-level" / "VERSION.json").read_text())
+    assert level["definition"]["deliverable"]["far_field_correction"]["subtracted"] is False
+    # versions that subtract keep the definition they had before the option existed
+    assert "subtracted" not in runs.deliverable_spec("aligned_scales", 25)["far_field_correction"]
+    with pytest.raises(SystemExit):
+        api.optical_remosaic.main(
+            [
+                "--store",
+                str(tmp_path),
+                "--source",
+                "exp-a",
+                "--version",
+                "x",
+                "--keep_far_field_level",
+            ]
+        )

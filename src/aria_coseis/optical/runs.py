@@ -117,10 +117,14 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
+def deliverable_spec(
+    method: str, far_field_km: float = 0.0, subtract_far_field: bool = True
+) -> dict[str, Any]:
     """
     The deliverable part of a version definition for a mosaic method, with the far-field
-    correction if far_field_km > 0 (versions made before it existed have no such entry).
+    correction if far_field_km > 0 (versions made before it existed have no such entry). With
+    subtract_far_field False the far-field median is measured and recorded but not subtracted (the
+    distance still defines the far field that some mosaic methods measure their error on).
     """
     spec: dict[str, Any] = {
         "file": "<event>/<event>_<version>_offsets.tif",
@@ -221,15 +225,19 @@ def deliverable_spec(method: str, far_field_km: float = 0.0) -> dict[str, Any]:
             )
         }
     if far_field_km > 0:
+        statistic = "median dx and dy of the nodes beyond the distance from the ruptures"
         spec["far_field_correction"] = {
             "distance_km": far_field_km,
-            "statistic": "median dx and dy of the nodes beyond the distance from the ruptures, subtracted",
+            "statistic": f"{statistic}, subtracted",
             "ruptures": (
                 "catalogued events with the epicentre in the product and the origin within its "
                 "composite windows: USGS finite-fault sub-faults with >= 10 % of the peak slip, or a "
                 "circle of half the Wells & Coppersmith (1994) surface-rupture length"
             ),
         }
+        if not subtract_far_field:
+            spec["far_field_correction"]["statistic"] = f"{statistic}, recorded, not subtracted"
+            spec["far_field_correction"]["subtracted"] = False
     return spec
 
 
@@ -258,7 +266,11 @@ def version_definition(
 
 
 def derived_definition(
-    source: dict[str, Any], method: str, provenance: dict[str, Any], far_field_km: float = 0.0
+    source: dict[str, Any],
+    method: str,
+    provenance: dict[str, Any],
+    far_field_km: float = 0.0,
+    subtract_far_field: bool = True,
 ) -> dict[str, Any]:
     """
     Definition of a version made from the per-path files of the source version (its record)
@@ -272,7 +284,7 @@ def derived_definition(
         raise ValueError(f"{source['version']} is remosaicked itself; remosaic {original}")
     return {
         **source["definition"],
-        "deliverable": deliverable_spec(method, far_field_km),
+        "deliverable": deliverable_spec(method, far_field_km, subtract_far_field),
         "derived_from": {
             "version": source["version"],
             "uses": "the source version's per-path products, unchanged (hard links)",
@@ -282,7 +294,11 @@ def derived_definition(
 
 
 def ensemble_definition(
-    sources: list[dict[str, Any]], method: str, provenance: dict[str, Any], far_field_km: float
+    sources: list[dict[str, Any]],
+    method: str,
+    provenance: dict[str, Any],
+    far_field_km: float,
+    subtract_far_field: bool = True,
 ) -> dict[str, Any]:
     """
     Definition of a version mosaicked from the per-path products of several versions (their
@@ -304,7 +320,7 @@ def ensemble_definition(
             "an ensemble needs an aligned mosaic (aligned_weighted, aligned_mean, aligned_total, "
             "aligned_correlated or aligned_scales)"
         )
-    spec = deliverable_spec(method, far_field_km)
+    spec = deliverable_spec(method, far_field_km, subtract_far_field)
     spec["mosaic"] = {
         **spec["mosaic"],
         "members": "every (version, path) of the source versions; aligned and weighted as paths are",
@@ -590,7 +606,9 @@ def write_event_deliverable(
     if far:
         if catalog is None:
             raise ValueError("the far-field correction needs the event catalogue")
-        run["far_field"] = apply_far_field(out_path, run, catalog, far["distance_km"], event)
+        run["far_field"] = apply_far_field(
+            out_path, run, catalog, far["distance_km"], event, far.get("subtracted", True)
+        )
     return True
 
 
@@ -622,11 +640,17 @@ def ruptures(
 
 
 def apply_far_field(
-    path: Path, run: dict[str, Any], catalog: dict[str, Any], distance_km: float, event: str
+    path: Path,
+    run: dict[str, Any],
+    catalog: dict[str, Any],
+    distance_km: float,
+    event: str,
+    subtract: bool = True,
 ) -> dict[str, Any]:
     """
     Subtract the far-field median (aria_coseis.optical.farfield) from the deliverable's dx and dy
-    in place, record it in the file's metadata, and save the ruptures used next to it.
+    in place (or with subtract False only measure it), record it in the file's metadata, and save
+    the ruptures used next to it.
     """
     import numpy as np
     from osgeo import gdal, osr
@@ -651,8 +675,12 @@ def apply_far_field(
         **result,
         "ruptures": records,
         "rupture_file": rupture_file.name,
+        "subtracted": subtract,
     }
-    if result["shift_m"] is not None:
+    if result["shift_m"] is not None and not subtract:
+        ds.SetMetadataItem("FAR_FIELD_SHIFT_MEASURED_M", json.dumps(result["shift_m"]))
+        ds.SetMetadataItem("FAR_FIELD_SHIFT_REMOVED_M", "none (recorded, not subtracted)")
+    elif result["shift_m"] is not None:
         for band, shift in zip((1, 2), result["shift_m"]):
             a = ds.GetRasterBand(band).ReadAsArray()
             ds.GetRasterBand(band).WriteArray((a - shift).astype(np.float32))

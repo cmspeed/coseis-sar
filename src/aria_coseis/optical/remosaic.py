@@ -10,7 +10,9 @@ autoRIFT is not rerun and the sources are not changed. With several sources (an 
 (source, path) is a member of the aligned_weighted mosaic: the same path from two composite
 recipes is aligned and weighted like two overlapping paths (runs.ensemble_definition). With
 --far_field_km, the median beyond that distance from the ruptures is subtracted afterwards
-(aria_coseis.optical.farfield) and the ruptures are saved next to the deliverable.
+(aria_coseis.optical.farfield) and the ruptures are saved next to the deliverable; with
+--keep_far_field_level as well, the median is only measured and recorded (methods that measure
+their error on the far field need the distance either way).
 
 For each event every source made (status COMPLETE), products/<version>/<event>/ gets:
 
@@ -147,8 +149,10 @@ def remosaic_event(
         runs.catalog_row(event, event_meta, run, mosaic_commit or ""),
     )
     alignment = run.get("deliverable_grid", {}).get("alignment")
-    shift = run.get("far_field", {}).get("shift_m")
-    note = f", far-field shift removed {shift} m" if shift else ""
+    far = run.get("far_field", {})
+    shift = far.get("shift_m")
+    done = "removed" if far.get("subtracted", True) else "measured, not removed"
+    note = f", far-field shift {done} {shift} m" if shift else ""
     if alignment:
         offsets = {c: a["offsets_removed_m"] for c, a in alignment.items()}
         print(f"{event}: {run['status']}, offsets removed (m): {offsets}{note}")
@@ -187,8 +191,16 @@ def main(argv: list[str] | None = None) -> None:
         default=0.0,
         help="Subtract the median beyond this distance from the ruptures (default 0: none)",
     )
+    parser.add_argument(
+        "--keep_far_field_level",
+        action="store_true",
+        help="With --far_field_km: record the far-field median but do not subtract it",
+    )
     parser.add_argument("--force", action="store_true", help="Redo events already remosaicked")
     args = parser.parse_args(argv)
+    if args.keep_far_field_level and not args.far_field_km > 0:
+        parser.error("--keep_far_field_level needs --far_field_km")
+    subtract = not args.keep_far_field_level
 
     root = store.require_store(args.store).resolve()
     if args.version in args.source:
@@ -201,15 +213,18 @@ def main(argv: list[str] | None = None) -> None:
         records.append(json.loads(source_path.read_text()))
     provenance = store.code_provenance()
     if len(records) > 1:
-        definition = runs.ensemble_definition(records, args.mosaic, provenance, args.far_field_km)
+        definition = runs.ensemble_definition(
+            records, args.mosaic, provenance, args.far_field_km, subtract
+        )
     else:
         definition = runs.derived_definition(
-            records[0], args.mosaic, provenance, args.far_field_km
+            records[0], args.mosaic, provenance, args.far_field_km, subtract
         )
     description = args.description or (
         f"{' + '.join(args.source)} per-path products, mosaicked with {args.mosaic}"
         + (
-            f", far-field median beyond {args.far_field_km:g} km removed"
+            f", far-field median beyond {args.far_field_km:g} km "
+            + ("removed" if subtract else "recorded, not removed")
             if args.far_field_km
             else ""
         )
