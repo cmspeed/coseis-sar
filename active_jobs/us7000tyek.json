@@ -38,10 +38,7 @@
             ],
             "partial_job_file": "job_m_55_9_km_e_of_union_philippines_DESCENDING_163_partial.json",
             "reference_date": "2026-11-13",
-            "status": "FAILED_NEEDS_ATTENTION",
-            "processing_status": "Failed: Command '['conda', 'run', '-n', 'topsapp_env_trappist_python11', 'taskset', '-c', '0-16', 'isce2_topsapp', '--reference-scenes', 'S1C_IW_SLC__1SDV_20261119T212212_20261119T212243_010411_014CE9_4833 S1C_IW_SLC__1SDV_20261119T212240_20261119T212307_010411_014CE9_5E44', '--secondary-scenes', 'S1D_IW_SLC__1SDV_20261113T212253_20261113T212320_005454_00A6AA_0E0B S1D_IW_SLC__1SDV_20261113T212225_20261113T212256_005454_00A6AA_E77E', '--frame-id', '-1', '--estimate-ionosphere-delay', 'True', '--esd-coherence-threshold', '-1', '--compute-solid-earth-tide', 'True', '--goldstein-filter-power', '0.5', '--output-resolution', '30', '--unfiltered-coherence', 'True', '--dense-offsets', 'True', '++process', 'coseis_sar']' returned non-zero exit status 1.",
-            "dates": "2026-11-13 (Pre) - 2026-11-19 (Post)",
-            "location": "/u/trappist-r0/colespeed/work/coseis/scripts/data/m_55_9_km_e_of_union_philippines/DESCENDING163/coseismic/DESCENDING163_20261113_20261119"
+            "status": "AWAITING_POST_SEISMIC"
         },
         "ASCENDING_171": {
             "flight_direction": "ASCENDING",
