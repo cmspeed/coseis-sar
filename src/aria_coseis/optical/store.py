@@ -23,7 +23,9 @@ No GDAL here, so the store can be managed from the SAR environment.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
+import fcntl
 import hashlib
 import json
 import os
@@ -32,7 +34,7 @@ import shutil
 import stat
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from importlib.util import find_spec
 from pathlib import Path
@@ -66,6 +68,277 @@ COMPOSITE_RECIPES: dict[str, dict[str, Any]] = {
         "dtype": "uint16",
     },
 }
+
+# Recipes made by aria_coseis.optical.composites, on the grid of the event's med90 composites and
+# for the same paths. "window_days" gives each exported stage's [start, end) from the origin time
+# t: ["time", d] is t + d days, ["date", d] is 00:00 UTC of the day t + d days falls on (so med90 is
+# PRE [["date", -90], ["time", 0]], POST [["time", 0], ["date", 90]]). "stage_from_recipe" names
+# the recipe whose composite of that stage is used unchanged (registered again, hard link), or
+# [recipe, stage] to use another stage of it. A "control" recipe has no earthquake between its
+# PRE and POST: its offsets measure the error of that kind of pair.
+_STORE_RECIPE = {
+    "collection": "COPERNICUS/S2_HARMONIZED",
+    "level": "TOA",
+    "band": "B8",
+    "cloud_mask": "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED cs_cdf >= 0.65",
+    "cloud_score_min": 0.65,
+    "reducer": "median",
+    "grouping": "SENSING_ORBIT_NUMBER",
+    "crs": "UTM zone of the epicenter",
+    "grid": (
+        "the grid of the event's med90 composites: the AOI rectangle (USGS finite-fault model "
+        "buffered by 0.15 degrees, or a 1 x 1 degree box) in UTM, snapped outward to 10 m"
+    ),
+    "clip": "to the AOI rectangle (longitude/latitude), as med90",
+    "scale_m": 10,
+    "dtype": "uint16",
+}
+_SNOW_MASK = {
+    "rule": (
+        "per scene, before the median: snow where NDSI = (B3 - B11) / (B3 + B11) >= 0.4, B8 > 1100 "
+        "and B3 > 1000 (TOA reflectance x 10^4; the thresholds of the MODIS snow algorithm, "
+        "SNOMAP); snow pixels are left out"
+    ),
+    "ndsi_min": 0.4,
+    "b8_min": 1100,
+    "b3_min": 1000,
+}
+COMPOSITE_RECIPES.update(
+    {
+        "seas90": {
+            **_STORE_RECIPE,
+            "description": (
+                "Season-matched PRE: the med90 POST window one year (365 d) earlier, so that PRE "
+                "and POST share the season and sun elevation. POST is the med90 POST composite"
+            ),
+            "snow_mask": None,
+            "pre_window": "[event - 365 d, 00:00 UTC of event + 90 d - 365 d)",
+            "post_window": "the med90 POST composite",
+            "window_days": {"PRE": [["time", -365], ["date", -275]]},
+            "stage_from_recipe": {"POST": "med90"},
+        },
+        "med90snow": {
+            **_STORE_RECIPE,
+            "description": "med90 windows, with snow masked in every scene before the median",
+            "snow_mask": _SNOW_MASK,
+            "pre_window": "[00:00 UTC of event - 90 d, event)",
+            "post_window": "[event, 00:00 UTC of event + 90 d)",
+            "window_days": {
+                "PRE": [["date", -90], ["time", 0]],
+                "POST": [["time", 0], ["date", 90]],
+            },
+        },
+        "seas90snow": {
+            **_STORE_RECIPE,
+            "description": (
+                "seas90 with snow masked in every scene before the median. POST is the med90snow "
+                "POST composite"
+            ),
+            "snow_mask": _SNOW_MASK,
+            "pre_window": "[event - 365 d, 00:00 UTC of event + 90 d - 365 d)",
+            "post_window": "the med90snow POST composite",
+            "window_days": {"PRE": [["time", -365], ["date", -275]]},
+            "stage_from_recipe": {"POST": "med90snow"},
+        },
+        "med30": {
+            **_STORE_RECIPE,
+            "description": (
+                "Same-year short windows: the cloud-free scenes in the 30 days before and the 30 "
+                "days after the event. Less change of season and sun than med90, more cloud gaps"
+            ),
+            "snow_mask": None,
+            "pre_window": "[00:00 UTC of event - 30 d, event)",
+            "post_window": "[event, 00:00 UTC of event + 30 d)",
+            "window_days": {
+                "PRE": [["date", -30], ["time", 0]],
+                "POST": [["time", 0], ["date", 30]],
+            },
+        },
+        "seas90ctrl": {
+            **_STORE_RECIPE,
+            "description": (
+                "No-earthquake control for seas90: PRE is the seas90 PRE window one more year "
+                "earlier (two years before the event), POST is the seas90 PRE composite (one year "
+                "before). Its offsets measure the error of a one-year, same-season pair"
+            ),
+            "snow_mask": None,
+            "pre_window": "[event - 730 d, 00:00 UTC of event + 90 d - 730 d)",
+            "post_window": "the seas90 PRE composite",
+            "window_days": {"PRE": [["time", -730], ["date", -640]]},
+            "stage_from_recipe": {"POST": ["seas90", "PRE"]},
+            "control": True,
+        },
+        "med30snow": {
+            **_STORE_RECIPE,
+            "description": "med30 windows, with snow masked in every scene before the median",
+            "snow_mask": _SNOW_MASK,
+            "pre_window": "[00:00 UTC of event - 30 d, event)",
+            "post_window": "[event, 00:00 UTC of event + 30 d)",
+            "window_days": {
+                "PRE": [["date", -30], ["time", 0]],
+                "POST": [["time", 0], ["date", 30]],
+            },
+        },
+        "med30ctrl": {
+            **_STORE_RECIPE,
+            "description": (
+                "No-earthquake control for med30: PRE is the 30 days before the med30 PRE window "
+                "(60 to 30 days before the event), POST is the med30 PRE composite. Its offsets "
+                "measure the error of a same-year pair one month apart (a foreshock in the last days "
+                "before the event, if any, is in its POST)"
+            ),
+            "snow_mask": None,
+            "pre_window": "[00:00 UTC of event - 60 d, 00:00 UTC of event - 30 d)",
+            "post_window": "the med30 PRE composite",
+            "window_days": {"PRE": [["date", -60], ["date", -30]]},
+            "stage_from_recipe": {"POST": ["med30", "PRE"]},
+            "control": True,
+        },
+    }
+)
+
+# Test (2026-10-21): the same recipes from reprocessed scenes only. Sentinel-2 L1C in Earth Engine
+# mixes processing baselines date by date (the original 02.0x of 2015-2021 and the reprocessed
+# 05.00, with refined geolocation and another DEM). These recipes keep processing baselines
+# >= 05.00, to test whether the mix causes the patchy offsets of the older events.
+_PB5 = {"processing_baseline_min": "05.00"}
+_PB5_NOTE = " Only scenes of processing baseline 05.00 or later (reprocessed); a test recipe."
+COMPOSITE_RECIPES.update(
+    {
+        f"{rid}pb5": {
+            **COMPOSITE_RECIPES[rid],
+            **_PB5,
+            "description": COMPOSITE_RECIPES[rid]["description"] + _PB5_NOTE,
+            **(
+                {
+                    "stage_from_recipe": {
+                        stage: (f"{src}pb5" if isinstance(src, str) else [f"{src[0]}pb5", src[1]])
+                        for stage, src in COMPOSITE_RECIPES[rid]["stage_from_recipe"].items()
+                    }
+                }
+                if "stage_from_recipe" in COMPOSITE_RECIPES[rid]
+                else {}
+            ),
+        }
+        for rid in ("med30", "med30snow", "med90snow", "seas90snow", "med30ctrl")
+    }
+)
+
+# Test (2026-10-27): the same recipes made by aria_coseis.optical.cdse from the Copernicus Data Space
+# Ecosystem instead of Earth Engine: the same windows, band, reducer, grid and snow rule, from
+# Collection-1 scenes only (processing baseline >= 05.00, complete in the Data Space where Earth
+# Engine mixes baselines), and with the Level-2A scene classification as the cloud mask (Cloud
+# Score+ exists only in Earth Engine). Compare with the Earth Engine recipe of the same name.
+CDSE_SCL_MASKED = (0, 1, 3, 8, 9, 10)  # no data, defective, cloud shadow, clouds, thin cirrus
+CDSE_SCL_DILATION_PX = 2  # 20 m pixels added around the masked classes
+_CDSE = {
+    "builder": "aria_coseis.optical.cdse",
+    "source": "Copernicus Data Space Ecosystem (OData API), not Earth Engine",
+    "collection": "SENTINEL-2 Level-1C (S2MSI1C), processing baseline >= 05.00 (Collection-1)",
+    "processing_baseline_min": "05.00",
+    "cloud_mask": (
+        "Level-2A scene classification (SCL, 20 m) of the same acquisition: classes "
+        f"{', '.join(map(str, CDSE_SCL_MASKED))} masked, dilated by {CDSE_SCL_DILATION_PX} pixels"
+    ),
+    "harmonization": (
+        "DN - 1000 (the RADIO_ADD_OFFSET of baselines >= 04.00), the scale of "
+        "COPERNICUS/S2_HARMONIZED; at least 1 where the scene has data"
+    ),
+    "dates": "the tiles of one acquisition are mosaicked first: one value per date and pixel",
+    "resampling": "nearest neighbour onto the grid",
+}
+COMPOSITE_RECIPES.update(
+    {
+        f"{rid}cdse": {
+            **{k: v for k, v in COMPOSITE_RECIPES[rid].items() if k != "cloud_score_min"},
+            **_CDSE,
+            "description": COMPOSITE_RECIPES[rid]["description"].rstrip(".")
+            + ". From the Copernicus Data Space (Collection-1 scenes, Level-2A cloud mask); a test.",
+            **(
+                {
+                    "stage_from_recipe": {
+                        stage: f"{src}cdse"
+                        for stage, src in COMPOSITE_RECIPES[rid]["stage_from_recipe"].items()
+                    }
+                }
+                if "stage_from_recipe" in COMPOSITE_RECIPES[rid]
+                else {}
+            ),
+        }
+        for rid in ("med30snow", "med90snow", "seas90snow")
+    }
+)
+
+# Test (2026-11-11): the *cdse recipes with the Level-2A cloud probability in place of the scene
+# classification's cloud and cloud-shadow classes. At low sun the SCL labels terrain shadow as
+# cloud shadow (class 3): at Taiwan 2022 (P46, med90 POST window) 28-42 % of the steep slopes facing
+# away from the sun on the clear November-December dates, where Cloud Score+ keeps them and the
+# cloud probability is near 0, so those pixels' median came from the brighter September-October
+# dates only. Classes 0 and 1 (no data, defective) are still masked from the SCL. Lists, not
+# tuples: recipes.json must compare equal to the definition.
+CDSE_PROBABILITY_MASK = {"scl": [0, 1], "cloud_probability_min": 15, "dilation_px": 5}
+COMPOSITE_RECIPES.update(
+    {
+        f"{rid}cdseprob": {
+            **COMPOSITE_RECIPES[f"{rid}cdse"],
+            "cloud_mask": (
+                "Level-2A cloud probability (MSK_CLDPRB_20m) of the same acquisition >= "
+                f"{CDSE_PROBABILITY_MASK['cloud_probability_min']} %, and scene classification "
+                f"classes {', '.join(map(str, CDSE_PROBABILITY_MASK['scl']))} (no data, "
+                f"defective), dilated by {CDSE_PROBABILITY_MASK['dilation_px']} 20 m pixels; the "
+                "cloud-shadow class is not used (at low sun it holds terrain shadow)"
+            ),
+            "cdse_mask": CDSE_PROBABILITY_MASK,
+            "description": COMPOSITE_RECIPES[f"{rid}cdse"]["description"].replace(
+                "Level-2A cloud mask", "Level-2A cloud probability as the cloud mask"
+            ),
+            **(
+                {
+                    "stage_from_recipe": {
+                        stage: f"{src}cdseprob"
+                        for stage, src in COMPOSITE_RECIPES[rid]["stage_from_recipe"].items()
+                    }
+                }
+                if "stage_from_recipe" in COMPOSITE_RECIPES[rid]
+                else {}
+            ),
+        }
+        for rid in ("med30snow", "med90snow", "seas90snow")
+    }
+)
+
+# Test (2026-11-11): the *cdse recipes from geometrically refined Level-1C products only. The
+# Collection-1 reprocessing left some datastrips NOT_REFINED (Image_Refining in MTD_DS.xml): Taiwan
+# 2022 P46 from 7 October on, 3-12 m off the refined dates, which made the med90 and seas90 offsets
+# worse than Earth Engine's (whose original products of those dates are refined). Of several
+# products of a tile and date, a REFINED one is chosen; a tile and date with none is left out.
+COMPOSITE_RECIPES.update(
+    {
+        f"{rid}cdseref": {
+            **COMPOSITE_RECIPES[f"{rid}cdse"],
+            "require_refined": True,
+            "geometric_refinement": (
+                "only Level-1C products whose datastrip is REFINED (Image_Refining flag of "
+                "MTD_DS.xml); of several products of a tile and date the REFINED one, a tile and "
+                "date without one is left out"
+            ),
+            "description": COMPOSITE_RECIPES[f"{rid}cdse"]["description"].replace(
+                "Collection-1 scenes", "refined Collection-1 scenes"
+            ),
+            **(
+                {
+                    "stage_from_recipe": {
+                        stage: f"{src}cdseref"
+                        for stage, src in COMPOSITE_RECIPES[rid]["stage_from_recipe"].items()
+                    }
+                }
+                if "stage_from_recipe" in COMPOSITE_RECIPES[rid]
+                else {}
+            ),
+        }
+        for rid in ("med30snow", "med90snow", "seas90snow")
+    }
+)
 
 # The first products ("v0"), made 2026-10-01 to 2026-10-13 in data/GEE_Optical_Downloads.
 V0_OLD_SCRIPT_EVENTS = (
@@ -198,6 +471,30 @@ def sha256(path: str | os.PathLike[str], chunk: int = 1 << 24) -> str:
     return digest.hexdigest()
 
 
+@contextlib.contextmanager
+def locked(path: Path) -> Iterator[None]:
+    """
+    Hold an exclusive lock for a read-modify-write of path (a version's catalog.csv, an event's
+    composites.json, ...), so that runs in parallel do not lose each other's updates.
+
+    The lock file is in COSEIS_OPTICAL_LOCK_DIR when that is set, else next to path. Set it to a
+    local folder when the store is on NFS without working locks (all processes on one machine).
+    """
+    lock_dir = os.environ.get("COSEIS_OPTICAL_LOCK_DIR")
+    if lock_dir:
+        key = hashlib.sha256(str(path.resolve()).encode()).hexdigest()[:16]
+        lock = Path(lock_dir) / f"{path.name}.{key}.lock"
+    else:
+        lock = path.with_name(path.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock, "a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 def _read_json(path: Path, default: Any) -> Any:
     return json.loads(path.read_text()) if path.exists() else default
 
@@ -224,21 +521,28 @@ def _link_or_copy(src: Path, dst: Path, allow_copy: bool) -> str:
 def write_recipes(root: Path) -> None:
     """Write composites/recipes.json; refuse to change the definition of an existing recipe."""
     path = root / "composites" / "recipes.json"
-    existing = _read_json(path, {})
-    for rid, definition in COMPOSITE_RECIPES.items():
-        if rid in existing and existing[rid] != definition:
-            raise ValueError(f"recipe {rid!r} already exists with a different definition")
-    _write_json(path, {**existing, **COMPOSITE_RECIPES})
+    with locked(path):
+        existing = _read_json(path, {})
+        for rid, definition in COMPOSITE_RECIPES.items():
+            if rid in existing and existing[rid] != definition:
+                raise ValueError(f"recipe {rid!r} already exists with a different definition")
+        _write_json(path, {**existing, **COMPOSITE_RECIPES})
 
 
 def add_composite(
-    root: Path, event: str, src: Path, record: dict[str, Any], allow_copy: bool = False
+    root: Path,
+    event: str,
+    src: Path,
+    record: dict[str, Any],
+    allow_copy: bool = False,
+    source: str | None = None,
 ) -> Path:
     """
     Register a composite file under composites/<event>/ (hard link, or copy if allowed).
 
     record must hold sensor, path, level, band, stage, recipe, start and end (datetimes). Adding
-    the same file again is a no-op; a different file under an existing name raises.
+    the same file again is a no-op; a different file under an existing name raises. source is
+    recorded as where the file came from (default: src).
     """
     name = composite_name(
         record["sensor"],
@@ -251,6 +555,19 @@ def add_composite(
         record["end"],
     )
     folder = root / "composites" / event
+    folder.mkdir(parents=True, exist_ok=True)
+    with locked(folder / "composites.json"):
+        return _add_composite(folder, name, src, record, allow_copy, source)
+
+
+def _add_composite(
+    folder: Path,
+    name: str,
+    src: Path,
+    record: dict[str, Any],
+    allow_copy: bool,
+    source: str | None,
+) -> Path:
     dst = folder / name
     index_path = folder / "composites.json"
     index = _read_json(index_path, {})
@@ -271,7 +588,7 @@ def add_composite(
         k: (v.strftime("%Y-%m-%dT%H:%M:%SZ") if isinstance(v, datetime) else v)
         for k, v in record.items()
     }
-    entry.update(sha256=digest, bytes=dst.stat().st_size, stored_as=how, source=str(src))
+    entry.update(sha256=digest, bytes=dst.stat().st_size, stored_as=how, source=source or str(src))
     entry["registered"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     index[name] = entry
     _write_json(index_path, index)
@@ -357,8 +674,7 @@ def require_store(root: str | os.PathLike[str] | None = None) -> Path:
     store = store_root(root)
     if not (store / "README.md").exists():
         raise FileNotFoundError(
-            f"no optical data store at {store.resolve()}; set COSEIS_OPTICAL_DIR (production: "
-            "/u/trappist-r0/colespeed/work/coseis_optical) or pass --store"
+            f"no optical data store at {store.resolve()}; set COSEIS_OPTICAL_DIR or pass --store"
         )
     return store
 
@@ -371,17 +687,22 @@ def start_version(
     definition (code, parameters, recipe). Returns the version record.
 
     Versions not named exp-* must be made from committed code: a dirty checkout in the
-    definition's "code" (or, for a remosaicked version, "mosaic_code") raises.
+    definition's "code" (or, for a remosaicked version, "mosaic_code", or an ensemble member's
+    code) raises.
     """
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", version) or version == "v0":
         raise ValueError(f"invalid version name {version!r}")
     if not version.startswith("exp-"):
-        dirty = [
-            k
-            for key in ("code", "mosaic_code")
-            for k, v in definition.get(key, {}).items()
-            if isinstance(v, dict) and v.get("dirty")
-        ]
+        codes = [definition.get("code", {}), definition.get("mosaic_code", {})]
+        codes += [m.get("code", {}) for m in definition.get("ensemble_of", {}).values()]
+        dirty = sorted(
+            {
+                k
+                for code in codes
+                for k, v in code.items()
+                if isinstance(v, dict) and v.get("dirty")
+            }
+        )
         if dirty:
             raise ValueError(
                 f"version {version} must be made from committed code; uncommitted changes in "
@@ -389,6 +710,14 @@ def start_version(
             )
     path = root / "products" / version / "VERSION.json"
     definition = json.loads(json.dumps(definition, sort_keys=True))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with locked(path):
+        return _start_version(path, version, description, definition)
+
+
+def _start_version(
+    path: Path, version: str, description: str, definition: dict[str, Any]
+) -> dict[str, Any]:
     existing = _read_json(path, None)
     if existing is not None:
         if existing.get("definition") != definition:
@@ -580,6 +909,8 @@ def register_downloads(
     store = require_store(root)
     if recipe not in COMPOSITE_RECIPES:
         raise ValueError(f"unknown composite recipe {recipe!r}")
+    if "window_days" in COMPOSITE_RECIPES[recipe]:
+        raise ValueError(f"{recipe} composites are made by aria_coseis.optical.composites")
     write_recipes(store)
     origins = {}
     for event_dir in sorted(p for p in Path(downloads).iterdir() if p.is_dir()):
@@ -706,20 +1037,24 @@ CATALOG_COLUMNS = (
 
 
 def update_catalog(path: Path, row: dict[str, Any]) -> None:
-    """Add or replace one event's row in a version's catalog.csv."""
-    rows = []
-    if path.exists():
-        with open(path, newline="") as f:
-            rows = [r for r in csv.DictReader(f) if r["event"] != row["event"]]
-    write_catalog(path, sorted([*rows, row], key=lambda r: r["event"]))
+    """Add or replace one event's row in a version's catalog.csv (locked: runs may be parallel)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with locked(path):
+        rows = []
+        if path.exists():
+            with open(path, newline="") as f:
+                rows = [r for r in csv.DictReader(f) if r["event"] != row["event"]]
+        write_catalog(path, sorted([*rows, row], key=lambda r: r["event"]))
 
 
 def write_catalog(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="") as f:
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CATALOG_COLUMNS, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+    tmp.replace(path)
 
 
 def info(root: str | os.PathLike[str] | None = None) -> str:

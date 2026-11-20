@@ -302,3 +302,312 @@ def test_remosaic_makes_a_new_version_and_leaves_the_source(
     assert json.loads((out_dir / "run_info.json").read_text()) == run
     with pytest.raises(SystemExit):
         remosaic.main(["--store", str(tmp_path), "--source", "v0", "--version", "exp-x"])
+
+
+def make_recipe_version(root: Path, version: str, recipe: str, shift: float, seed: int) -> None:
+    """A version of EVENT made from one recipe: paths 27 and 70 (P70 is +0.5 m from P27)."""
+    record = store.start_version(root, version, "", {**definition(), "composite_recipe": recipe})
+    out_dir = root / "products" / version / EVENT
+    (out_dir / "paths").mkdir(parents=True)
+    paths, inputs = [], []
+    for n, (path, x0, offset) in enumerate(((27, 400_000.0, 0.0), (70, 400_900.0, 0.5))):
+        name = runs.path_product_name(EVENT, version, path)
+        write_noisy_path(out_dir / "paths" / name, x0, offset + shift, seed=seed + n)
+        paths.append({"path": path, "offset_m": f"paths/{name}"})
+        inputs.append(
+            {
+                "path": path,
+                "ref_name": f"PRE_{recipe}_{path}",
+                "sec_name": f"POST_{recipe}_{path}",
+                "ref_sha256": "a",
+                "sec_sha256": "b",
+                "pre_window": ["2019-04-07T00:00:00Z", "2019-07-06T03:19:53Z"],
+                "post_window": ["2019-07-06T03:19:53Z", "2019-10-04T00:00:00Z"],
+            }
+        )
+    run = {"event": EVENT, "status": "COMPLETE", "inputs": inputs, "skipped": {}, "paths": paths}
+    (out_dir / "run_info.json").write_text(json.dumps(run))
+    assert record["version"] == version
+
+
+def test_ensemble_definition_rules(tmp_path: Path) -> None:
+    a = store.start_version(
+        tmp_path, "exp-a", "", {**definition(), "composite_recipe": "med30snow"}
+    )
+    b = store.start_version(
+        tmp_path, "exp-b", "", {**definition(), "composite_recipe": "seas90snow"}
+    )
+    ens = runs.ensemble_definition([a, b], "aligned_weighted", CODE, 25)
+    assert set(ens["ensemble_of"]) == {"exp-a", "exp-b"}
+    assert ens["deliverable"]["far_field_correction"]["distance_km"] == 25
+    assert runs.source_versions(ens) == ["exp-a", "exp-b"]
+    assert "far_field_correction" not in runs.deliverable_spec("aligned_weighted")
+    other = store.start_version(tmp_path, "exp-c", "", definition("legacy90"))
+    with pytest.raises(ValueError, match="share one profile"):
+        runs.ensemble_definition([a, other], "aligned_weighted", CODE, 25)
+    with pytest.raises(ValueError, match="an aligned mosaic"):
+        runs.ensemble_definition([a, b], "mean", CODE, 0)
+    plain = runs.ensemble_definition([a, b], "aligned_mean", CODE, 25)
+    assert "equal weights" in plain["deliverable"]["mosaic"]["description"]
+    total = runs.ensemble_definition([a, b], "aligned_total", CODE, 25)
+    spec = total["deliverable"]
+    assert spec["mosaic"]["structured_error"]["block_m"] == 10_000
+    assert "structured" in spec["band_descriptions"]["sigma_h_m"]
+    with pytest.raises(ValueError, match="far-field distance"):
+        runs.ensemble_definition([a, b], "aligned_total", CODE, 0)
+    correlated = runs.ensemble_definition([a, b], "aligned_correlated", CODE, 25)["deliverable"]
+    assert correlated["mosaic"]["local_window_m"] == 630
+    assert "local_window_nodes" not in correlated["mosaic"]
+    assert "never below 0" in correlated["mosaic"]["correlations"]["statistic"]
+    assert "correlations" in correlated["band_descriptions"]["sigma_h_m"]
+    with pytest.raises(ValueError, match="far-field distance"):
+        runs.ensemble_definition([a, b], "aligned_correlated", CODE, 0)
+    scales = runs.ensemble_definition([a, b], "aligned_scales", CODE, 25)["deliverable"]
+    assert scales["mosaic"]["local_window_m"] == 630
+    assert "630 m" in scales["mosaic"]["structured_error"]["block_m"]
+    assert scales["mosaic"]["structured_error"]["min_block_nodes"] == "half the block's nodes"
+    assert "every scale" in scales["mosaic"]["description"]
+    assert "correlations" in scales["band_descriptions"]["sigma_h_m"]
+    dirty = {**CODE, "aria_coseis": {**CODE["aria_coseis"], "dirty": True, "diff_sha256": "d"}}
+    a_dirty = {**a, "definition": {**a["definition"], "code": runs.code_signature(dirty)}}
+    with pytest.raises(ValueError, match="committed code"):
+        store.start_version(
+            tmp_path,
+            "v1-ens",
+            "",
+            runs.ensemble_definition([a_dirty, b], "aligned_weighted", CODE, 25),
+        )
+
+
+def test_ensemble_of_two_recipes_with_the_far_field_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    np = pytest.importorskip("numpy")
+    gdal = pytest.importorskip("osgeo.gdal")
+    pytest.importorskip("scipy")
+    pytest.importorskip("shapely")
+    pyproj = pytest.importorskip("pyproj")
+    from shapely.geometry import box
+
+    lon, lat = pyproj.Transformer.from_crs(32611, 4326, always_xy=True).transform(
+        402_250, 3_957_750
+    )
+    (tmp_path / "README.md").write_text("store\n")
+    catalog = {
+        EVENT: {
+            "event_id": "ci38457511",
+            "magnitude": 7.1,
+            "time_utc": "2019-07-06T03:19:53Z",
+            "longitude": lon,
+            "latitude": lat,
+        }
+    }
+    (tmp_path / "events.json").write_text(json.dumps(catalog))
+    make_recipe_version(tmp_path, "exp-a", "med30snow", 0.2, seed=1)
+    make_recipe_version(tmp_path, "exp-b", "seas90snow", 0.5, seed=5)  # 0.3 m from exp-a
+    monkeypatch.setattr(store, "code_provenance", lambda: CODE)
+    monkeypatch.setattr(store, "write_environment_listing", lambda dst: dst.write_text("env\n"))
+    rupture = box(400_000, 3_955_500, 400_300, 3_960_000)  # along the west edge
+    monkeypatch.setattr(
+        api.optical_farfield,
+        "rupture_geometry",
+        lambda quakes, epsg: (rupture, [{"folder": q["folder"], "circle_km": 0} for q in quakes]),
+    )
+    api.optical_remosaic.main(
+        [
+            "--store",
+            str(tmp_path),
+            "--source",
+            "exp-a",
+            "--source",
+            "exp-b",
+            "--version",
+            "exp-ens",
+            "--far_field_km",
+            "0.5",
+        ]
+    )
+
+    out_dir = tmp_path / "products" / "exp-ens" / EVENT
+    run = json.loads((out_dir / "run_info.json").read_text())
+    assert run["status"] == "COMPLETE", run.get("error")
+    members = sorted(p["member"] for p in run["paths"])
+    assert members == ["med30snow/P27", "med30snow/P70", "seas90snow/P27", "seas90snow/P70"]
+    expected = {
+        "med30snow/P27": 0.2,
+        "med30snow/P70": 0.7,
+        "seas90snow/P27": 0.5,
+        "seas90snow/P70": 1.0,
+    }
+    alignment = run["deliverable_grid"]["alignment"]["dx"]
+    ref = expected[alignment["reference_path"]]
+    for member, removed in alignment["offsets_removed_m"].items():
+        assert removed == pytest.approx(expected[member] - ref, abs=0.03)
+    assert run["far_field"]["shift_m"] == pytest.approx([ref, -ref], abs=0.05)
+    assert [r["folder"] for r in run["far_field"]["ruptures"]] == [EVENT]
+    assert (out_dir / f"{EVENT}_exp-ens_ruptures.geojson").exists()
+    ds = gdal.Open(str(out_dir / f"{EVENT}_exp-ens_offsets.tif"))
+    assert abs(np.nanmedian(ds.GetRasterBand(1).ReadAsArray())) < 0.05
+    assert ds.GetMetadataItem("COMPOSITE_RECIPE") == "med30snow + seas90snow"
+    assert ds.GetMetadataItem("DERIVED_FROM_VERSION") == "exp-a exp-b"
+    assert json.loads(ds.GetMetadataItem("FAR_FIELD_SHIFT_REMOVED_M")) == pytest.approx(
+        [ref, -ref], abs=0.05
+    )
+    version = json.loads((tmp_path / "products" / "exp-ens" / "VERSION.json").read_text())
+    assert set(version["definition"]["ensemble_of"]) == {"exp-a", "exp-b"}
+
+
+@pytest.mark.parametrize("method", ["aligned_total", "aligned_correlated", "aligned_scales"])
+def test_ensemble_with_total_error_weights(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, method: str
+) -> None:
+    np = pytest.importorskip("numpy")
+    gdal = pytest.importorskip("osgeo.gdal")
+    pytest.importorskip("scipy")
+    pytest.importorskip("shapely")
+    pyproj = pytest.importorskip("pyproj")
+    from shapely.geometry import box
+
+    lon, lat = pyproj.Transformer.from_crs(32611, 4326, always_xy=True).transform(
+        402_250, 3_957_750
+    )
+    (tmp_path / "README.md").write_text("store\n")
+    catalog = {
+        EVENT: {
+            "event_id": "ci38457511",
+            "magnitude": 7.1,
+            "time_utc": "2019-07-06T03:19:53Z",
+            "longitude": lon,
+            "latitude": lat,
+        }
+    }
+    (tmp_path / "events.json").write_text(json.dumps(catalog))
+    make_recipe_version(tmp_path, "exp-a", "med30snow", 0.2, seed=1)
+    make_recipe_version(tmp_path, "exp-b", "seas90snow", 0.5, seed=5)
+    monkeypatch.setattr(store, "code_provenance", lambda: CODE)
+    monkeypatch.setattr(store, "write_environment_listing", lambda dst: dst.write_text("env\n"))
+    rupture = box(400_000, 3_955_500, 400_300, 3_960_000)
+    monkeypatch.setattr(
+        api.optical_farfield,
+        "rupture_geometry",
+        lambda quakes, epsg: (rupture, [{"folder": q["folder"], "circle_km": 0} for q in quakes]),
+    )
+    api.optical_remosaic.main(
+        [
+            "--store",
+            str(tmp_path),
+            "--source",
+            "exp-a",
+            "--source",
+            "exp-b",
+            "--version",
+            "exp-tot",
+            "--mosaic",
+            method,
+            "--far_field_km",
+            "0.5",
+        ]
+    )
+    out_dir = tmp_path / "products" / "exp-tot" / EVENT
+    run = json.loads((out_dir / "run_info.json").read_text())
+    assert run["status"] == "COMPLETE", run.get("error")
+    structured = run["deliverable_grid"]["alignment"]["dx"]["structured_error"]
+    assert set(structured) == {"med30snow", "seas90snow"}
+    if method == "aligned_scales":  # blocks of the local window: enough of them even here
+        assert all(r["s_m"] is not None for r in structured.values())
+    else:
+        assert all(r["s_m"] is None for r in structured.values())  # too small for 10 km blocks
+    ds = gdal.Open(str(out_dir / f"{EVENT}_exp-tot_offsets.tif"))
+    assert ds.GetMetadataItem("MOSAIC_METHOD") == method
+    assert set(json.loads(ds.GetMetadataItem("STRUCTURED_ERROR_M"))["dy"]) == {
+        "med30snow",
+        "seas90snow",
+    }
+    assert np.isfinite(ds.GetRasterBand(3).ReadAsArray()).any()
+    if method in ("aligned_correlated", "aligned_scales"):  # one per pair of members, component
+        correlations = json.loads(ds.GetMetadataItem("MEMBER_CORRELATIONS"))
+        members = run["deliverable_grid"]["alignment"]["dx"]["offsets_removed_m"]
+        assert len(correlations["dx"]) == len(members) * (len(members) - 1) // 2
+        assert all(0.0 <= r <= 1.0 for r in correlations["dy"].values())
+        assert int(ds.GetMetadataItem("LOCAL_WINDOW_NODES")) % 2 == 1
+    else:
+        assert ds.GetMetadataItem("MEMBER_CORRELATIONS") is None
+    block = ds.GetMetadataItem("STRUCTURED_BLOCK_M")
+    if method == "aligned_scales":
+        spacing = ds.GetGeoTransform()[1]
+        assert float(block) == pytest.approx(api.optical_mosaic.window_nodes(spacing) * spacing)
+        assert run["deliverable_grid"]["alignment"]["dy"]["structured_block_m"] == float(block)
+    else:
+        assert block is None
+
+
+def test_far_field_level_can_be_kept(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """--keep_far_field_level: the same product, with the far-field median recorded, not removed."""
+    np = pytest.importorskip("numpy")
+    gdal = pytest.importorskip("osgeo.gdal")
+    pytest.importorskip("scipy")
+    pytest.importorskip("shapely")
+    pyproj = pytest.importorskip("pyproj")
+    from shapely.geometry import box
+
+    lon, lat = pyproj.Transformer.from_crs(32611, 4326, always_xy=True).transform(
+        402_250, 3_957_750
+    )
+    (tmp_path / "README.md").write_text("store\n")
+    catalog = {
+        EVENT: {
+            "event_id": "ci38457511",
+            "magnitude": 7.1,
+            "time_utc": "2019-07-06T03:19:53Z",
+            "longitude": lon,
+            "latitude": lat,
+        }
+    }
+    (tmp_path / "events.json").write_text(json.dumps(catalog))
+    make_recipe_version(tmp_path, "exp-a", "med30snow", 0.2, seed=1)
+    make_recipe_version(tmp_path, "exp-b", "seas90snow", 0.5, seed=5)
+    monkeypatch.setattr(store, "code_provenance", lambda: CODE)
+    monkeypatch.setattr(store, "write_environment_listing", lambda dst: dst.write_text("env\n"))
+    rupture = box(400_000, 3_955_500, 400_300, 3_960_000)
+    monkeypatch.setattr(
+        api.optical_farfield,
+        "rupture_geometry",
+        lambda quakes, epsg: (rupture, [{"folder": q["folder"], "circle_km": 0} for q in quakes]),
+    )
+    common = ["--store", str(tmp_path), "--source", "exp-a", "--source", "exp-b"]
+    common += ["--mosaic", "aligned_scales", "--far_field_km", "0.5"]
+    api.optical_remosaic.main([*common, "--version", "exp-ff"])
+    api.optical_remosaic.main([*common, "--version", "exp-level", "--keep_far_field_level"])
+
+    def read(version: str) -> tuple[Any, Any, dict[str, Any]]:
+        out_dir = tmp_path / "products" / version / EVENT
+        ds = gdal.Open(str(out_dir / f"{EVENT}_{version}_offsets.tif"))
+        bands = np.stack([ds.GetRasterBand(b).ReadAsArray() for b in (1, 2, 3)])
+        run = json.loads((out_dir / "run_info.json").read_text())
+        return ds, bands, run
+
+    ds_ff, ff, run_ff = read("exp-ff")
+    ds_lv, lv, run_lv = read("exp-level")
+    shift = run_ff["far_field"]["shift_m"]
+    assert run_lv["far_field"]["shift_m"] == shift and not run_lv["far_field"]["subtracted"]
+    assert np.allclose(lv[0], ff[0] + shift[0], atol=1e-5, equal_nan=True)
+    assert np.allclose(lv[1], ff[1] + shift[1], atol=1e-5, equal_nan=True)
+    assert np.array_equal(lv[2], ff[2], equal_nan=True)  # band 3 does not depend on the level
+    assert json.loads(ds_lv.GetMetadataItem("FAR_FIELD_SHIFT_MEASURED_M")) == shift
+    assert ds_ff.GetMetadataItem("FAR_FIELD_SHIFT_MEASURED_M") is None
+    level = json.loads((tmp_path / "products" / "exp-level" / "VERSION.json").read_text())
+    assert level["definition"]["deliverable"]["far_field_correction"]["subtracted"] is False
+    # versions that subtract keep the definition they had before the option existed
+    assert "subtracted" not in runs.deliverable_spec("aligned_scales", 25)["far_field_correction"]
+    with pytest.raises(SystemExit):
+        api.optical_remosaic.main(
+            [
+                "--store",
+                str(tmp_path),
+                "--source",
+                "exp-a",
+                "--version",
+                "x",
+                "--keep_far_field_level",
+            ]
+        )

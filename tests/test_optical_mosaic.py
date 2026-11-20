@@ -100,3 +100,177 @@ def test_mean_and_unknown_methods() -> None:
     np.testing.assert_allclose(out["dx"][:, 35], (dx[0][:, 35] + dx[1][:, 35]) / 2, atol=1e-6)
     with pytest.raises(ValueError, match="unknown mosaic method"):
         mosaic.merge(dx, dy, interp, chip, "median")
+
+
+def test_aligned_mean_aligns_like_weighted_but_weighs_equally() -> None:
+    dx, dy, interp, chip = two_paths(offset=(0.4, -0.2), noise=(0.1, 0.4))
+    weighted = mosaic.merge(dx, dy, interp, chip, "aligned_weighted")
+    plain = mosaic.merge(dx, dy, interp, chip, "aligned_mean")
+    assert plain["alignment"]["dx"]["offsets_m"][1] == pytest.approx(0.4, abs=0.05)
+    overlap = slice(30, 44)  # truth 0 west of the fault, after alignment
+    assert np.nanstd(plain["dy"][:, overlap]) > np.nanstd(weighted["dy"][:, overlap])
+    assert np.isfinite(plain["sigma_h"]).all()
+
+
+def patchy_pair(seed: int = 3) -> Tuple[Any, Any, Any, Any, Any, Any]:
+    """
+    Two members over the same 60 x 90 km at 1 km nodes, true motion 0 everywhere. Member 0 is
+    rough (0.3 m node noise) but unbiased; member 1 is smooth (0.1 m noise) but carries patches:
+    one constant per 30 km square, between -1 and 1 m. Returns the stacks, the patch values and
+    the node centres.
+    """
+    rng = np.random.default_rng(seed)
+    patches = rng.uniform(-1.0, 1.0, (2, 3))
+    patch_field = np.kron(patches, np.ones((30, 30)))
+    dx = np.stack([rng.normal(0, 0.3, (60, 90)), patch_field + rng.normal(0, 0.1, (60, 90))])
+    dy = np.stack([rng.normal(0, 0.3, (60, 90)), patch_field + rng.normal(0, 0.1, (60, 90))])
+    interp = np.zeros_like(dx)
+    chip = np.full_like(dx, 4.0)
+    x = 400_000.0 + (np.arange(90) + 0.5) * 1000
+    y = 4_000_000.0 - (np.arange(60) + 0.5) * 1000
+    return dx.astype(np.float32), dy.astype(np.float32), interp, chip, patches, (x, y)
+
+
+def test_structured_error_measures_patches_not_noise() -> None:
+    dx, _, _, _, patches, (x, y) = patchy_pair()
+    far = np.ones((60, 90), bool)
+    patchy = mosaic.structured_error(dx[1:2], far, x, y)
+    rough = mosaic.structured_error(dx[0:1], far, x, y)
+    assert patchy["blocks"] == 54  # 6 x 9 blocks of 10 km
+    assert patchy["s_m"] == pytest.approx(np.std(patches), abs=0.05)
+    assert rough["s_m"] < 0.06  # 0.3 m node noise averages out in 100-node blocks
+    small = np.zeros((60, 90), bool)
+    small[:5, :5] = True  # 25 far-field nodes
+    assert mosaic.structured_error(dx[1:2], small, x, y)["s_m"] is None
+
+
+def test_aligned_total_down_weights_the_patchy_member() -> None:
+    dx, dy, interp, chip, _, (x, y) = patchy_pair()
+    structure = {"far": np.ones((60, 90), bool), "x": x, "y": y, "groups": ["rough", "patchy"]}
+    local = mosaic.merge(dx, dy, interp, chip, "aligned_weighted")
+    total = mosaic.merge(dx, dy, interp, chip, "aligned_total", structure)
+    for comp in ("dx", "dy"):  # the truth is 0: the merged values are the error
+        assert np.sqrt(np.nanmean(total[comp] ** 2)) < 0.7 * np.sqrt(np.nanmean(local[comp] ** 2))
+        record = total["alignment"][comp]["structured_error"]
+        assert record["patchy"]["s_m"] > 5 * record["rough"]["s_m"]
+    # the uncertainty now includes the structured error
+    assert np.nanmedian(total["sigma_h"]) > np.nanmedian(local["sigma_h"])
+    assert "structured_error" not in local["alignment"]["dx"]
+
+
+def test_aligned_total_without_a_far_field_is_aligned_weighted() -> None:
+    dx, dy, interp, chip, _, (x, y) = patchy_pair()
+    structure = {"far": np.zeros((60, 90), bool), "x": x, "y": y, "groups": ["a", "b"]}
+    local = mosaic.merge(dx, dy, interp, chip, "aligned_weighted")
+    total = mosaic.merge(dx, dy, interp, chip, "aligned_total", structure)
+    for name in ("dx", "dy", "sigma_h"):
+        np.testing.assert_allclose(total[name], local[name], atol=1e-6)
+    assert total["alignment"]["dx"]["structured_error"]["a"]["s_m"] is None
+    with pytest.raises(ValueError, match="far-field nodes"):
+        mosaic.merge(dx, dy, interp, chip, "aligned_total")
+
+
+def test_window_nodes_keeps_the_ground_size() -> None:
+    assert mosaic.window_nodes(90.0) == mosaic.WINDOW == 7
+    assert mosaic.window_nodes(30.0) == 21
+    assert mosaic.window_nodes(1000.0) == 3
+
+
+def shared_error_pair(spacing_m: float, shared: float) -> Tuple[Any, Any, Any, Any, Any]:
+    """
+    Two members over the same 60 x 90 nodes, true motion 0. Their errors share a common part:
+    node noise of `shared` m common to both, plus 0.1 m of each member's own. Returns the
+    stacks and the structure (all nodes far field) for the given node spacing.
+    """
+    rng = np.random.default_rng(4)
+    common = rng.normal(0, shared, (2, 60, 90))  # dx, dy
+    dx = np.stack([common[0] + rng.normal(0, 0.1, (60, 90)) for _ in range(2)])
+    dy = np.stack([common[1] + rng.normal(0, 0.1, (60, 90)) for _ in range(2)])
+    x = 400_000.0 + (np.arange(90) + 0.5) * spacing_m
+    y = 4_000_000.0 - (np.arange(60) + 0.5) * spacing_m
+    structure = {"far": np.ones((60, 90), bool), "x": x, "y": y, "groups": ["a", "b"]}
+    interp, chip = np.zeros_like(dx), np.full_like(dx, 4.0)
+    return dx.astype(np.float32), dy.astype(np.float32), interp, chip, structure
+
+
+def test_aligned_correlated_propagates_shared_errors() -> None:
+    dx, dy, interp, chip, structure = shared_error_pair(90.0, shared=0.3)
+    total = mosaic.merge(dx, dy, interp, chip, "aligned_total", structure)
+    corr = mosaic.merge(dx, dy, interp, chip, "aligned_correlated", structure)
+    rho = corr["alignment"]["dx"]["correlations"][0]["rho"]
+    assert rho == pytest.approx(0.9, abs=0.05)  # 0.3^2 / (0.3^2 + 0.1^2)
+    assert corr["alignment"]["dx"]["local_window_nodes"] == 7
+    for comp in ("dx", "dy"):  # same weights: the same values
+        np.testing.assert_allclose(corr[comp], total[comp], atol=1e-6)
+    # equal weights and rho 0.9: variance (1 + rho) / 2 of a member's, not 1 / 2
+    ratio = np.nanmedian(corr["sigma_h"]) / np.nanmedian(total["sigma_h"])
+    assert ratio == pytest.approx(np.sqrt(1 + rho), abs=0.03)
+    # the merged value keeps the shared error: assuming independence understates it
+    error = np.sqrt(np.nanmean(corr["dx"] ** 2 + corr["dy"] ** 2))
+    assert np.nanmedian(total["sigma_h"]) < error < np.nanmedian(corr["sigma_h"])
+
+
+def test_aligned_correlated_with_independent_members_and_a_30_m_grid() -> None:
+    dx, dy, interp, chip, structure = shared_error_pair(30.0, shared=0.0)
+    total = mosaic.merge(dx, dy, interp, chip, "aligned_total", structure)
+    corr = mosaic.merge(dx, dy, interp, chip, "aligned_correlated", structure)
+    assert corr["alignment"]["dy"]["local_window_nodes"] == 21
+    assert corr["alignment"]["dy"]["correlations"][0]["rho"] < 0.05
+    ratio = np.nanmedian(corr["sigma_h"]) / np.nanmedian(total["sigma_h"])
+    assert ratio == pytest.approx(1.0, abs=0.05)
+    with pytest.raises(ValueError, match="far-field nodes"):
+        mosaic.merge(dx, dy, interp, chip, "aligned_correlated")
+
+
+def mid_scale_pair(spacing_m: float) -> Tuple[Any, Any, Any, Any, Any]:
+    """
+    Two members over 240 x 240 nodes, true motion 0. Each member's error is its own smooth field
+    (noise smoothed over 400 m: patches of 1-2 km, 0.5 m standard deviation) plus 0.1 m node noise: error
+    that varies between the 630 m local window and the 10 km blocks. All nodes far field.
+    """
+    from scipy import ndimage
+
+    rng = np.random.default_rng(7)
+
+    def error() -> Any:
+        smooth = ndimage.gaussian_filter(rng.normal(0, 1, (240, 240)), 400 / spacing_m)
+        return 0.5 * smooth / smooth.std() + rng.normal(0, 0.1, (240, 240))
+
+    dx = np.stack([error() for _ in range(2)]).astype(np.float32)
+    dy = np.stack([error() for _ in range(2)]).astype(np.float32)
+    x = 400_000.0 + (np.arange(240) + 0.5) * spacing_m
+    y = 4_000_000.0 - (np.arange(240) + 0.5) * spacing_m
+    structure = {"far": np.ones((240, 240), bool), "x": x, "y": y, "groups": ["a", "b"]}
+    interp, chip = np.zeros_like(dx), np.full_like(dx, 4.0)
+    return dx, dy, interp, chip, structure
+
+
+def rms_ratio(merged: Any) -> float:
+    """RMS of |error| / sigma_h, the truth being 0 (1 for a calibrated uncertainty)."""
+    error = np.hypot(merged["dx"], merged["dy"])
+    return float(np.sqrt(np.nanmean((error / merged["sigma_h"]) ** 2)))
+
+
+def test_aligned_scales_counts_the_error_between_the_window_and_the_blocks() -> None:
+    dx, dy, interp, chip, structure = mid_scale_pair(90.0)
+    corr = mosaic.merge(dx, dy, interp, chip, "aligned_correlated", structure)
+    scales = mosaic.merge(dx, dy, interp, chip, "aligned_scales", structure)
+    # 10 km block medians average the km-size patches away, and the local window is too small
+    assert rms_ratio(corr) > 1.5
+    assert rms_ratio(scales) == pytest.approx(1.0, abs=0.2)
+    assert scales["alignment"]["dx"]["structured_block_m"] == pytest.approx(630.0)
+    assert "structured_block_m" not in corr["alignment"]["dx"]
+    s_corr = corr["alignment"]["dx"]["structured_error"]["a"]["s_m"]
+    s_scales = scales["alignment"]["dx"]["structured_error"]["a"]["s_m"]
+    assert s_scales == pytest.approx(0.5, abs=0.1) and s_scales > 2 * s_corr
+    assert len(scales["alignment"]["dx"]["correlations"]) == 1
+
+
+def test_aligned_scales_blocks_follow_the_window_on_a_30_m_grid() -> None:
+    dx, dy, interp, chip, structure = mid_scale_pair(30.0)
+    scales = mosaic.merge(dx, dy, interp, chip, "aligned_scales", structure)
+    assert scales["alignment"]["dy"]["local_window_nodes"] == 21
+    assert scales["alignment"]["dy"]["structured_block_m"] == pytest.approx(630.0)
+    assert rms_ratio(scales) == pytest.approx(1.0, abs=0.25)
+    with pytest.raises(ValueError, match="far-field nodes"):
+        mosaic.merge(dx, dy, interp, chip, "aligned_scales")
