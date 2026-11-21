@@ -1,0 +1,22 @@
+[
+    {
+        "name": "m_59_238_km_sw_of_yanglong_china-ASCENDING172",
+        "job_type": "ARIA_S1_COSEIS",
+        "event_id": "us6000ucly",
+        "job_parameters": {
+            "granules": [],
+            "secondary_granules": [
+                "S1D_IW_SLC__1SDV_20261114T113443_20261114T113510_005463_00A6EC_8C82",
+                "S1D_IW_SLC__1SDV_20261114T113418_20261114T113446_005463_00A6EC_A6EA"
+            ],
+            "frame_id": -1,
+            "estimate_ionosphere_delay": true,
+            "esd_coherence_threshold": -1,
+            "compute_solid_earth_tide": true,
+            "goldstein_filter_power": 0.5,
+            "unfiltered_coherence": true,
+            "dense_offsets": true,
+            "output_resolution": 30
+        }
+    }
+]

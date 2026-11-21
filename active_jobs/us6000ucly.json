@@ -1,0 +1,77 @@
+{
+    "title": "m_59_238_km_sw_of_yanglong_china",
+    "time": 1795257933230,
+    "aoi": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    96.1398,
+                    36.6958
+                ],
+                [
+                    97.1398,
+                    36.6958
+                ],
+                [
+                    97.1398,
+                    37.6958
+                ],
+                [
+                    96.1398,
+                    37.6958
+                ],
+                [
+                    96.1398,
+                    36.6958
+                ]
+            ]
+        ]
+    },
+    "tracks": {
+        "DESCENDING_77": {
+            "flight_direction": "DESCENDING",
+            "path_number": 77,
+            "frame_numbers": [
+                466,
+                471
+            ],
+            "partial_job_file": "job_m_59_238_km_sw_of_yanglong_china_DESCENDING_77_partial.json",
+            "reference_date": "2026-11-19",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "DESCENDING_4": {
+            "flight_direction": "DESCENDING",
+            "path_number": 4,
+            "frame_numbers": [
+                472,
+                467
+            ],
+            "partial_job_file": "job_m_59_238_km_sw_of_yanglong_china_DESCENDING_4_partial.json",
+            "reference_date": "2026-11-14",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_172": {
+            "flight_direction": "ASCENDING",
+            "path_number": 172,
+            "frame_numbers": [
+                1297,
+                1302
+            ],
+            "partial_job_file": "job_m_59_238_km_sw_of_yanglong_china_ASCENDING_172_partial.json",
+            "reference_date": "2026-11-14",
+            "status": "AWAITING_POST_SEISMIC"
+        },
+        "ASCENDING_99": {
+            "flight_direction": "ASCENDING",
+            "path_number": 99,
+            "frame_numbers": [
+                1305,
+                1300
+            ],
+            "partial_job_file": "job_m_59_238_km_sw_of_yanglong_china_ASCENDING_99_partial.json",
+            "reference_date": "2026-11-09",
+            "status": "AWAITING_POST_SEISMIC"
+        }
+    }
+}
