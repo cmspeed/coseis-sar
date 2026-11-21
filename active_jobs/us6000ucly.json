@@ -71,7 +71,11 @@
             ],
             "partial_job_file": "job_m_59_238_km_sw_of_yanglong_china_ASCENDING_99_partial.json",
             "reference_date": "2026-11-09",
-            "status": "AWAITING_POST_SEISMIC"
+            "status": "READY_FOR_EMAIL",
+            "orbits": "restituted",
+            "processing_status": "Success",
+            "dates": "2026-11-09 (Pre) - 2026-11-21 (Post)",
+            "location": "<archive>/URGENT_RESPONSE/2026/m_59_238_km_sw_of_yanglong_china_us6000ucly/S1-COSEIS_SAR_UR-A-R-099-tops-20261121_20261109-112644-00096E_00036N-PP-b388-v1_0_0"
         }
     }
 }
