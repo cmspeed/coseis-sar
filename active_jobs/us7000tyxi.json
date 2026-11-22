@@ -29,21 +29,6 @@
         ]
     },
     "tracks": {
-        "ASCENDING_112": {
-            "flight_direction": "ASCENDING",
-            "path_number": 112,
-            "frame_numbers": [
-                1153,
-                1148
-            ],
-            "partial_job_file": "job_m_58_40_km_n_of_ruteng_indonesia_ASCENDING_112_partial.json",
-            "reference_date": "2026-11-10",
-            "status": "READY_FOR_EMAIL",
-            "orbits": "restituted",
-            "processing_status": "Success",
-            "dates": "2026-11-10 (Pre) - 2026-11-22 (Post)",
-            "location": "<archive>/URGENT_RESPONSE/2026/m_58_40_km_n_of_ruteng_indonesia_us7000tyxi/S1-COSEIS_SAR_UR-A-R-112-tops-20261122_20261110-101642-00120E_00009S-PP-f24c-v1_0_0"
-        },
         "ASCENDING_10": {
             "flight_direction": "ASCENDING",
             "path_number": 10,
